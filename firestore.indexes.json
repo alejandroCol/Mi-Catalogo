@@ -1,0 +1,47 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "ventas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sedeId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "movimientos_tela",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "telaRolloId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sublimados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "referenciaId", "order": "ASCENDING" },
+        { "fieldPath": "activo", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "turnos_vendedora",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vendedoraUid", "order": "ASCENDING" },
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "inicioAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "productos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "activo", "order": "ASCENDING" },
+        { "fieldPath": "enCatalogo", "order": "ASCENDING" },
+        { "fieldPath": "orden", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

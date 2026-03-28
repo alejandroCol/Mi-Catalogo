@@ -1,0 +1,348 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userDoc() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+    function role() {
+      return userDoc().data.role;
+    }
+    function isAdmin() {
+      return signedIn() && role() == 'administrador';
+    }
+    function isVendedora() {
+      return signedIn() && role() == 'vendedora';
+    }
+    function isProveedor() {
+      return signedIn() && role() == 'proveedor';
+    }
+    function mySede() {
+      return userDoc().data.sedeId;
+    }
+
+    match /usuarios/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      /** Auto-registro: solo el propio uid y email del token. */
+      allow create: if (signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && request.auth.token.email != null
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.role in ['administrador', 'vendedora', 'proveedor']
+          && request.resource.data.activo == true
+          && request.resource.data.createdAt is int
+          && request.resource.data.updatedAt is int)
+        /** Admin: alta de otro usuario (Auth se crea desde la app con app secundaria). */
+        || (isAdmin()
+          && request.resource.data.uid == uid
+          && request.resource.data.email is string
+          && request.resource.data.displayName is string
+          && request.resource.data.role in ['administrador', 'vendedora', 'proveedor']
+          && request.resource.data.activo is bool
+          && request.resource.data.createdAt is int
+          && request.resource.data.updatedAt is int);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /sedes/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /proveedores/{id} {
+      allow read: if isAdmin() || (isProveedor() && userDoc().data.proveedorId == id);
+      /** Temporal: registro proveedor desde la app (solo alta inicial controlada) */
+      allow create: if signedIn()
+        && request.resource.data.nombre is string
+        && request.resource.data.saldoCreditoPendiente == 0
+        && request.resource.data.activo == true
+        && request.resource.data.createdAt is int;
+      allow update, delete: if isAdmin();
+    }
+
+    match /pagos_proveedor/{id} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /telas/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /config/{id} {
+      allow read: if id == 'catalogo_publico';
+      allow write: if isAdmin();
+    }
+
+    match /referencias/{id} {
+      allow read: if signedIn() || resource.data.activa == true;
+      allow write: if isAdmin();
+    }
+
+    match /sublimados/{id} {
+      allow read: if signedIn() || resource.data.activo == true;
+      allow write: if isAdmin();
+    }
+
+    match /insumos/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /movimientos_insumo/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /talleres_confeccion/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /lotes_produccion/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /stock/{id} {
+      allow read: if signedIn() || (exists(/databases/$(database)/documents/config/catalogo_publico) &&
+        resource.data.ubicacionId == get(/databases/$(database)/documents/config/catalogo_publico).data.sedeStockId);
+      allow create, update: if isAdmin() || (isVendedora() && request.resource.data.ubicacionId == mySede());
+      allow delete: if isAdmin();
+    }
+
+    match /traslados/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /ventas/{id} {
+      allow read: if isAdmin() || (isVendedora() && resource.data.sedeId == mySede());
+      allow create: if isVendedora() && request.resource.data.sedeId == mySede();
+      allow update, delete: if isAdmin();
+    }
+
+    match /caja_diaria/{id} {
+      allow read: if isAdmin() || (isVendedora() && resource.data.vendedoraUid == request.auth.uid);
+      allow create, update: if isVendedora() && request.resource.data.vendedoraUid == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    match /turnos_vendedora/{id} {
+      allow read: if isAdmin()
+        || (isVendedora() && resource.data.vendedoraUid == request.auth.uid);
+      allow create: if isVendedora()
+        && request.resource.data.sedeId == mySede()
+        && request.resource.data.vendedoraUid == request.auth.uid
+        && request.resource.data.vendedoraNombre is string
+        && request.resource.data.inicioAt is int
+        && request.resource.data.estado == 'abierto'
+        && request.resource.data.updatedAt is int
+        && (!('finAt' in request.resource.data) || request.resource.data.finAt == null);
+      allow update: if isVendedora()
+        && resource.data.vendedoraUid == request.auth.uid
+        && resource.data.estado == 'abierto'
+        && request.resource.data.estado == 'cerrado'
+        && request.resource.data.finAt is int
+        && request.resource.data.finAt >= resource.data.inicioAt
+        && request.resource.data.sedeId == resource.data.sedeId
+        && request.resource.data.vendedoraUid == resource.data.vendedoraUid
+        && request.resource.data.vendedoraNombre == resource.data.vendedoraNombre
+        && request.resource.data.inicioAt == resource.data.inicioAt
+        && request.resource.data.updatedAt is int;
+      allow delete: if isAdmin();
+    }
+
+    match /devoluciones/{id} {
+      allow read: if isAdmin() || (isVendedora() && resource.data.sedeId == mySede());
+      allow create: if isVendedora() && request.resource.data.sedeId == mySede();
+      allow update, delete: if isAdmin();
+    }
+
+    match /movimientos_tela/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /compras_insumo/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /inventario_cierres/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    /** ——— Mi Catálogo (SaaS multi-tienda, prefijo mc_) ——— */
+    function mcSignedIn() {
+      return request.auth != null;
+    }
+    function mcUserPath() {
+      return /databases/$(database)/documents/mc_users/$(request.auth.uid);
+    }
+    function mcUserData() {
+      return get(mcUserPath()).data;
+    }
+    function mcIsSuperAdmin() {
+      return mcSignedIn()
+        && exists(mcUserPath())
+        && mcUserData().isSuperAdmin == true;
+    }
+    function mcTenantIsExpert(data) {
+      return 'billingPlan' in data && data.billingPlan == 'expert';
+    }
+    function mcBelongsToTenant(tid) {
+      return mcSignedIn()
+        && exists(mcUserPath())
+        && (mcUserData().tenantId == tid || mcUserData().isSuperAdmin == true);
+    }
+    /** exists() primero: un get() a doc inexistente tumba toda la condición de la regla. */
+    function mcTenantSubActive(tid) {
+      return exists(/databases/$(database)/documents/mc_tenants/$(tid))
+        && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt is int
+        && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt
+          > request.time.toMillis();
+    }
+
+    match /mc_users/{uid} {
+      allow read: if mcSignedIn() && (request.auth.uid == uid || mcIsSuperAdmin());
+      allow create: if mcSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.tenantId is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.displayName is string
+        && request.resource.data.isSuperAdmin == false
+        && request.resource.data.createdAt is int;
+      allow update: if mcIsSuperAdmin()
+        || (request.auth.uid == uid
+          && resource.data.isSuperAdmin == request.resource.data.isSuperAdmin
+          && resource.data.tenantId == request.resource.data.tenantId
+          && resource.data.email == request.resource.data.email);
+      allow delete: if false;
+    }
+
+    match /mc_tenants/{tid} {
+      allow read: if mcIsSuperAdmin()
+        || mcTenantSubActive(tid)
+        || (mcSignedIn() && mcBelongsToTenant(tid));
+      allow create: if mcSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.slug is string
+        && request.resource.data.nombreTienda is string
+        && request.resource.data.whatsappNumero is string
+        && request.resource.data.subscriptionEndsAt is int
+        && request.resource.data.subscriptionEndsAt > request.time.toMillis()
+        && request.resource.data.createdAt is int
+        && (!('billingPlan' in request.resource.data) || request.resource.data.billingPlan == 'free');
+      allow update: if mcIsSuperAdmin()
+        || (
+          mcSignedIn()
+          && request.auth.uid == resource.data.ownerUid
+          && resource.data.ownerUid == request.resource.data.ownerUid
+          && resource.data.slug == request.resource.data.slug
+          && resource.data.createdAt == request.resource.data.createdAt
+          && (
+            /** Upgrade demo Free → Expert (pasarela mock; límite ~400 días). */
+            (
+              resource.data.billingPlan == 'free'
+              && request.resource.data.billingPlan == 'expert'
+              && request.resource.data.subscriptionEndsAt is int
+              && request.resource.data.subscriptionEndsAt > request.time.toMillis()
+              && request.resource.data.subscriptionEndsAt
+                < request.time.toMillis() + 10 * 365 * 24 * 60 * 60 * 1000
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['billingPlan', 'subscriptionEndsAt'])
+            )
+            /** Dueño: contacto; si es Expert también puede editar catalogTheme. */
+            || (
+              resource.data.billingPlan == request.resource.data.billingPlan
+              && resource.data.subscriptionEndsAt == request.resource.data.subscriptionEndsAt
+              && (!('salesSummaryPeriod' in request.resource.data)
+                || request.resource.data.salesSummaryPeriod in ['week', 'fortnight'])
+              && (
+                request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['whatsappNumero', 'mensajeIntro', 'salesSummaryPeriod'])
+                || (
+                  mcTenantIsExpert(resource.data) && mcTenantIsExpert(request.resource.data)
+                  && request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['whatsappNumero', 'mensajeIntro', 'catalogTheme', 'salesSummaryPeriod'])
+                )
+              )
+            )
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /mc_slugs/{slug} {
+      /** get: permitir doc inexistente (registro / comprobar URL) o slug activo (catálogo público). */
+      allow get: if !exists(/databases/$(database)/documents/mc_slugs/$(slug))
+        || get(/databases/$(database)/documents/mc_slugs/$(slug)).data.active == true;
+      allow list: if false;
+      allow create: if mcSignedIn()
+        && request.resource.data.active == true
+        && request.resource.data.tenantId is string
+        && request.resource.data.updatedAt is int
+        && get(/databases/$(database)/documents/mc_tenants/$(request.resource.data.tenantId)).data.ownerUid
+          == request.auth.uid;
+      allow update: if mcSignedIn()
+        && mcBelongsToTenant(resource.data.tenantId)
+        && request.auth.uid
+          == get(/databases/$(database)/documents/mc_tenants/$(resource.data.tenantId)).data.ownerUid;
+      allow delete: if false;
+    }
+
+    match /mc_tenants/{tid}/productos/{pid} {
+      allow read: if mcIsSuperAdmin()
+        || (resource.data.activo == true
+          && resource.data.enCatalogo == true
+          && mcTenantSubActive(tid))
+        || (mcSignedIn() && mcBelongsToTenant(tid));
+      allow create, update: if mcSignedIn()
+        && mcBelongsToTenant(tid)
+        && (mcTenantSubActive(tid) || mcIsSuperAdmin());
+      allow delete: if mcSignedIn()
+        && mcBelongsToTenant(tid)
+        && (mcTenantSubActive(tid) || mcIsSuperAdmin());
+    }
+
+    match /mc_tenants/{tid}/pedidos/{pid} {
+      allow read: if mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin());
+      allow create, update, delete: if mcSignedIn() && mcBelongsToTenant(tid);
+    }
+
+    /** Ventas desde el catálogo público (checkout mock). */
+    match /mc_tenants/{tid}/ordenes_catalogo/{oid} {
+      allow create: if mcTenantSubActive(tid)
+        && request.resource.data.keys().hasAll([
+          'createdAt', 'updatedAt', 'estado', 'lineas', 'totalCop', 'pagoSimulado'
+        ])
+        && request.resource.data.estado == 'pagado'
+        && request.resource.data.pagoSimulado == true
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int
+        && request.resource.data.totalCop is number
+        && request.resource.data.totalCop > 0
+        && request.resource.data.totalCop < 1000000000
+        && request.resource.data.lineas is list
+        && request.resource.data.lineas.size() > 0
+        && request.resource.data.lineas.size() <= 100;
+      allow read: if mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin());
+      allow update: if mcSignedIn()
+        && mcBelongsToTenant(tid)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.lineas == resource.data.lineas
+        && request.resource.data.totalCop == resource.data.totalCop
+        && request.resource.data.pagoSimulado == resource.data.pagoSimulado
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedAt >= resource.data.updatedAt
+        && request.resource.data.estado in [
+          'pagado', 'en_preparacion', 'listo_envio', 'enviado', 'entregado', 'cancelado'
+        ]
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['estado', 'updatedAt', 'trackingNumber', 'trackingImageUrl']);
+      allow delete: if false;
+    }
+  }
+}

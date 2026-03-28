@@ -1,0 +1,358 @@
+@import 'tailwindcss';
+
+/* Tipografía única estilo iOS: SF Pro en Apple, system-ui en el resto */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui,
+    sans-serif;
+  /* Títulos estilo catálogo Morning (Fraunces cargada en index.html) */
+  --font-display: 'Fraunces', ui-serif, Georgia, 'Times New Roman', serif;
+  --font-morning: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ios-blue: #007aff;
+  --color-ios-red: #ff3b30;
+  --color-ios-green: #34c759;
+  --color-ios-orange: #ff9500;
+
+  /* Escala tipo etiquetas iOS (sobre gris agrupado) */
+  --color-mc-50: #f2f2f7;
+  --color-mc-100: #e5e5ea;
+  --color-mc-200: #d1d1d6;
+  --color-mc-300: #c7c7cc;
+  --color-mc-400: #aeaeb2;
+  --color-mc-500: #8e8e93;
+  --color-mc-600: #636366;
+  --color-mc-700: #48484a;
+  --color-mc-800: #3a3a3c;
+  --color-mc-900: #1c1c1e;
+
+  --color-mc-accent-500: #007aff;
+  --color-mc-accent-600: #0051d5;
+
+  /* Paleta Morning (catálogo público) */
+  --color-morning-50: #fff5f8;
+  --color-morning-100: #fce6ef;
+  --color-morning-200: #f8d0e0;
+  --color-morning-300: #f2b8d0;
+  --color-morning-400: #e8a8c4;
+  --color-morning-500: #d484a8;
+  --color-morning-600: #b8668f;
+  --color-morning-700: #945172;
+  --color-morning-800: #6d3f56;
+  --color-morning-900: #4a2c3c;
+
+  --color-lilac-100: #ede9fe;
+  --color-lilac-200: #ddd6fe;
+  --color-lilac-300: #c4b5fd;
+  --color-lilac-400: #a78bfa;
+  --color-lilac-500: #9167f2;
+  --color-lilac-600: #7c5ce0;
+  --color-lilac-700: #6b4fc4;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    @apply antialiased;
+  }
+  body {
+    @apply m-0 min-h-svh text-mc-900;
+    background-color: var(--cat-bg, #f2f2f7);
+    color: var(--cat-text, #1c1c1e);
+    --cat-accent: #007aff;
+    --cat-accent-text: #ffffff;
+    --cat-bg: #f2f2f7;
+    --cat-surface: #ffffff;
+    --cat-text: #1c1c1e;
+    --cat-muted: #636366;
+    --cat-ring: rgba(0, 122, 255, 0.25);
+    font-family: var(--font-sans);
+    font-feature-settings: 'kern' 1;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    -webkit-tap-highlight-color: rgba(0, 122, 255, 0.15);
+  }
+  #root {
+    @apply min-h-svh;
+  }
+}
+
+@layer components {
+  .mc-page {
+    @apply min-h-svh bg-mc-50;
+  }
+  /** Móvil: cómodo; escritorio: más ancho y aire. */
+  .mc-shell {
+    @apply mx-auto w-full max-w-lg px-4 pt-2 sm:px-5 md:max-w-3xl md:px-8 lg:max-w-5xl lg:px-10 xl:max-w-6xl;
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    /* Tab bar fija + safe area: evita que tape el final del scroll en móvil */
+    padding-bottom: max(9rem, calc(5.75rem + env(safe-area-inset-bottom, 0px)));
+  }
+  /** Catálogo público y shells que comparten ancho con el listado. */
+  .mc-catalog-shell {
+    @apply mx-auto w-full max-w-lg px-4 sm:px-5 md:max-w-3xl md:px-8 lg:max-w-5xl lg:px-10 xl:max-w-6xl;
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+  /** Grupo inset estilo lista iOS */
+  .mc-card {
+    @apply rounded-[10px] px-4 py-3.5 shadow-[0_0.5px_0_rgba(0,0,0,0.04),0_1px_3px_rgba(0,0,0,0.06)];
+    background-color: var(--cat-surface, #fff);
+    color: var(--cat-text, #1c1c1e);
+  }
+  .mc-card-press {
+    @apply active:opacity-70 active:scale-[0.99] transition duration-150;
+  }
+  .ios-large-title {
+    @apply text-[28px] font-bold tracking-[-0.03em] leading-tight;
+    color: var(--cat-text, #1c1c1e);
+  }
+  .ios-headline {
+    @apply text-[17px] font-semibold tracking-[-0.02em];
+    color: var(--cat-text, #1c1c1e);
+  }
+  .ios-subhead {
+    @apply text-[15px] leading-snug;
+    color: var(--cat-muted, #636366);
+  }
+  .ios-footnote {
+    @apply text-[13px] leading-snug;
+    color: var(--cat-muted, #8e8e93);
+  }
+  .mc-btn-primary {
+    @apply inline-flex items-center justify-center rounded-[12px] px-4 py-3.5 text-[17px] font-semibold transition shadow-sm;
+    background-color: var(--cat-accent, #007aff);
+    color: var(--cat-accent-text, #fff);
+    @apply active:opacity-90 active:scale-[0.98];
+  }
+  /** Botón alineado al tema del catálogo (variables --cat-*). */
+  .mc-btn-cat {
+    @apply inline-flex items-center justify-center rounded-[12px] px-4 py-3.5 text-[17px] font-semibold transition shadow-sm;
+    background-color: var(--cat-accent, #007aff);
+    color: var(--cat-accent-text, #fff);
+    @apply active:opacity-90 active:scale-[0.98];
+  }
+  .mc-btn-cat-secondary {
+    @apply inline-flex items-center justify-center rounded-[12px] px-4 py-3.5 text-[17px] font-semibold transition;
+    background-color: color-mix(in srgb, var(--cat-surface, #fff) 88%, var(--cat-muted, #ccc) 12%);
+    color: var(--cat-text, #1c1c1e);
+    @apply active:opacity-85;
+  }
+  .mc-btn-secondary {
+    @apply inline-flex items-center justify-center rounded-[12px] px-4 py-3.5 text-[17px] font-semibold transition;
+    background-color: color-mix(in srgb, var(--cat-surface, #fff) 75%, var(--cat-muted, #e5e5ea) 25%);
+    color: var(--cat-text, #1c1c1e);
+    @apply active:opacity-80 active:scale-[0.98];
+  }
+  .mc-btn-ghost {
+    @apply inline-flex items-center justify-center rounded-[12px] px-4 py-3 text-[17px] font-semibold active:opacity-70;
+    color: var(--cat-accent, #007aff);
+  }
+  .mc-input {
+    @apply mt-1.5 w-full rounded-[10px] border-0 px-3.5 py-3.5 text-[17px] outline-none;
+    background-color: color-mix(in srgb, var(--cat-bg, #f2f2f7) 92%, var(--cat-surface, #fff) 8%);
+    color: var(--cat-text, #1c1c1e);
+    @apply ring-1 focus:ring-2 placeholder:opacity-60;
+    --tw-ring-color: color-mix(in srgb, var(--cat-muted, #d1d1d6) 70%, transparent);
+  }
+  .mc-input:focus {
+    --tw-ring-color: color-mix(in srgb, var(--cat-accent, #007aff) 45%, transparent);
+  }
+  .mc-fab {
+    @apply fixed right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95 transition;
+    bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 5.5rem));
+    background-color: var(--cat-accent, #007aff);
+    color: var(--cat-accent-text, #fff);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--cat-accent, #007aff) 40%, transparent);
+  }
+  /** Tab bar tipo iOS */
+  .mc-tabbar {
+    @apply fixed bottom-0 left-0 right-0 z-20 border-t backdrop-blur-xl backdrop-saturate-150;
+    background-color: color-mix(in srgb, var(--cat-surface, #fff) 92%, transparent);
+    border-color: color-mix(in srgb, var(--cat-muted, #c7c7cc) 45%, transparent);
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    padding-top: 0.375rem;
+  }
+  .mc-tab-link {
+    @apply flex flex-1 flex-col items-center justify-center gap-0.5 min-h-[48px] text-[10px] font-medium tracking-wide;
+    color: var(--cat-muted, #8e8e93);
+  }
+  .mc-tab-link-active {
+    color: var(--cat-accent, #007aff);
+  }
+}
+
+/* Contenedor app admin: tab bar en desktop más ancho */
+@layer components {
+  .mc-app-desktop-tabbar {
+    @apply sm:px-6 md:mx-auto md:max-w-3xl lg:max-w-5xl;
+  }
+
+  /** Catálogo público: colores vía --cat-*; forma vía .mc-pub-preset-* */
+  .mc-public-catalog-page {
+    @apply min-h-svh;
+    font-family: var(--font-morning);
+  }
+
+  .mc-pc-text {
+    color: var(--cat-text);
+  }
+  .mc-pc-muted {
+    color: var(--cat-muted);
+  }
+  .mc-pc-surface {
+    background-color: var(--cat-surface);
+  }
+  .mc-pc-image-placeholder {
+    background-color: color-mix(in srgb, var(--cat-bg) 55%, var(--cat-muted) 45%);
+    color: color-mix(in srgb, var(--cat-muted) 65%, var(--cat-surface) 35%);
+  }
+  .mc-pc-border {
+    border-color: color-mix(in srgb, var(--cat-muted) 42%, var(--cat-surface) 58%);
+  }
+  .mc-pc-ring-focus {
+    --tw-ring-color: color-mix(in srgb, var(--cat-accent) 55%, transparent);
+  }
+  .mc-pc-cart-icon-wrap {
+    background-color: color-mix(in srgb, var(--cat-bg) 72%, var(--cat-surface) 28%);
+    color: var(--cat-text);
+    border-color: color-mix(in srgb, var(--cat-muted) 38%, var(--cat-surface) 62%);
+  }
+  .mc-pc-cart-badge {
+    background-color: var(--cat-accent);
+    color: var(--cat-accent-text);
+  }
+  .mc-pc-cart-button {
+    border-color: color-mix(in srgb, var(--cat-muted) 35%, var(--cat-surface) 65%);
+    background: linear-gradient(
+      145deg,
+      var(--cat-surface) 0%,
+      color-mix(in srgb, var(--cat-bg) 88%, var(--cat-accent) 12%) 48%,
+      color-mix(in srgb, var(--cat-bg) 80%, var(--cat-accent) 20%) 100%
+    );
+    color: var(--cat-text);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--cat-text) 10%, transparent);
+  }
+  .mc-pc-cart-button:hover {
+    border-color: color-mix(in srgb, var(--cat-accent) 35%, var(--cat-muted) 65%);
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--cat-text) 14%, transparent);
+  }
+  .mc-pc-accent-soft {
+    border-color: color-mix(in srgb, var(--cat-accent) 42%, var(--cat-muted) 58%);
+    background-color: color-mix(in srgb, var(--cat-accent) 14%, var(--cat-surface) 86%);
+    color: var(--cat-text);
+  }
+  .mc-pc-accent-soft:hover {
+    border-color: color-mix(in srgb, var(--cat-accent) 58%, var(--cat-muted) 42%);
+    background-color: color-mix(in srgb, var(--cat-accent) 22%, var(--cat-surface) 78%);
+  }
+  .mc-pc-modal-backdrop {
+    background-color: color-mix(in srgb, var(--cat-text) 52%, transparent);
+  }
+  .mc-pc-modal-panel {
+    border-color: color-mix(in srgb, var(--cat-muted) 35%, var(--cat-surface) 65%);
+    background-color: var(--cat-surface);
+    color: var(--cat-text);
+    box-shadow: 0 25px 50px color-mix(in srgb, var(--cat-text) 18%, transparent);
+  }
+  .mc-pc-modal-footer-rule {
+    border-color: color-mix(in srgb, var(--cat-bg) 65%, var(--cat-muted) 35%);
+  }
+  .mc-pc-line-softer {
+    background-color: color-mix(in srgb, var(--cat-bg) 55%, var(--cat-surface) 45%);
+  }
+
+  /* —— Variante por plantilla (layout + tipografía; colores siguen siendo --cat-*) —— */
+  /** Base histórica: gradiente Morning (rosado) + DM Sans / Fraunces */
+  .mc-public-catalog-page.mc-pub-preset-morning {
+    background: linear-gradient(
+      to bottom,
+      var(--color-morning-100),
+      var(--color-morning-50),
+      var(--color-morning-100)
+    );
+    font-family: var(--font-morning);
+  }
+  .mc-public-catalog-page.mc-pub-preset-morning .mc-pc-display {
+    font-family: var(--font-display);
+  }
+
+  .mc-public-catalog-page.mc-pub-preset-ios {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--cat-bg) 88%, var(--cat-accent) 12%) 0%,
+      var(--cat-bg) 42%,
+      color-mix(in srgb, var(--cat-bg) 92%, var(--cat-accent) 8%) 100%
+    );
+    font-family: var(--font-morning);
+  }
+  .mc-public-catalog-page.mc-pub-preset-ios .mc-pc-display {
+    font-family: var(--font-display);
+  }
+
+  .mc-public-catalog-page.mc-pub-preset-minimal {
+    background: var(--cat-bg);
+    background-image: none;
+    font-family: var(--font-sans);
+  }
+  .mc-public-catalog-page.mc-pub-preset-minimal .mc-pc-display {
+    font-family: var(--font-sans);
+    letter-spacing: -0.04em;
+  }
+  .mc-public-catalog-page.mc-pub-preset-minimal .mc-pc-card {
+    @apply rounded-sm shadow-none;
+    border-width: 1px;
+  }
+  .mc-public-catalog-page.mc-pub-preset-minimal .mc-pc-cart-button {
+    @apply rounded-lg shadow-none;
+    background: var(--cat-surface);
+  }
+
+  .mc-public-catalog-page.mc-pub-preset-bold {
+    background: var(--cat-bg);
+    background-image: none;
+    font-family: var(--font-sans);
+  }
+  .mc-public-catalog-page.mc-pub-preset-bold .mc-pc-display {
+    font-family: var(--font-sans);
+    @apply font-bold tracking-tight;
+  }
+  .mc-public-catalog-page.mc-pub-preset-bold .mc-pc-card {
+    @apply rounded-2xl border-0;
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--cat-text) 28%, transparent);
+  }
+  .mc-public-catalog-page.mc-pub-preset-bold header {
+    @apply border-0;
+    background-color: var(--cat-surface);
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--cat-text) 22%, transparent);
+  }
+
+  .mc-public-catalog-page.mc-pub-preset-boutique {
+    background: radial-gradient(
+        120% 80% at 50% -10%,
+        color-mix(in srgb, var(--cat-surface) 75%, var(--cat-accent) 25%) 0%,
+        transparent 55%
+      ),
+      linear-gradient(180deg, var(--cat-bg) 0%, var(--cat-surface) 100%);
+    font-family: var(--font-morning);
+  }
+  .mc-public-catalog-page.mc-pub-preset-boutique .mc-pc-display {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-style: italic;
+  }
+  .mc-public-catalog-page.mc-pub-preset-boutique .mc-pc-card {
+    @apply rounded-md;
+    border: 1px solid color-mix(in srgb, var(--cat-text) 12%, var(--cat-surface) 88%);
+    box-shadow: 0 2px 12px color-mix(in srgb, var(--cat-text) 8%, transparent);
+  }
+
+  .mc-public-catalog-page:not(.mc-pub-preset-minimal) .mc-pc-card {
+    @apply rounded-2xl;
+  }
+  .mc-public-catalog-inset {
+    @apply mx-auto w-full max-w-3xl px-4 sm:px-6;
+  }
+  .mc-public-catalog-main {
+    @apply mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-8 md:max-w-5xl lg:max-w-6xl lg:px-8 lg:py-10;
+  }
+}

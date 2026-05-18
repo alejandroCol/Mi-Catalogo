@@ -1,0 +1,201 @@
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { httpsCallable } from 'firebase/functions'
+import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext'
+import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
+import { publicCatalogSuccessPath } from '@/lib/catalogOrderTracking'
+import { MC_ONEPAY_DONE_MSG, publicCatalogOnePayReturnPath } from '@/public/onepayCheckoutPaths'
+
+const relayedMcOnePayPopupKeys = new Set<string>()
+
+export function PublicCheckoutPagoValidandoPage() {
+  const { slug } = useParams<{ slug: string }>()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const onePayReturn = searchParams.get('onepay') === '1'
+  const onepayOrderId = searchParams.get('o')
+  const onepayViewToken = searchParams.get('ov')
+  const { clear } = useCatalogoSimpleCart()
+
+  const [onpayReturnStatus, setOnpayReturnStatus] = useState<
+    'idle' | 'checking' | 'pagado' | 'pendiente' | 'cancelado' | 'error' | 'legacy'
+  >('idle')
+
+  /** Popup OnePay: devolver la URL de validación al checkout principal y cerrar esta ventana. */
+  useEffect(() => {
+    if (!onePayReturn) return
+    if (!slug || !onepayOrderId || !onepayViewToken || typeof window === 'undefined') return
+    const opener = window.opener as Window | null
+    if (!opener || opener.closed) return
+    try {
+      const dedupeKey = `${onepayOrderId}:${onepayViewToken}`
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          const sk = `mc_onepay_popup_relay_v1:${dedupeKey}`
+          if (sessionStorage.getItem(sk)) return
+          sessionStorage.setItem(sk, '1')
+        }
+      } catch {
+        /* seguimos sólo con el Set */
+      }
+      if (relayedMcOnePayPopupKeys.has(dedupeKey)) return
+      relayedMcOnePayPopupKeys.add(dedupeKey)
+
+      const path = publicCatalogOnePayReturnPath(slug, onepayOrderId, onepayViewToken)
+      const u = new URL(path, window.location.origin)
+      opener.postMessage(
+        {
+          type: MC_ONEPAY_DONE_MSG,
+          pathname: u.pathname,
+          search: u.search,
+        },
+        window.location.origin,
+      )
+      queueMicrotask(() => {
+        try {
+          window.close()
+        } catch {
+          /* algunos navegadores bloquean window.close */
+        }
+      })
+    } catch {
+      /* postMessage puede fallar */
+    }
+  }, [onePayReturn, slug, onepayOrderId, onepayViewToken])
+
+  useEffect(() => {
+    if (!onePayReturn) {
+      setOnpayReturnStatus('idle')
+      return
+    }
+    if (!onepayOrderId || !onepayViewToken || !slug || !firebaseConfigured) {
+      setOnpayReturnStatus('legacy')
+      return
+    }
+    setOnpayReturnStatus('checking')
+    const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepayCheckoutStatus')
+    let n = 0
+    const max = 20
+    let t: ReturnType<typeof setInterval> | null = null
+    const run = () => {
+      void (async () => {
+        try {
+          const r = await fn({ slug, orderId: onepayOrderId, onepayViewToken })
+          const d = r.data as { notFound?: boolean; estado?: string }
+          if (d?.notFound) {
+            if (t) clearInterval(t)
+            setOnpayReturnStatus('error')
+            return
+          }
+          if (d.estado === 'pagado') {
+            if (t) clearInterval(t)
+            setOnpayReturnStatus('pagado')
+            clear()
+            navigate(publicCatalogSuccessPath(slug, onepayOrderId), { replace: true })
+            return
+          }
+          if (d.estado === 'cancelado') {
+            if (t) clearInterval(t)
+            setOnpayReturnStatus('cancelado')
+            return
+          }
+          n += 1
+          if (n >= max) {
+            if (t) clearInterval(t)
+            setOnpayReturnStatus('pendiente')
+          } else {
+            setOnpayReturnStatus('pendiente')
+          }
+        } catch {
+          if (t) clearInterval(t)
+          setOnpayReturnStatus('error')
+        }
+      })()
+    }
+    run()
+    t = setInterval(run, 2500)
+    return () => {
+      if (t) clearInterval(t)
+    }
+  }, [onePayReturn, onepayOrderId, onepayViewToken, slug, clear, navigate])
+
+  if (!slug) return null
+
+  return (
+    <div className="mc-public-catalog-inset max-w-lg py-12 sm:py-16">
+      <nav className="flex flex-wrap items-center gap-1.5 text-[12px] sm:text-[13px] mc-pc-muted" aria-label="Validación">
+        <Link to={`/c/${slug}`} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
+          Tienda
+        </Link>
+        <span className="text-[color-mix(in_srgb,var(--cat-muted)_55%,transparent)]" aria-hidden>
+          /
+        </span>
+        <Link to={`/c/${slug}/checkout`} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
+          Checkout
+        </Link>
+        <span className="text-[color-mix(in_srgb,var(--cat-muted)_55%,transparent)]" aria-hidden>
+          /
+        </span>
+        <span className="text-[var(--cat-text)]">Pago</span>
+      </nav>
+      <h1 className="mc-pc-display mt-4 text-2xl font-semibold tracking-tight text-[var(--cat-text)] sm:text-3xl">
+        Validando pago
+      </h1>
+      <p className="mt-3 text-sm leading-relaxed text-[var(--cat-muted)]">
+        Esta pantalla confirma con la tienda que OnePay acreditó el cobro. Suele tardar unos segundos; no cerrés la pestaña
+        si querés ver el resultado al instante.
+      </p>
+
+      {!onePayReturn && (
+        <p className="mt-8 text-sm leading-relaxed mc-pc-muted">
+          Abrí el pago desde el checkout de esta tienda. Si llegaste acá sin pagar,{' '}
+          <Link to={`/c/${slug}/checkout`} className="font-medium text-[var(--cat-text)] underline underline-offset-4">
+            volvé al checkout
+          </Link>
+          .
+        </p>
+      )}
+
+      {onePayReturn && onpayReturnStatus === 'legacy' && (
+        <p className="mt-8 rounded-2xl border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] bg-[color-mix(in_srgb,var(--cat-bg)_50%,var(--cat-surface)_50%)] px-4 py-3 text-sm leading-relaxed text-[var(--cat-text)] sm:px-5">
+          Volviste desde OnePay sin datos completos de seguimiento. Si ya pagaste, la tienda verá el cobro en su panel
+          cuando OnePay lo confirme.
+        </p>
+      )}
+      {onePayReturn && onepayOrderId && onepayViewToken && onpayReturnStatus === 'checking' && (
+        <p className="mt-8 rounded-2xl border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] bg-[color-mix(in_srgb,var(--cat-bg)_50%,var(--cat-surface)_50%)] px-4 py-3 text-sm leading-relaxed text-[var(--cat-text)] sm:px-5">
+          Comprobando el pago con la tienda…
+        </p>
+      )}
+      {onePayReturn && onepayOrderId && onepayViewToken && onpayReturnStatus === 'pendiente' && (
+        <p className="mt-8 rounded-2xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm leading-relaxed text-amber-950 sm:px-5">
+          El pago aún se está acreditando. Cuando el banco o OnePay lo confirmen, la venta quedará como “Pagada”. Podés
+          esperar aquí o volver al catálogo; no se vuelve a cobrar.
+        </p>
+      )}
+      {onePayReturn && onepayOrderId && onepayViewToken && onpayReturnStatus === 'cancelado' && (
+        <p className="mt-8 rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm leading-relaxed text-red-950 sm:px-5">
+          El cobro no se completó o venció.{' '}
+          <Link to={`/c/${slug}/checkout`} className="font-semibold underline underline-offset-4">
+            Volvé al checkout
+          </Link>{' '}
+          para intentar de nuevo.
+        </p>
+      )}
+      {onePayReturn && onepayOrderId && onepayViewToken && onpayReturnStatus === 'error' && (
+        <p className="mt-8 rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm leading-relaxed text-red-950 sm:px-5">
+          No pudimos consultar el estado del pedido. Si ya pagaste, la tienda lo verá en Pedidos al confirmarse con OnePay.
+        </p>
+      )}
+
+      <div className="mt-10 flex flex-wrap gap-3">
+        <Link
+          to={`/c/${slug}`}
+          className="inline-flex items-center justify-center rounded-full border mc-pc-border bg-transparent px-4 py-2.5 text-sm font-medium mc-pc-text transition hover:opacity-80"
+        >
+          Ir al catálogo
+        </Link>
+      </div>
+    </div>
+  )
+}

@@ -1,6 +1,6 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { User } from 'firebase/auth'
-import { onAuthStateChanged } from 'firebase/auth'
+import { onIdTokenChanged } from 'firebase/auth'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
@@ -32,7 +32,8 @@ export function McAuthProvider({ children }: { children: ReactNode }) {
       return
     }
     const auth = getAuthApp()
-    return onAuthStateChanged(auth, (u) => {
+    /** Incluye reload() tras verificar email para sincronizar `emailVerified`. */
+    return onIdTokenChanged(auth, (u) => {
       setFirebaseUser(u)
       setAuthReady(true)
       if (!u) {
@@ -53,14 +54,21 @@ export function McAuthProvider({ children }: { children: ReactNode }) {
     }
     const db = getDb()
     const uref = doc(db, MC.users, firebaseUser.uid)
-    const unsub = onSnapshot(uref, (snap) => {
-      if (!snap.exists()) {
+    const unsub = onSnapshot(
+      uref,
+      (snap) => {
+        if (!snap.exists()) {
+          setProfile(null)
+        } else {
+          setProfile(mapFirestoreDataToMcUser(snap.id, snap.data()))
+        }
+        setProfileReady(true)
+      },
+      () => {
         setProfile(null)
-      } else {
-        setProfile(mapFirestoreDataToMcUser(snap.id, snap.data()))
-      }
-      setProfileReady(true)
-    })
+        setProfileReady(true)
+      },
+    )
     return () => unsub()
   }, [firebaseUser])
 
@@ -73,15 +81,22 @@ export function McAuthProvider({ children }: { children: ReactNode }) {
     setTenantReady(false)
     const db = getDb()
     const tref = doc(db, MC.tenants, profile.tenantId)
-    const unsub = onSnapshot(tref, (snap) => {
-      if (!snap.exists()) {
+    const unsub = onSnapshot(
+      tref,
+      (snap) => {
+        if (!snap.exists()) {
+          setTenant(null)
+        } else {
+          const d = snap.data() as Omit<McTenant, 'id'>
+          setTenant({ id: snap.id, ...d })
+        }
+        setTenantReady(true)
+      },
+      () => {
         setTenant(null)
-      } else {
-        const d = snap.data() as Omit<McTenant, 'id'>
-        setTenant({ id: snap.id, ...d })
-      }
-      setTenantReady(true)
-    })
+        setTenantReady(true)
+      },
+    )
     return () => unsub()
   }, [profile?.tenantId])
 

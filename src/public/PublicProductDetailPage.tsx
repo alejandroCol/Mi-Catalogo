@@ -282,14 +282,15 @@ export function PublicProductDetailPage() {
       >
         Añadir al carrito
       </button>
-      <button
-        type="button"
-        className="min-h-[48px] w-full rounded-2xl border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out disabled:opacity-40"
-        disabled={disp < DOCENA}
-        onClick={() => sumar(DOCENA)}
-      >
-        Añadir 1 docena
-      </button>
+      {disp >= DOCENA ? (
+        <button
+          type="button"
+          className="min-h-[48px] w-full rounded-2xl border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out"
+          onClick={() => sumar(DOCENA)}
+        >
+          Añadir 1 docena
+        </button>
+      ) : null}
     </div>
   )
 

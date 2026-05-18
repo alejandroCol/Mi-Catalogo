@@ -1,21 +1,27 @@
 import { randomBytes } from 'node:crypto'
 import { initializeApp, getApps } from 'firebase-admin/app'
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { getAuth } from 'firebase-admin/auth'
+import { FieldValue, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { setGlobalOptions } from 'firebase-functions/v2'
-import { defineSecret } from 'firebase-functions/params'
+import { defineSecret, defineString } from 'firebase-functions/params'
 import express from 'express'
-import { resolveEnvioCopForCheckout } from './checkoutShipping.js'
+import { mergeTenantPlatformEnvio, resolveEnvioCopForCheckout } from './checkoutShipping.js'
 import {
-  collectOnePaySignatureHeader,
+  resolveEmailCatalogThemeColors,
+  sendCatalogCustomerPurchaseConfirmationEmail,
+  sendCatalogSalePaidEmail,
+} from './catalogSaleEmail.js'
+import { AUTH_VERIFY_COOLDOWN_MS, sendVerificationEmailWithResend } from './authVerificationEmail.js'
+import { MC_RESEND_FROM } from './mcResend.js'
+import {
+  authenticateOnePayWebhook,
   extractPaymentIdAndEvent,
   mcOrderIdFromOnePayMetadata,
   mcStoreIdFromOnePayMetadata,
-  normalizeOnePaySecretValue,
   normalizeOnePayWebhookEnvelope,
   onepayMetadataForApi,
   onepayPickExternalId,
-  verifyOnePayWebhookSignatureDetailed,
 } from './onepayCatalogHelpers.js'
 
 const REGION = process.env.MC_FUNCTIONS_REGION || 'us-central1'
@@ -103,6 +109,84 @@ const ONEPAY_COMPANIES_API = 'https://api.onepay.la/v1/companies'
 const ONEPAY_ACCOUNTS_BANKS_API = 'https://api.onepay.la/v1/accounts/banks'
 const ONEPAY_BANKS_LEGACY_API = 'https://api.onepay.la/v1/banks'
 const onePayPlatformSk = defineSecret('ONEPAY_PLATFORM_SK')
+const resendApiKey = defineSecret('RESEND_API_KEY')
+/** Mismo host que en la app (`VITE_MC_PUBLIC_ORIGIN`): debe estar en Dominios autorizados de Firebase Auth. */
+const mcPublicOrigin = defineString('MC_PUBLIC_ORIGIN', { default: 'https://micatalogo.io' })
+
+function readResendApiKey(): string {
+  try {
+    const v = resendApiKey.value()
+    return typeof v === 'string' ? v.trim() : ''
+  } catch {
+    return ''
+  }
+}
+
+/** Correo de verificación de cuenta (Resend + enlace generado por Admin SDK). */
+export const mcSendEmailVerification = onCall({ invoker: 'public', secrets: [resendApiKey] }, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Iniciá sesión.')
+  }
+  const uid = request.auth.uid
+  const key = readResendApiKey()
+  if (!key) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Falta configurar RESEND_API_KEY en Cloud Functions para enviar el correo de verificación.',
+    )
+  }
+
+  /** Colección/doc (2 segmentos). `mc_internal/.../uid` rompe Firestore (3 segmentos → 500 INTERNAL). */
+  const throttleRef = db.doc(`mc_auth_verify_throttle/${uid}`)
+  const throttleSnap = await throttleRef.get()
+  const lastSent = (throttleSnap.data() as { lastSentAt?: number } | undefined)?.lastSentAt ?? 0
+  const now = Date.now()
+  if (lastSent > 0 && now - lastSent < AUTH_VERIFY_COOLDOWN_MS) {
+    throw new HttpsError('resource-exhausted', 'Esperá un momento antes de pedir otro correo.')
+  }
+
+  let userRecord
+  try {
+    userRecord = await getAuth().getUser(uid)
+  } catch {
+    throw new HttpsError('not-found', 'Usuario no encontrado.')
+  }
+  const email = userRecord.email?.trim()
+  if (!email) {
+    throw new HttpsError('failed-precondition', 'Tu cuenta no tiene correo.')
+  }
+  if (userRecord.emailVerified) {
+    throw new HttpsError('failed-precondition', 'Tu correo ya está verificado.')
+  }
+
+  const origin = mcPublicOrigin.value().trim()
+  const sent = await sendVerificationEmailWithResend({
+    email,
+    publicOrigin: origin,
+    resendApiKey: key,
+  })
+
+  if (!sent.ok) {
+    console.error('[mcSendEmailVerification]', sent.error, sent.firebaseCode)
+    const blob = `${sent.error} ${sent.firebaseCode ?? ''}`.toLowerCase()
+    if (
+      blob.includes('unauthorized') &&
+      (blob.includes('continue') || blob.includes('domain'))
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'El dominio del enlace de verificación no está autorizado en Firebase (Authentication → Dominios autorizados). Revisá también MC_PUBLIC_ORIGIN en la función.',
+      )
+    }
+    throw new HttpsError('internal', 'No pudimos enviar el correo. Probá en unos minutos.')
+  }
+
+  await throttleRef.set(
+    { lastSentAt: now, updatedAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  )
+  return { ok: true as const }
+})
 
 const ONEPAY_KYB_TERMS_VERSION = 'mc-2026-05'
 const ONEPAY_SALES_ALLOWED = new Set([10, 35, 110, 240, 500])
@@ -133,10 +217,101 @@ function assertWebhookSecret(s: unknown): string {
   if (typeof s !== 'string' || s.trim().length < 8) {
     throw new HttpsError(
       'invalid-argument',
-      'Necesitás el Secreto del webhook de OnePay (pantalla al crear el webhook; mín. 8 caracteres).',
+      'Necesitás el Secreto del webhook de OnePay (whsec_… al crear el webhook en el panel; mín. 8 caracteres).',
     )
   }
-  return s.trim()
+  const t = s.trim()
+  if (t.startsWith('wh_hdr_')) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Ese valor es el token de cabecera (wh_hdr_). Usá el Secreto del webhook (whsec_…) para la firma HMAC, o guardalo en el campo Token del webhook.',
+    )
+  }
+  return t
+}
+
+function optionalWebhookToken(s: unknown): string | null {
+  if (typeof s !== 'string' || !s.trim()) return null
+  const t = s.trim()
+  if (t.length < 8) {
+    throw new HttpsError('invalid-argument', 'Token del webhook inválido (mín. 8 caracteres).')
+  }
+  if (t.startsWith('whsec_') || t.startsWith('wh_tok_')) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Ese valor es el secreto HMAC (whsec_…). Guardalo en «Secreto del webhook», no en el token de cabecera.',
+    )
+  }
+  return t
+}
+
+/** Clave pública OnePay (pk_test_ / pk_live_) — opcional; útil si integrás widgets o SDK en el front. */
+function optionalPublicKey(s: unknown): string | null {
+  if (typeof s !== 'string' || !s.trim()) return null
+  const k = s.trim()
+  if (!/^pk_(test|live)_[a-zA-Z0-9]+$/.test(k)) {
+    throw new HttpsError(
+      'invalid-argument',
+      'La clave pública debe ser pk_test_… o pk_live_… (panel OnePay → API keys).',
+    )
+  }
+  return k
+}
+
+type OnepayCredStored = {
+  secretKey?: string
+  webhookSecret?: string
+  webhookToken?: string
+  publicKey?: string
+}
+
+function mergeOnepayCredentials(
+  prev: OnepayCredStored | undefined,
+  next: {
+    secretKey: string
+    webhookSecret?: string | null
+    webhookToken?: string | null
+    publicKey?: string | null
+  },
+): OnepayCredStored {
+  const out: OnepayCredStored = { secretKey: next.secretKey }
+  const wh =
+    (typeof next.webhookSecret === 'string' && next.webhookSecret.length >= 8
+      ? next.webhookSecret
+      : null) ??
+    (typeof prev?.webhookSecret === 'string' && prev.webhookSecret.length >= 8 ? prev.webhookSecret.trim() : null)
+  const wt =
+    (typeof next.webhookToken === 'string' && next.webhookToken.length >= 8
+      ? next.webhookToken
+      : null) ??
+    (typeof prev?.webhookToken === 'string' && prev.webhookToken.length >= 8 ? prev.webhookToken.trim() : null)
+  const pk =
+    (typeof next.publicKey === 'string' && next.publicKey.trim() ? next.publicKey.trim() : null) ??
+    (typeof prev?.publicKey === 'string' && prev.publicKey.trim() ? prev.publicKey.trim() : null)
+  if (wh) out.webhookSecret = wh
+  if (wt) out.webhookToken = wt
+  if (pk) out.publicKey = pk
+  return out
+}
+
+function onepayCredentialHints(cred: OnepayCredStored): {
+  onepayKeyHint?: string
+  onepayWebhookHint?: string | ReturnType<typeof FieldValue.delete>
+  onepayWebhookTokenHint?: string | ReturnType<typeof FieldValue.delete>
+  onepayPublicKeyHint?: string | ReturnType<typeof FieldValue.delete>
+} {
+  return {
+    ...(cred.secretKey ? { onepayKeyHint: keyHint(cred.secretKey) } : {}),
+    ...(cred.webhookSecret
+      ? { onepayWebhookHint: keyHint(cred.webhookSecret) }
+      : { onepayWebhookHint: FieldValue.delete() }),
+    ...(cred.webhookToken
+      ? { onepayWebhookTokenHint: keyHint(cred.webhookToken) }
+      : { onepayWebhookTokenHint: FieldValue.delete() }),
+    ...(cred.publicKey
+      ? { onepayPublicKeyHint: keyHint(cred.publicKey) }
+      : { onepayPublicKeyHint: FieldValue.delete() }),
+  }
 }
 
 function keyHint(sk: string): string {
@@ -243,6 +418,15 @@ function optionalDigits4(v: unknown, label: string): string | undefined {
 
 function newHookRouteKey(): string {
   return randomBytes(16).toString('hex')
+}
+
+function buildNumeroReferencia(orderId: string): string {
+  const tail = orderId.replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase()
+  return `MC-${tail.length >= 4 ? tail : orderId.slice(0, 8).toUpperCase()}`
+}
+
+function normalizeOrderIdInput(raw: string): string {
+  return raw.trim()
 }
 
 function newViewToken(): string {
@@ -473,7 +657,11 @@ function paymentIsApproved(s: string | undefined, partial?: { is_fully_paid?: bo
 // --- Link / Unlink
 
 export const mcOnepaySetWebhookSecret = onCall({ invoker: 'public' }, async (request) => {
-  const webhookSecret = assertWebhookSecret(request.data?.webhookSecret)
+  const dataIn = request.data as {
+    webhookSecret?: unknown
+    webhookToken?: unknown
+    publicKey?: unknown
+  }
   const { tenantId, superAdminBypass } = await resolveOnepayTenantId(request, request.data)
   const tenantRef = db.doc(`mc_tenants/${tenantId}`)
   const tenantSnap = await tenantRef.get()
@@ -490,27 +678,49 @@ export const mcOnepaySetWebhookSecret = onCall({ invoker: 'public' }, async (req
   }
   const credRef0 = db.doc(`mc_tenants/${tenantId}/private_onepay/credentials`)
   const c0 = await credRef0.get()
-  const sk0 = (c0.data() as { secretKey?: string } | undefined)?.secretKey
+  const prev = c0.data() as OnepayCredStored | undefined
+  const sk0 = prev?.secretKey
   if (!sk0) {
     throw new HttpsError('failed-precondition', 'Primero guardá la clave API de OnePay.')
   }
-  await credRef0.set(
-    { secretKey: sk0, webhookSecret, updatedAt: FieldValue.serverTimestamp() },
-    { merge: true },
-  )
+  const hasNewWh =
+    typeof dataIn?.webhookSecret === 'string' && dataIn.webhookSecret.trim().length >= 8
+  const webhookSecret = hasNewWh
+    ? assertWebhookSecret(dataIn.webhookSecret)
+    : typeof prev?.webhookSecret === 'string' && prev.webhookSecret.length >= 8
+      ? prev.webhookSecret.trim()
+      : null
+  if (!webhookSecret) {
+    throw new HttpsError('invalid-argument', 'Falta el Secreto del webhook (whsec_…).')
+  }
+  const cred = mergeOnepayCredentials(prev, {
+    secretKey: sk0,
+    webhookSecret,
+    webhookToken: optionalWebhookToken(dataIn?.webhookToken),
+    publicKey: optionalPublicKey(dataIn?.publicKey),
+  })
+  await credRef0.set({ ...cred, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
   await tenantRef.update({
     onepayPaymentsEnabled: true,
     onepayLinkedAt: Date.now(),
-    onepayWebhookHint: keyHint(webhookSecret),
+    ...onepayCredentialHints(cred),
   })
   return { ok: true }
 })
 
 export const mcOnepayLinkMerchant = onCall({ invoker: 'public' }, async (request) => {
-  const dataIn = request.data as { secretKey?: unknown; webhookSecret?: unknown; targetTenantId?: unknown }
+  const dataIn = request.data as {
+    secretKey?: unknown
+    webhookSecret?: unknown
+    webhookToken?: unknown
+    publicKey?: unknown
+    targetTenantId?: unknown
+  }
   const hasWh = typeof dataIn?.webhookSecret === 'string' && dataIn.webhookSecret.trim().length >= 8
   const secretKey = assertSk(dataIn?.secretKey)
   const webhookSecret = hasWh ? assertWebhookSecret(dataIn?.webhookSecret) : null
+  const webhookToken = optionalWebhookToken(dataIn?.webhookToken)
+  const publicKey = optionalPublicKey(dataIn?.publicKey)
 
   const { tenantId, superAdminBypass } = await resolveOnepayTenantId(request, request.data)
 
@@ -535,27 +745,23 @@ export const mcOnepayLinkMerchant = onCall({ invoker: 'public' }, async (request
 
   const credRef = db.doc(`mc_tenants/${tenantId}/private_onepay/credentials`)
   const existingCred = await credRef.get()
-  const prevWh = (existingCred.data() as { webhookSecret?: string } | undefined)?.webhookSecret
+  const prev = existingCred.data() as OnepayCredStored | undefined
   const whFinal =
-    webhookSecret || (typeof prevWh === 'string' && prevWh.length >= 8 ? prevWh.trim() : null)
-  if (whFinal) {
-    await credRef.set({
-      secretKey,
-      webhookSecret: whFinal,
-      updatedAt: FieldValue.serverTimestamp(),
-    })
-  } else {
-    await credRef.set({ secretKey, updatedAt: FieldValue.serverTimestamp() })
-  }
+    webhookSecret ||
+    (typeof prev?.webhookSecret === 'string' && prev.webhookSecret.length >= 8 ? prev.webhookSecret.trim() : null)
+  const cred = mergeOnepayCredentials(prev, {
+    secretKey,
+    webhookSecret: whFinal,
+    webhookToken,
+    publicKey,
+  })
+  await credRef.set({ ...cred, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
 
   await tenantRef.update({
     onepayPaymentsEnabled: Boolean(whFinal),
     onepayLinkedAt: Date.now(),
-    onepayKeyHint: keyHint(secretKey),
     onpayWebHookK: hookK,
-    ...(whFinal
-      ? { onepayWebhookHint: keyHint(whFinal) }
-      : { onepayWebhookHint: FieldValue.delete() }),
+    ...onepayCredentialHints(cred),
   })
 
   await db.doc(`mc_onpay_webhook_routes/${hookK}`).set({
@@ -590,7 +796,9 @@ export const mcOnepayUnlinkMerchant = onCall({ invoker: 'public' }, async (reque
     onepayLinkedAt: FieldValue.delete(),
     onepayKeyHint: FieldValue.delete(),
     onpayWebHookK: FieldValue.delete(),
-    onpayWebhookHint: FieldValue.delete(),
+    onepayWebhookHint: FieldValue.delete(),
+    onepayWebhookTokenHint: FieldValue.delete(),
+    onepayPublicKeyHint: FieldValue.delete(),
   })
 
   return { ok: true }
@@ -600,48 +808,48 @@ export const mcOnepayUnlinkMerchant = onCall({ invoker: 'public' }, async (reque
 
 export const mcOnepayLinkPlatformPasarela = onCall({ invoker: 'public' }, async (request) => {
   await assertMcSuperAdmin(request)
-  const dataIn = request.data as { secretKey?: unknown; webhookSecret?: unknown }
+  const dataIn = request.data as {
+    secretKey?: unknown
+    webhookSecret?: unknown
+    webhookToken?: unknown
+    publicKey?: unknown
+  }
   const hasWh =
     typeof dataIn?.webhookSecret === 'string' && dataIn.webhookSecret.trim().length >= 8
   const secretKey = assertSk(dataIn?.secretKey)
   const webhookSecret = hasWh ? assertWebhookSecret(dataIn?.webhookSecret) : null
+  const webhookToken = optionalWebhookToken(dataIn?.webhookToken)
+  const publicKey = optionalPublicKey(dataIn?.publicKey)
 
   const settingsSnap = await PLATFORM_SETTINGS_REF.get()
-  const prev = settingsSnap.data() as { onpayWebHookK?: string } | undefined
+  const prevSettings = settingsSnap.data() as { onpayWebHookK?: string } | undefined
   const hookK =
-    typeof prev?.onpayWebHookK === 'string' && prev.onpayWebHookK.length >= 16
-      ? prev.onpayWebHookK
+    typeof prevSettings?.onpayWebHookK === 'string' && prevSettings.onpayWebHookK.length >= 16
+      ? prevSettings.onpayWebHookK
       : newHookRouteKey()
 
   const existingCred = await PLATFORM_ONEPAY_CRED_REF.get()
-  const prevWh = (existingCred.data() as { webhookSecret?: string } | undefined)?.webhookSecret
+  const prevCred = existingCred.data() as OnepayCredStored | undefined
   const whFinal =
     webhookSecret ||
-    (typeof prevWh === 'string' && prevWh.length >= 8 ? prevWh.trim() : null)
-
-  if (whFinal) {
-    await PLATFORM_ONEPAY_CRED_REF.set({
-      secretKey,
-      webhookSecret: whFinal,
-      updatedAt: FieldValue.serverTimestamp(),
-    })
-  } else {
-    await PLATFORM_ONEPAY_CRED_REF.set({
-      secretKey,
-      updatedAt: FieldValue.serverTimestamp(),
-    })
-  }
+    (typeof prevCred?.webhookSecret === 'string' && prevCred.webhookSecret.length >= 8
+      ? prevCred.webhookSecret.trim()
+      : null)
+  const cred = mergeOnepayCredentials(prevCred, {
+    secretKey,
+    webhookSecret: whFinal,
+    webhookToken,
+    publicKey,
+  })
+  await PLATFORM_ONEPAY_CRED_REF.set({ ...cred, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
 
   await db.doc(`mc_onpay_webhook_routes/${hookK}`).set({ platformPasarela: true, updatedAt: Date.now() })
 
   await PLATFORM_SETTINGS_REF.set(
     {
       onpayWebHookK: hookK,
-      onepayKeyHint: keyHint(secretKey),
       pasarelaMicatalogoActiva: Boolean(whFinal),
-      ...(whFinal
-        ? { onepayWebhookHint: keyHint(whFinal) }
-        : { onepayWebhookHint: FieldValue.delete() }),
+      ...onepayCredentialHints(cred),
       updatedAt: Date.now(),
     },
     { merge: true },
@@ -652,20 +860,38 @@ export const mcOnepayLinkPlatformPasarela = onCall({ invoker: 'public' }, async 
 
 export const mcOnepaySetPlatformWebhookSecret = onCall({ invoker: 'public' }, async (request) => {
   await assertMcSuperAdmin(request)
-  const webhookSecret = assertWebhookSecret((request.data as { webhookSecret?: unknown })?.webhookSecret)
+  const dataIn = request.data as {
+    webhookSecret?: unknown
+    webhookToken?: unknown
+    publicKey?: unknown
+  }
   const c0 = await PLATFORM_ONEPAY_CRED_REF.get()
-  const sk0 = (c0.data() as { secretKey?: string } | undefined)?.secretKey
+  const prev = c0.data() as OnepayCredStored | undefined
+  const sk0 = prev?.secretKey
   if (!sk0) {
     throw new HttpsError('failed-precondition', 'Primero guardá la clave API de OnePay para la pasarela Mi Catálogo.')
   }
-  await PLATFORM_ONEPAY_CRED_REF.set(
-    { secretKey: sk0, webhookSecret, updatedAt: FieldValue.serverTimestamp() },
-    { merge: true },
-  )
+  const hasNewWh =
+    typeof dataIn?.webhookSecret === 'string' && dataIn.webhookSecret.trim().length >= 8
+  const webhookSecret = hasNewWh
+    ? assertWebhookSecret(dataIn.webhookSecret)
+    : typeof prev?.webhookSecret === 'string' && prev.webhookSecret.length >= 8
+      ? prev.webhookSecret.trim()
+      : null
+  if (!webhookSecret) {
+    throw new HttpsError('invalid-argument', 'Falta el Secreto del webhook (whsec_…).')
+  }
+  const cred = mergeOnepayCredentials(prev, {
+    secretKey: sk0,
+    webhookSecret,
+    webhookToken: optionalWebhookToken(dataIn?.webhookToken),
+    publicKey: optionalPublicKey(dataIn?.publicKey),
+  })
+  await PLATFORM_ONEPAY_CRED_REF.set({ ...cred, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
   await PLATFORM_SETTINGS_REF.set(
     {
       pasarelaMicatalogoActiva: true,
-      onepayWebhookHint: keyHint(webhookSecret),
+      ...onepayCredentialHints(cred),
       updatedAt: Date.now(),
     },
     { merge: true },
@@ -690,6 +916,8 @@ export const mcOnepayUnlinkPlatformPasarela = onCall({ invoker: 'public' }, asyn
       onpayWebHookK: FieldValue.delete(),
       onepayKeyHint: FieldValue.delete(),
       onepayWebhookHint: FieldValue.delete(),
+      onepayWebhookTokenHint: FieldValue.delete(),
+      onepayPublicKeyHint: FieldValue.delete(),
       updatedAt: Date.now(),
     },
     { merge: true },
@@ -1164,6 +1392,8 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
     envioDepartamento?: string
     envioDireccion?: string
     envioReferencia?: string
+    clienteTipoDocumento?: string
+    clienteDocumentoNumero?: string
     redirectOrigin?: string
     idempotencyKey?: string
   }
@@ -1191,10 +1421,22 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
   if (!nombre || !telefono) {
     throw new HttpsError('invalid-argument', 'Nombre y teléfono son obligatorios.')
   }
+  const tipoDocRaw = typeof data.clienteTipoDocumento === 'string' ? data.clienteTipoDocumento.trim().toUpperCase() : ''
+  const numDocRaw = typeof data.clienteDocumentoNumero === 'string' ? data.clienteDocumentoNumero.trim() : ''
+  const docTiposOk = new Set(['CC', 'CE', 'TI', 'PA', 'NIT', 'PEP', 'OTRO'])
+  if (!tipoDocRaw || !docTiposOk.has(tipoDocRaw)) {
+    throw new HttpsError('invalid-argument', 'Seleccioná un tipo de documento válido.')
+  }
+  if (!numDocRaw || numDocRaw.length < 5) {
+    throw new HttpsError('invalid-argument', 'Ingresá el número de documento.')
+  }
+  const clienteTipoDocumento = tipoDocRaw.slice(0, 12)
+  const clienteDocumentoNumero = numDocRaw.slice(0, 32)
   const envioCiudad = typeof data.envioCiudad === 'string' ? data.envioCiudad.trim() : ''
+  const envioDepartamento = typeof data.envioDepartamento === 'string' ? data.envioDepartamento.trim() : ''
   const envioDireccion = typeof data.envioDireccion === 'string' ? data.envioDireccion.trim() : ''
-  if (!envioCiudad || !envioDireccion) {
-    throw new HttpsError('invalid-argument', 'Ciudad y dirección de envío son obligatorias.')
+  if (!envioDepartamento || !envioCiudad || !envioDireccion) {
+    throw new HttpsError('invalid-argument', 'Departamento, ciudad y dirección de envío son obligatorias.')
   }
 
   const redirectOrigin = typeof data.redirectOrigin === 'string' ? data.redirectOrigin.trim() : ''
@@ -1221,14 +1463,24 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
     nombreTienda?: string
     envioEstimadoCop?: number
     envioEstimadoEtiqueta?: string
-    envioPorCiudad?: { ciudad?: string; cop?: number }[]
+    envioPorCiudad?: { ciudad?: string; cop?: number; departamento?: string }[]
     envioGratisDesdeCop?: number
+    envioUsarTarifasMicatalogo?: boolean
     cuponesCatalogo?: McCupon[]
     checkoutVentasModo?: string
   }
   if (typeof tenant.subscriptionEndsAt !== 'number' || tenant.subscriptionEndsAt <= Date.now()) {
     throw new HttpsError('failed-precondition', 'Catálogo pausado.')
   }
+
+  const platformSettingsSnap = await PLATFORM_SETTINGS_REF.get()
+  const platformSettings = platformSettingsSnap.data() as
+    | {
+        pasarelaMicatalogoActiva?: boolean
+        envioMicatalogoEstimadoCop?: number
+        envioMicatalogoPorCiudad?: { ciudad?: string; cop?: number }[]
+      }
+    | undefined
 
   const rawModo = tenant.checkoutVentasModo
   let modoEfectivo: 'pasarela' | 'whatsapp' | 'pasarela_micatalogo'
@@ -1237,7 +1489,10 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
   } else if (rawModo === 'pasarela' || rawModo === 'whatsapp') {
     modoEfectivo = rawModo
   } else {
-    modoEfectivo = tenant.onepayPaymentsEnabled === true ? 'pasarela' : 'whatsapp'
+    throw new HttpsError(
+      'failed-precondition',
+      'La tienda debe elegir cómo cobra en Cuenta («Checkout · cómo cerrás ventas») antes de aceptar pagos OnePay.',
+    )
   }
 
   if (modoEfectivo === 'whatsapp') {
@@ -1251,10 +1506,7 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
   let viaMicatalogo = false
 
   if (modoEfectivo === 'pasarela_micatalogo') {
-    const platSet = (await PLATFORM_SETTINGS_REF.get()).data() as
-      | { pasarelaMicatalogoActiva?: boolean }
-      | undefined
-    if (platSet?.pasarelaMicatalogoActiva !== true) {
+    if (platformSettings?.pasarelaMicatalogoActiva !== true) {
       throw new HttpsError(
         'failed-precondition',
         'La pasarela Mi Catálogo no está disponible. Elegí otro modo de venta o contactá soporte.',
@@ -1352,7 +1604,8 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
     throw new HttpsError('invalid-argument', 'Subtotal inválido.')
   }
 
-  const envioCop = resolveEnvioCopForCheckout(tenant, envioCiudad, subtotalCop)
+  const envioTenantSlice = mergeTenantPlatformEnvio(tenant, platformSettings)
+  const envioCop = resolveEnvioCopForCheckout(envioTenantSlice, envioCiudad, subtotalCop, envioDepartamento)
 
   const cuponIn = typeof data.cuponCodigo === 'string' ? data.cuponCodigo : ''
   const cuponV = cuponIn.trim() ? buscarCuponActivo(cuponIn, tenant.cuponesCatalogo) : null
@@ -1372,11 +1625,13 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
   const viewToken = newViewToken()
   const orderRef = db.collection(`mc_tenants/${tenantId}/ordenes_catalogo`).doc()
   const orderId = orderRef.id
+  const numeroReferencia = buildNumeroReferencia(orderId)
 
   const orderDoc: Record<string, unknown> = {
     createdAt: now,
     updatedAt: now,
     estado: 'esperando_pago',
+    numeroReferencia,
     lineas: lineasRes,
     subtotalCop,
     envioCop,
@@ -1388,6 +1643,8 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
     onepayPaymentId: null,
     clienteNombre: nombre.slice(0, 200),
     clienteTelefono: telefono.slice(0, 50),
+    clienteTipoDocumento,
+    clienteDocumentoNumero,
   }
   if (viaMicatalogo) {
     orderDoc.onepayViaMicatalogo = true
@@ -1398,8 +1655,7 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
   const nota = typeof data.nota === 'string' ? data.nota.trim() : ''
   if (nota) orderDoc.notaCliente = nota.slice(0, 2000)
   if (envioCiudad) orderDoc.envioCiudad = envioCiudad.slice(0, 120)
-  const ed = typeof data.envioDepartamento === 'string' ? data.envioDepartamento.trim() : ''
-  if (ed) orderDoc.envioDepartamento = ed.slice(0, 120)
+  if (envioDepartamento) orderDoc.envioDepartamento = envioDepartamento.slice(0, 120)
   if (envioDireccion) orderDoc.envioDireccion = envioDireccion.slice(0, 500)
   const eref = typeof data.envioReferencia === 'string' ? data.envioReferencia.trim() : ''
   if (eref) orderDoc.envioReferencia = eref.slice(0, 300)
@@ -1416,7 +1672,7 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
 
   const refStr = `mc-${orderId}`.slice(0, ONEPAY_REF_MAX)
   const title = `Pedido · ${(tenant.nombreTienda ?? 'Catálogo').trim()}`.slice(0, ONEPAY_TITLE_MAX)
-  const returnUrl = `${redirectOrigin.replace(/\/$/, '')}/c/${encodeURIComponent(slug)}/checkout?onepay=1&o=${encodeURIComponent(orderId)}&ov=${encodeURIComponent(viewToken)}`.slice(
+  const returnUrl = `${redirectOrigin.replace(/\/$/, '')}/c/${encodeURIComponent(slug)}/checkout/pago-validando?onepay=1&o=${encodeURIComponent(orderId)}&ov=${encodeURIComponent(viewToken)}`.slice(
     0,
     ONEPAY_REDIRECT_URL_MAX,
   )
@@ -1516,7 +1772,13 @@ export const mcOnepayCheckoutStatus = onCall({ invoker: 'public' }, async (reque
   if (!oSnap.exists) {
     return { notFound: true as const }
   }
-  const o = oSnap.data() as { onepayViewToken?: string; estado?: string; totalCop?: number; updatedAt?: number }
+  const o = oSnap.data() as {
+    onepayViewToken?: string
+    estado?: string
+    totalCop?: number
+    updatedAt?: number
+    numeroReferencia?: string
+  }
   if (o.onepayViewToken !== token) {
     throw new HttpsError('permission-denied', 'Enlace de consulta inválido.')
   }
@@ -1525,6 +1787,92 @@ export const mcOnepayCheckoutStatus = onCall({ invoker: 'public' }, async (reque
     estado: o.estado,
     totalCop: o.totalCop,
     updatedAt: o.updatedAt,
+    orderId,
+  }
+})
+
+function mapOrderToTrackingPublic(orderSnap: DocumentSnapshot, nombreTienda: string): Record<string, unknown> {
+  const o = orderSnap.data() as {
+    estado?: string
+    totalCop?: number
+    createdAt?: number
+    updatedAt?: number
+    numeroReferencia?: string
+    lineas?: { nombre?: string; cantidad?: number; precioUnitarioCop?: number }[]
+    trackingImageUrl?: string
+    trackingNumber?: string
+    envioCiudad?: string
+    seguimientoCompraAt?: number
+    seguimientoPreparacionAt?: number
+    seguimientoDespachoAt?: number
+    seguimientoEntregaAt?: number
+  }
+  const lineas = Array.isArray(o.lineas)
+    ? o.lineas.map((ln) => ({
+        nombre: String(ln.nombre ?? 'Producto').slice(0, 200),
+        cantidad: Math.max(1, Math.round(Number(ln.cantidad) || 1)),
+        precioUnitarioCop: Math.max(0, Math.round(Number(ln.precioUnitarioCop) || 0)),
+      }))
+    : []
+  const numeroReferencia =
+    typeof o.numeroReferencia === 'string' && o.numeroReferencia.trim()
+      ? o.numeroReferencia.trim()
+      : buildNumeroReferencia(orderSnap.id)
+  return {
+    orderId: orderSnap.id,
+    numeroReferencia,
+    estado: typeof o.estado === 'string' ? o.estado : 'pagado',
+    totalCop: typeof o.totalCop === 'number' ? o.totalCop : 0,
+    createdAt: typeof o.createdAt === 'number' ? o.createdAt : Date.now(),
+    updatedAt: typeof o.updatedAt === 'number' ? o.updatedAt : Date.now(),
+    nombreTienda,
+    lineas,
+    trackingImageUrl: typeof o.trackingImageUrl === 'string' ? o.trackingImageUrl : undefined,
+    trackingNumber: typeof o.trackingNumber === 'string' ? o.trackingNumber : undefined,
+    envioCiudad: typeof o.envioCiudad === 'string' ? o.envioCiudad : undefined,
+    seguimientoCompraAt: o.seguimientoCompraAt,
+    seguimientoPreparacionAt: o.seguimientoPreparacionAt,
+    seguimientoDespachoAt: o.seguimientoDespachoAt,
+    seguimientoEntregaAt: o.seguimientoEntregaAt,
+  }
+}
+
+/** Seguimiento público: basta con el N.º de pedido del email (orderId). */
+export const mcCatalogOrderTracking = onCall({ invoker: 'public' }, async (request) => {
+  const d = request.data as {
+    slug?: string
+    orderId?: string
+  }
+  const slug = typeof d.slug === 'string' ? d.slug.trim().toLowerCase() : ''
+  const orderIdIn = typeof d.orderId === 'string' ? normalizeOrderIdInput(d.orderId) : ''
+  if (!slug || !/^[a-z0-9-]{2,80}$/.test(slug)) {
+    throw new HttpsError('invalid-argument', 'Datos incompletos.')
+  }
+  if (!orderIdIn || orderIdIn.length > 128) {
+    throw new HttpsError('invalid-argument', 'Indicá el número de pedido.')
+  }
+
+  const slugSnap = await db.doc(`mc_slugs/${slug}`).get()
+  if (!slugSnap.exists) {
+    throw new HttpsError('not-found', 'Catálogo no encontrado.')
+  }
+  const tenantId = (slugSnap.data() as { tenantId: string }).tenantId
+  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
+  const nombreTienda =
+    typeof (tenantSnap.data() as { nombreTienda?: string } | undefined)?.nombreTienda === 'string'
+      ? String((tenantSnap.data() as { nombreTienda: string }).nombreTienda).trim()
+      : 'Tu tienda'
+
+  const snap = await db.doc(`mc_tenants/${tenantId}/ordenes_catalogo/${orderIdIn}`).get()
+  const orderSnap: DocumentSnapshot | null = snap.exists ? snap : null
+
+  if (!orderSnap || !orderSnap.exists) {
+    return { notFound: true as const }
+  }
+
+  return {
+    notFound: false as const,
+    order: mapOrderToTrackingPublic(orderSnap, nombreTienda),
   }
 })
 
@@ -1567,19 +1915,28 @@ webhookApp.post(
       ? PLATFORM_ONEPAY_CRED_REF
       : db.doc(`mc_tenants/${routeTenantId}/private_onepay/credentials`)
     const credS = await credRef.get()
-    const webhookSecret = (credS.data() as { webhookSecret?: string } | undefined)?.webhookSecret
-    const secretKey = (credS.data() as { secretKey?: string } | undefined)?.secretKey
-    if (!webhookSecret || !secretKey) {
+    const credData = credS.data() as
+      | { webhookSecret?: string; webhookToken?: string; secretKey?: string }
+      | undefined
+    const webhookSecret = credData?.webhookSecret
+    const webhookToken = credData?.webhookToken
+    const secretKey = credData?.secretKey
+    if ((!webhookSecret && !webhookToken) || !secretKey) {
       res.status(500).send('config incompleta')
       return
     }
 
-    const raw = (req as express.Request & { rawBody?: Buffer }).rawBody
-    if (!raw) {
+    const reqWithRaw = req as express.Request & { rawBody?: Buffer }
+    const rawBuf =
+      reqWithRaw.rawBody && Buffer.isBuffer(reqWithRaw.rawBody) && reqWithRaw.rawBody.length > 0
+        ? reqWithRaw.rawBody
+        : null
+    if (!rawBuf) {
+      console.error('[mcOnepayCatalogWebhook] req.rawBody ausente; la firma HMAC puede fallar')
       res.status(400).send('raw body faltante')
       return
     }
-    const rawStr = raw.toString('utf8')
+    const rawStr = rawBuf.toString('utf8')
 
     let parsedBody: unknown
     try {
@@ -1594,13 +1951,20 @@ webhookApp.post(
       if (hv === undefined || hv === null) continue
       headersNorm[hk.toLowerCase()] = Array.isArray(hv) ? String(hv[0]) : String(hv)
     }
-    const sig = collectOnePaySignatureHeader(headersNorm)
-    const secretNorm = normalizeOnePaySecretValue(webhookSecret)
-    if (
-      !sig ||
-      !verifyOnePayWebhookSignatureDetailed(rawStr, parsedBody, secretNorm, sig).ok
-    ) {
-      res.status(401).send('signature')
+
+    const auth = authenticateOnePayWebhook({
+      rawBody: rawStr,
+      parsedBody,
+      webhookSecret: webhookSecret || '',
+      webhookToken,
+      headersNorm,
+    })
+    if (!auth.ok) {
+      if (auth.reason === 'missing_config') {
+        res.status(500).send('config incompleta')
+        return
+      }
+      res.status(401).send(auth.reason === 'invalid_token' ? 'token' : 'signature')
       return
     }
 
@@ -1703,7 +2067,21 @@ webhookApp.post(
         res.status(200).send('ok')
         return
       }
-      const o = oSnap.data() as { totalCop?: number; estado?: string; onepayPaymentId?: string | null }
+      const o = oSnap.data() as {
+        totalCop?: number
+        estado?: string
+        onepayPaymentId?: string | null
+        ventaNotificacionEmailSentAt?: number
+        /** Millis cuando el comprador recibió el correo de confirmación (Resend). */
+        ventaClienteConfirmacionEmailSentAt?: number
+        lineas?: unknown
+        clienteNombre?: string
+        clienteTelefono?: string
+        clienteEmail?: string
+        envioCiudad?: string
+        envioDireccion?: string
+        notaCliente?: string
+      }
       const amt = Math.round(Number(v.amount) || 0)
       const totalOk = typeof o.totalCop === 'number' && amt === o.totalCop
       const payRefOk = o.onepayPaymentId === v.id
@@ -1716,12 +2094,124 @@ webhookApp.post(
         wantsApprove &&
         paymentIsApproved(v.status, (v as { partial_payment?: { is_fully_paid?: boolean } }).partial_payment)
       ) {
+        const paidAt = Date.now()
         await oref.update({
           estado: 'pagado',
           pagoOnePay: true,
           onepayPaymentId: v.id,
-          updatedAt: Date.now(),
+          updatedAt: paidAt,
+          seguimientoCompraAt: paidAt,
         })
+
+        const resendKey = readResendApiKey()
+        const pendingOwner = typeof o.ventaNotificacionEmailSentAt !== 'number'
+        const pendingCliente = typeof o.ventaClienteConfirmacionEmailSentAt !== 'number'
+        const ce = typeof o.clienteEmail === 'string' ? o.clienteEmail.trim() : ''
+        if (resendKey && (pendingOwner || pendingCliente)) {
+          try {
+            const tenantSnap = await db.doc(`mc_tenants/${storeId}`).get()
+            const tdata = tenantSnap.data() as
+              | {
+                  ownerUid?: string
+                  nombreTienda?: string
+                  slug?: string
+                  billingPlan?: string
+                  catalogTheme?: { preset?: string; colors?: Record<string, string | undefined> }
+                }
+              | undefined
+            const ownerUid = typeof tdata?.ownerUid === 'string' ? tdata.ownerUid : ''
+            const nombreTienda =
+              typeof tdata?.nombreTienda === 'string' && tdata.nombreTienda.trim()
+                ? tdata.nombreTienda.trim()
+                : 'Tu tienda'
+            const themeColors = resolveEmailCatalogThemeColors(tdata)
+            const origin = mcPublicOrigin.value().replace(/\/$/, '')
+            const slug =
+              typeof tdata?.slug === 'string' && tdata.slug.trim() ? tdata.slug.trim().toLowerCase() : ''
+            const catalogUrl = slug ? `${origin}/c/${encodeURIComponent(slug)}` : origin
+            const seguimientoUrl =
+              slug && orderId
+                ? `${origin}/c/${encodeURIComponent(slug)}/seguimiento?o=${encodeURIComponent(orderId)}`
+                : undefined
+
+            let toEmail = ''
+            if (ownerUid) {
+              try {
+                const au = await getAuth().getUser(ownerUid)
+                toEmail = au.email?.trim() ?? ''
+              } catch {
+                /* usuario inexistente */
+              }
+            }
+
+            const lineasRaw = Array.isArray(o.lineas) ? o.lineas : []
+            const lineas = lineasRaw as {
+              nombre?: string
+              cantidad?: number
+              precioUnitarioCop?: number
+            }[]
+            const totalCop = typeof o.totalCop === 'number' ? o.totalCop : 0
+
+            const emailPatch: { ventaNotificacionEmailSentAt?: number; ventaClienteConfirmacionEmailSentAt?: number } =
+              {}
+
+            if (pendingOwner && toEmail) {
+              const sent = await sendCatalogSalePaidEmail({
+                resendApiKey: resendKey,
+                from: MC_RESEND_FROM,
+                to: toEmail,
+                nombreTienda,
+                orderId,
+                totalCop,
+                lineas,
+                themeColors,
+                clienteNombre: o.clienteNombre,
+                clienteTelefono: o.clienteTelefono,
+                clienteEmail: o.clienteEmail,
+                envioCiudad: o.envioCiudad,
+                envioDireccion: o.envioDireccion,
+                notaCliente: o.notaCliente,
+              })
+              if (sent.ok) {
+                emailPatch.ventaNotificacionEmailSentAt = Date.now()
+              } else {
+                console.error('[mcOnepayCatalogWebhook] Resend (dueño):', sent.error)
+              }
+            }
+
+            if (pendingCliente && ce) {
+              const sentCliente = await sendCatalogCustomerPurchaseConfirmationEmail({
+                resendApiKey: resendKey,
+                from: MC_RESEND_FROM,
+                to: ce,
+                nombreTienda,
+                orderId,
+                totalCop,
+                lineas,
+                themeColors,
+                clienteNombre: o.clienteNombre,
+                clienteTelefono: o.clienteTelefono,
+                clienteEmail: o.clienteEmail,
+                envioCiudad: o.envioCiudad,
+                envioDireccion: o.envioDireccion,
+                notaCliente: o.notaCliente,
+                catalogUrl,
+                seguimientoUrl,
+              })
+              if (sentCliente.ok) {
+                emailPatch.ventaClienteConfirmacionEmailSentAt = Date.now()
+              } else {
+                console.error('[mcOnepayCatalogWebhook] Resend (cliente):', sentCliente.error)
+              }
+            }
+
+            if (Object.keys(emailPatch).length > 0) {
+              await oref.update(emailPatch)
+            }
+          } catch (e) {
+            console.error('[mcOnepayCatalogWebhook] email venta:', e)
+          }
+        }
       } else if (wantsReject) {
         await oref.update({ estado: 'cancelado', updatedAt: Date.now() })
       }
@@ -1733,6 +2223,6 @@ webhookApp.post(
 )
 
 export const mcOnepayCatalogWebhook = onRequest(
-  { cors: false, invoker: 'public' },
+  { cors: false, invoker: 'public', secrets: [resendApiKey] },
   webhookApp,
 )

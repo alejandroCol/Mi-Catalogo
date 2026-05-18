@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
+import { doc, getDoc } from 'firebase/firestore'
 import { Link } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 import { billingPlanOf } from '@/lib/catalogTheme'
 import { formatCop } from '@/lib/formatCop'
-import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
+import { firebaseConfigured, getDb, getFirebaseFunctions } from '@/lib/firebase'
+import { MC } from '@/lib/mcCollections'
+import { catalogoVendedorGate, isCatalogoVendedorListo } from '@/lib/checkoutVentasModo'
 import { isSubscriptionActive } from '@/lib/subscription'
 import { useTenantPedidosSales } from '@/hooks/useTenantPedidosSales'
 import { useTenantHasProducts } from '@/hooks/useTenantHasProducts'
@@ -18,11 +21,17 @@ import {
   IconLink,
   IconPlusCircle,
 } from '@/icons/McIcons'
+import { CheckoutEnvioRequiredModal } from '@/app/CheckoutEnvioRequiredModal'
+import { CheckoutVentasRequiredModal } from '@/app/CheckoutVentasRequiredModal'
+import type { McPlatformSettings } from '@/types/mc'
 
 export function DashboardPage() {
   const { profile, tenant, firebaseUser } = useMcAuth()
   const [onepayBalancePreview, setOnepayBalancePreview] = useState<string | null>(null)
   const [onepayBalancePreviewLoading, setOnepayBalancePreviewLoading] = useState(false)
+  const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
+  const [ventasRequiredModalOpen, setVentasRequiredModalOpen] = useState(false)
+  const [envioRequiredModalOpen, setEnvioRequiredModalOpen] = useState(false)
   const summaryPeriod = tenant?.salesSummaryPeriod === 'fortnight' ? 'fortnight' : 'week'
   const sales = useTenantPedidosSales(profile?.tenantId, summaryPeriod)
   const { hasProducts, loading: productsLoading } = useTenantHasProducts(profile?.tenantId)
@@ -60,6 +69,23 @@ export function DashboardPage() {
     }
   }, [tenant, profile, active])
 
+  useEffect(() => {
+    if (!firebaseConfigured) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const ps = await getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc))
+        if (cancelled) return
+        setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
+      } catch {
+        if (!cancelled) setPlatformSettings({})
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   if (!tenant || !profile) {
     return (
       <div className="mc-shell">
@@ -69,6 +95,20 @@ export function DashboardPage() {
   }
 
   const publicUrl = `${window.location.origin}/c/${tenant.slug}`
+  const catalogoListo = isCatalogoVendedorListo(tenant, platformSettings)
+
+  function abrirCatalogoPublico() {
+    const gate = catalogoVendedorGate(tenant, platformSettings)
+    if (gate === 'ventas') {
+      setVentasRequiredModalOpen(true)
+      return
+    }
+    if (gate === 'envio') {
+      setEnvioRequiredModalOpen(true)
+      return
+    }
+    window.open(publicUrl, '_blank', 'noopener,noreferrer')
+  }
   const plan = billingPlanOf(tenant)
   const hoyLabel = new Date().toLocaleDateString('es-CO', {
     weekday: 'long',
@@ -281,23 +321,39 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {active && (
-        <a
-          href={publicUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="group flex items-center gap-4 border border-neutral-200/50 bg-[var(--cat-accent)] px-5 py-5 text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
-            <IconLink size={20} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-medium tracking-tight">Ver catálogo público</p>
-            <p className="mt-1 break-all text-[12px] leading-relaxed opacity-90">{publicUrl}</p>
-          </div>
-          <IconChevronRight size={17} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
-        </a>
-      )}
+      {active &&
+        (catalogoListo ? (
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="group flex items-center gap-4 border border-neutral-200/50 bg-[var(--cat-accent)] px-5 py-5 text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
+              <IconLink size={20} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium tracking-tight">Ver catálogo público</p>
+              <p className="mt-1 break-all text-[12px] leading-relaxed opacity-90">{publicUrl}</p>
+            </div>
+            <IconChevronRight size={17} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={abrirCatalogoPublico}
+            className="group flex w-full cursor-pointer items-center gap-4 border border-neutral-200/50 bg-[var(--cat-accent)] px-5 py-5 text-left text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
+              <IconLink size={20} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium tracking-tight">Ver catálogo público</p>
+              <p className="mt-1 break-all text-[12px] leading-relaxed opacity-90">{publicUrl}</p>
+            </div>
+            <IconChevronRight size={17} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
+          </button>
+        ))}
 
       <div className="border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-4 text-[13px] leading-relaxed text-[var(--cat-muted)]">
         <p>
@@ -322,6 +378,19 @@ export function DashboardPage() {
           Panel súper admin
         </Link>
       )}
+
+      <CheckoutVentasRequiredModal
+        open={ventasRequiredModalOpen}
+        onClose={() => setVentasRequiredModalOpen(false)}
+        context="dashboard"
+        tenant={tenant}
+        tenantId={profile?.tenantId}
+        platformSettings={platformSettings}
+      />
+      <CheckoutEnvioRequiredModal
+        open={envioRequiredModalOpen}
+        onClose={() => setEnvioRequiredModalOpen(false)}
+      />
     </div>
   )
 }

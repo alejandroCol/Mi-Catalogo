@@ -312,6 +312,13 @@ export function SuperAdminPage() {
       </div>
 
       <Link
+        to="/superadmin/envios-micatalogo"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-mc-50/60 px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:bg-mc-100/70 sm:w-auto sm:justify-start"
+      >
+        Tarifas de envío plataforma (Excel por ciudad)
+      </Link>
+
+      <Link
         to="/superadmin/pasarela-micatalogo"
         className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-mc-50/60 px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:bg-mc-100/70 sm:w-auto sm:justify-start"
       >

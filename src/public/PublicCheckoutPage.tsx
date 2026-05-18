@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import clsx from 'clsx'
-import { addDoc, collection } from 'firebase/firestore'
+import { collection, doc, setDoc } from 'firebase/firestore'
 import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext'
 import { cartLineKey } from '@/catalog-local/cartLineKey'
 import { firebaseConfigured, getDb, getFirebaseFunctions } from '@/lib/firebase'
@@ -14,16 +14,20 @@ import {
   normalizeCuponCodigo,
   totalCheckoutCop,
 } from '@/lib/checkoutPricing'
-import { resolveEnvioCop } from '@/lib/checkoutShipping'
-import { effectiveCheckoutVentasModo } from '@/lib/checkoutVentasModo'
+import { resolveEnvioCop, effectiveEnvioPricingForCheckout } from '@/lib/checkoutShipping'
+import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import type { McCuponTienda, McOrdenCatalogoLinea } from '@/types/mc'
 import { usePublicTenant } from '@/public/usePublicTenant'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
-
-const MC_ONEPAY_POPUP_NAME = 'mc_catalog_onepay'
-const MC_ONEPAY_DONE_MSG = 'mc-catalog-onepay-done' as const
-
-const relayedMcOnePayPopupKeys = new Set<string>()
+import { MunicipioCombobox } from '@/public/MunicipioCombobox'
+import { COLOMBIA_DEPARTAMENTOS, formatoDepartamentoEtiqueta, MC_CHECKOUT_DOCUMENTO_TIPOS } from '@/lib/colombiaGeo'
+import { buildCheckoutWhatsappText, whatsappUrlFromNumber } from '@/catalog-local/buildWhatsappUrl'
+import { buildNumeroReferencia, publicCatalogSuccessPath } from '@/lib/catalogOrderTracking'
+import {
+  MC_ONEPAY_DONE_MSG,
+  MC_ONEPAY_POPUP_NAME,
+  publicCatalogOnePayReturnPath,
+} from '@/public/onepayCheckoutPaths'
 
 function callableErrorMessage(e: unknown): string {
   if (
@@ -100,9 +104,6 @@ export function PublicCheckoutPage() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const onePayReturn = searchParams.get('onepay') === '1'
-  const onepayOrderId = searchParams.get('o')
-  const onepayViewToken = searchParams.get('ov')
   const { tenantId, tenant, platformSettings, loading, error } = usePublicTenant(slug)
   const { lines, totalPiezas, clear } = useCatalogoSimpleCart()
 
@@ -111,28 +112,38 @@ export function PublicCheckoutPage() {
   const [email, setEmail] = useState('')
   const [envioCiudad, setEnvioCiudad] = useState('')
   const [envioDepartamento, setEnvioDepartamento] = useState('')
+  const [ciudadManual, setCiudadManual] = useState(false)
   const [envioDireccion, setEnvioDireccion] = useState('')
   const [envioReferencia, setEnvioReferencia] = useState('')
+  const [clienteTipoDocumento, setClienteTipoDocumento] = useState('')
+  const [clienteDocumentoNumero, setClienteDocumentoNumero] = useState('')
   const [nota, setNota] = useState('')
   const [cuponInput, setCuponInput] = useState('')
   const [cuponAplicado, setCuponAplicado] = useState<McCuponTienda | null>(null)
   const [cuponError, setCuponError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [onepayBusy, setOnepayBusy] = useState(false)
-  const [onpayReturnStatus, setOnpayReturnStatus] = useState<
-    'idle' | 'checking' | 'pagado' | 'pendiente' | 'cancelado' | 'error' | 'legacy'
-  >('idle')
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const [cuponOpen, setCuponOpen] = useState(false)
 
-  /** OnePay desde ventana popup: llevar estado de retorno al checkout principal (pago único sin redirigir toda la app). */
+  /** Links antiguos de OnePay que apuntaban a `/checkout?onepay=1`: redirect a la vista dedicada. */
+  useEffect(() => {
+    if (!slug) return
+    if (searchParams.get('onepay') !== '1') return
+    const o = searchParams.get('o')
+    const ov = searchParams.get('ov')
+    if (!o || !ov) return
+    navigate(publicCatalogOnePayReturnPath(slug, o, ov), { replace: true })
+  }, [slug, searchParams, navigate])
+
+  /** Popup OnePay: la pestaña principal recibe la URL de validación y navega ahí. */
   useEffect(() => {
     function onWinMessage(e: MessageEvent) {
       if (e.origin !== window.location.origin) return
       const d = e.data as { type?: string; pathname?: string; search?: string }
       if (d?.type !== MC_ONEPAY_DONE_MSG || typeof d.pathname !== 'string') return
-      const path = slug ? `/c/${slug}/checkout` : null
-      if (!path || d.pathname !== path) return
+      const expectedPath = slug ? `/c/${slug}/checkout/pago-validando` : null
+      if (!expectedPath || d.pathname !== expectedPath) return
       let q = ''
       if (typeof d.search === 'string' && d.search.length > 0) {
         q = d.search.startsWith('?') ? d.search : `?${d.search}`
@@ -142,42 +153,6 @@ export function PublicCheckoutPage() {
     window.addEventListener('message', onWinMessage)
     return () => window.removeEventListener('message', onWinMessage)
   }, [slug, navigate])
-
-  useEffect(() => {
-    if (!onePayReturn) return
-    if (!slug || !onepayOrderId || !onepayViewToken || typeof window === 'undefined') return
-    const opener = window.opener as Window | null
-    if (!opener || opener.closed) return
-    try {
-      const dedupeKey = `${onepayOrderId}:${onepayViewToken}`
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          const sk = `mc_onepay_popup_relay_v1:${dedupeKey}`
-          if (sessionStorage.getItem(sk)) return
-          sessionStorage.setItem(sk, '1')
-        }
-      } catch {
-        /* seguimos sólo con el Set */
-      }
-      if (relayedMcOnePayPopupKeys.has(dedupeKey)) return
-      relayedMcOnePayPopupKeys.add(dedupeKey)
-
-      const search = `?onepay=1&o=${encodeURIComponent(onepayOrderId)}&ov=${encodeURIComponent(onepayViewToken)}`
-      opener.postMessage(
-        { type: MC_ONEPAY_DONE_MSG, pathname: `/c/${slug}/checkout`, search },
-        window.location.origin,
-      )
-      queueMicrotask(() => {
-        try {
-          window.close()
-        } catch {
-          /* ignorar si el navegador no permite cerrar */
-        }
-      })
-    } catch {
-      /* postMessage puede fallar en condiciones extremas */
-    }
-  }, [onePayReturn, slug, onepayOrderId, onepayViewToken])
 
   const { lineasOrden, subtotalCop, preciosOk } = useMemo(() => {
     const lineas: McOrdenCatalogoLinea[] = lines.map((l) => ({
@@ -191,26 +166,21 @@ export function PublicCheckoutPage() {
     return { lineasOrden: lineas, subtotalCop: t, preciosOk: ok }
   }, [lines])
 
-  const { envioCop, lineaEnvio } = useMemo(
-    () =>
-      resolveEnvioCop(
-        tenant
-          ? {
-              envioEstimadoCop: tenant.envioEstimadoCop,
-              envioPorCiudad: tenant.envioPorCiudad,
-              envioGratisDesdeCop: tenant.envioGratisDesdeCop,
-            }
-          : undefined,
-        envioCiudad,
-        subtotalCop,
-      ),
+  const envioPricingInput = useMemo(
+    () => effectiveEnvioPricingForCheckout(tenant ?? undefined, platformSettings ?? undefined),
     [
       tenant?.envioEstimadoCop,
       tenant?.envioPorCiudad,
       tenant?.envioGratisDesdeCop,
-      envioCiudad,
-      subtotalCop,
+      tenant?.envioUsarTarifasMicatalogo,
+      platformSettings?.envioMicatalogoEstimadoCop,
+      platformSettings?.envioMicatalogoPorCiudad,
     ],
+  )
+
+  const { envioCop, lineaEnvio } = useMemo(
+    () => resolveEnvioCop(envioPricingInput, envioCiudad, subtotalCop, envioDepartamento),
+    [envioPricingInput, envioCiudad, envioDepartamento, subtotalCop],
   )
 
   const envioLabel = tenant?.envioEstimadoEtiqueta?.trim() || 'Envío'
@@ -225,74 +195,18 @@ export function PublicCheckoutPage() {
     [subtotalCop, envioCop, descuentoCop],
   )
 
-  const checkoutVentasModo = useMemo(() => effectiveCheckoutVentasModo(tenant), [tenant])
+  const checkoutVentasModoExplicit = useMemo(() => explicitCheckoutVentasModo(tenant), [tenant])
 
   const pasarelaMicatalogoOk = platformSettings?.pasarelaMicatalogoActiva === true
 
   /** Mostrar cobro OnePay: comercio propio o pasarela Mi Catálogo activa a nivel plataforma. */
-  const mostrarOnepayEnCheckout =
-    (checkoutVentasModo === 'pasarela' && tenant?.onepayPaymentsEnabled === true) ||
-    (checkoutVentasModo === 'pasarela_micatalogo' && pasarelaMicatalogoOk)
-
-  useEffect(() => {
-    if (!onePayReturn) {
-      setOnpayReturnStatus('idle')
-      return
-    }
-    if (!onepayOrderId || !onepayViewToken || !slug || !firebaseConfigured) {
-      setOnpayReturnStatus('legacy')
-      return
-    }
-    setOnpayReturnStatus('checking')
-    const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepayCheckoutStatus')
-    let n = 0
-    const max = 20
-    let t: ReturnType<typeof setInterval> | null = null
-    const run = () => {
-      void (async () => {
-        try {
-          const r = await fn({ slug, orderId: onepayOrderId, onepayViewToken: onepayViewToken })
-          const d = r.data as {
-            notFound?: boolean
-            estado?: string
-          }
-          if (d?.notFound) {
-            if (t) clearInterval(t)
-            setOnpayReturnStatus('error')
-            return
-          }
-          if (d.estado === 'pagado') {
-            if (t) clearInterval(t)
-            setOnpayReturnStatus('pagado')
-            clear()
-            navigate(`/c/${slug}`, { replace: true })
-            return
-          }
-          if (d.estado === 'cancelado') {
-            if (t) clearInterval(t)
-            setOnpayReturnStatus('cancelado')
-            return
-          }
-          n += 1
-          if (n >= max) {
-            if (t) clearInterval(t)
-            setOnpayReturnStatus('pendiente')
-          } else {
-            setOnpayReturnStatus('pendiente')
-          }
-        } catch {
-          if (t) clearInterval(t)
-          setOnpayReturnStatus('error')
-        }
-      })()
-    }
-    run()
-    t = setInterval(run, 2500)
-    return () => {
-      if (t) clearInterval(t)
-    }
-    // No incluir `clear`/`navigate` en deps: evitamos re-ejecutar al mutar el carrito.
-  }, [onePayReturn, onepayOrderId, onepayViewToken, slug])
+  const mostrarOnepayEnCheckout = useMemo(() => {
+    const modo = checkoutVentasModoExplicit
+    return (
+      (modo === 'pasarela' && tenant?.onepayPaymentsEnabled === true) ||
+      (modo === 'pasarela_micatalogo' && pasarelaMicatalogoOk)
+    )
+  }, [checkoutVentasModoExplicit, tenant?.onepayPaymentsEnabled, pasarelaMicatalogoOk])
 
   function aplicarCupon() {
     setCuponError(null)
@@ -329,6 +243,10 @@ export function PublicCheckoutPage() {
       setErrMsg('Tu carrito está vacío.')
       return
     }
+    if (!tenant || explicitCheckoutVentasModo(tenant) === null) {
+      setErrMsg('Esta tienda aún no configuró cómo acepta pagos.')
+      return
+    }
     if (!preciosOk || subtotalCop <= 0) {
       setErrMsg('Todos los productos deben tener precio para comprar en línea.')
       return
@@ -337,8 +255,16 @@ export function PublicCheckoutPage() {
       setErrMsg('Nombre y teléfono son obligatorios.')
       return
     }
+    if (!envioDepartamento.trim()) {
+      setErrMsg('Seleccioná el departamento de envío.')
+      return
+    }
     if (!envioCiudad.trim() || !envioDireccion.trim()) {
       setErrMsg('Ciudad y dirección de envío son obligatorias.')
+      return
+    }
+    if (!clienteTipoDocumento.trim() || !clienteDocumentoNumero.trim()) {
+      setErrMsg('Tipo y número de documento son obligatorios.')
       return
     }
     const cuponVigente = cuponAplicado
@@ -355,9 +281,12 @@ export function PublicCheckoutPage() {
       return
     }
     const now = Date.now()
+    const viewToken = crypto.randomUUID().replace(/-/g, '')
     setBusy(true)
     try {
       const db = getDb()
+      const orderRef = doc(collection(db, mcOrdenesCatalogoCollection(tenantId)))
+      const numeroReferencia = buildNumeroReferencia(orderRef.id)
       const base: Record<string, unknown> = {
         createdAt: now,
         updatedAt: now,
@@ -368,10 +297,15 @@ export function PublicCheckoutPage() {
         descuentoCop: descFinal,
         totalCop: totalFinal,
         pagoSimulado: true,
+        onepayViewToken: viewToken,
+        numeroReferencia,
+        seguimientoCompraAt: now,
       }
       if (nombre.trim()) base.clienteNombre = nombre.trim()
       if (telefono.trim()) base.clienteTelefono = telefono.trim()
       if (email.trim()) base.clienteEmail = email.trim()
+      base.clienteTipoDocumento = clienteTipoDocumento.trim().toUpperCase()
+      base.clienteDocumentoNumero = clienteDocumentoNumero.trim()
       if (nota.trim()) base.notaCliente = nota.trim()
       if (envioCiudad.trim()) base.envioCiudad = envioCiudad.trim()
       if (envioDepartamento.trim()) base.envioDepartamento = envioDepartamento.trim()
@@ -379,14 +313,92 @@ export function PublicCheckoutPage() {
       if (envioReferencia.trim()) base.envioReferencia = envioReferencia.trim()
       if (cuponVigente) base.cuponCodigo = normalizeCuponCodigo(cuponVigente.codigo)
 
-      await addDoc(collection(db, mcOrdenesCatalogoCollection(tenantId)), base)
+      await setDoc(orderRef, base)
       clear()
-      navigate(`/c/${slug}`, { replace: true })
+      navigate(publicCatalogSuccessPath(slug, orderRef.id), { replace: true })
     } catch {
       setErrMsg('No se pudo registrar la venta. Intentá de nuevo.')
     } finally {
       setBusy(false)
     }
+  }
+
+  function pedirPorWhatsapp() {
+    setErrMsg(null)
+    if (!slug || !tenant) {
+      setErrMsg('No se puede enviar el pedido ahora.')
+      return
+    }
+    if (lines.length === 0 || totalPiezas === 0) {
+      setErrMsg('Tu carrito está vacío.')
+      return
+    }
+    if (explicitCheckoutVentasModo(tenant) !== 'whatsapp') {
+      setErrMsg('Esta tienda no acepta pedidos por WhatsApp en el checkout.')
+      return
+    }
+    if (!preciosOk || subtotalCop <= 0) {
+      setErrMsg('Todos los productos deben tener precio para pedir en línea.')
+      return
+    }
+    if (!nombre.trim() || !telefono.trim()) {
+      setErrMsg('Nombre y teléfono son obligatorios.')
+      return
+    }
+    if (!envioDepartamento.trim()) {
+      setErrMsg('Seleccioná el departamento de envío.')
+      return
+    }
+    if (!envioCiudad.trim() || !envioDireccion.trim()) {
+      setErrMsg('Ciudad y dirección de envío son obligatorias.')
+      return
+    }
+    if (!clienteTipoDocumento.trim() || !clienteDocumentoNumero.trim()) {
+      setErrMsg('Tipo y número de documento son obligatorios.')
+      return
+    }
+    const cuponVigente = cuponAplicado
+      ? buscarCuponActivo(cuponAplicado.codigo, tenant?.cuponesCatalogo)
+      : null
+    if (cuponAplicado && !cuponVigente) {
+      setErrMsg('El cupón ya no está disponible. Quitá el cupón o probá otro código.')
+      return
+    }
+    const descFinal = cuponVigente ? descuentoDesdeCupon(subtotalCop, cuponVigente) : 0
+    const totalFinal = totalCheckoutCop(subtotalCop, envioCop, descFinal)
+    if (totalFinal < 0) {
+      setErrMsg('El total no es válido.')
+      return
+    }
+    const waDigits = tenant.whatsappNumero?.replace(/\D/g, '') ?? ''
+    if (waDigits.length < 10) {
+      setErrMsg('La tienda aún no configuró un WhatsApp válido para pedidos.')
+      return
+    }
+    const waText = buildCheckoutWhatsappText(lines, tenant.mensajeIntro, {
+      nombre: nombre.trim(),
+      telefono: telefono.trim(),
+      email: email.trim() || undefined,
+      clienteTipoDocumento: clienteTipoDocumento.trim().toUpperCase(),
+      clienteDocumentoNumero: clienteDocumentoNumero.trim(),
+      envioDepartamento: formatoDepartamentoEtiqueta(envioDepartamento.trim()),
+      envioCiudad: envioCiudad.trim(),
+      envioDireccion: envioDireccion.trim(),
+      envioReferencia: envioReferencia.trim() || undefined,
+      nota: nota.trim() || undefined,
+      subtotalCop,
+      envioCop,
+      descuentoCop: descFinal,
+      totalCop: totalFinal,
+      envioLabel,
+      cuponCodigo: cuponVigente ? normalizeCuponCodigo(cuponVigente.codigo) : undefined,
+    })
+    const url = whatsappUrlFromNumber(waDigits, waText)
+    if (!url) {
+      setErrMsg('No se pudo abrir WhatsApp.')
+      return
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   async function pagarConOnepay() {
@@ -399,6 +411,10 @@ export function PublicCheckoutPage() {
       setErrMsg('Tu carrito está vacío.')
       return
     }
+    if (!tenant || explicitCheckoutVentasModo(tenant) === null) {
+      setErrMsg('Esta tienda aún no configuró cómo acepta pagos.')
+      return
+    }
     if (!preciosOk || subtotalCop <= 0) {
       setErrMsg('Todos los productos deben tener precio.')
       return
@@ -407,8 +423,16 @@ export function PublicCheckoutPage() {
       setErrMsg('Nombre y teléfono son obligatorios.')
       return
     }
+    if (!envioDepartamento.trim()) {
+      setErrMsg('Seleccioná el departamento de envío.')
+      return
+    }
     if (!envioCiudad.trim() || !envioDireccion.trim()) {
       setErrMsg('Ciudad y dirección de envío son obligatorias.')
+      return
+    }
+    if (!clienteTipoDocumento.trim() || !clienteDocumentoNumero.trim()) {
+      setErrMsg('Tipo y número de documento son obligatorios.')
       return
     }
     const cuponVigente = cuponAplicado
@@ -463,6 +487,8 @@ export function PublicCheckoutPage() {
         telefono: telefono.trim(),
         email: email.trim() || undefined,
         nota: nota.trim() || undefined,
+        clienteTipoDocumento: clienteTipoDocumento.trim().toUpperCase(),
+        clienteDocumentoNumero: clienteDocumentoNumero.trim(),
         envioCiudad: envioCiudad.trim(),
         envioDepartamento: envioDepartamento.trim() || undefined,
         envioDireccion: envioDireccion.trim(),
@@ -522,15 +548,36 @@ export function PublicCheckoutPage() {
     )
   }
 
+  if (checkoutVentasModoExplicit === null) {
+    return (
+      <div className="mc-public-catalog-inset max-w-lg space-y-6 py-12">
+        <p className="text-sm font-medium mc-pc-text">Checkout pausado</p>
+        <p className="text-sm leading-relaxed mc-pc-muted">
+          La tienda todavía no eligió cómo cobrar en el checkout. Si sos la persona que administra esta tienda, entrá al
+          panel en <strong className="font-medium mc-pc-text">Cuenta</strong>, sección{' '}
+          <strong className="font-medium mc-pc-text">Checkout · cómo cerrás ventas</strong>, y guardá tu elección.
+        </p>
+        <Link
+          to={`/c/${slug}`}
+          className="inline-block text-sm font-medium mc-pc-text underline decoration-neutral-300 underline-offset-4 transition duration-200 ease-in-out hover:opacity-65"
+        >
+          Volver al catálogo
+        </Link>
+      </div>
+    )
+  }
+
+  const checkoutVentasModo = checkoutVentasModoExplicit
+
   const fieldClass =
     'mt-1.5 w-full rounded-md border mc-pc-border bg-[var(--cat-surface)] px-3 py-2.5 text-sm leading-relaxed mc-pc-text outline-none transition duration-200 ease-in-out placeholder:text-[color-mix(in_srgb,var(--cat-muted)_65%,transparent)] focus:border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)]'
 
   const envioHint =
-    envioCiudad.trim() && envioDireccion.trim()
-      ? `${envioCiudad.trim()} · dirección lista`
-      : envioCiudad.trim()
-        ? `${envioCiudad.trim()} · completá dirección`
-        : 'Ciudad, dirección y referencia'
+    envioDepartamento.trim() && envioCiudad.trim() && envioDireccion.trim()
+      ? `${formatoDepartamentoEtiqueta(envioDepartamento.trim())} · ${envioCiudad.trim()} · listo`
+      : envioDepartamento.trim() && envioCiudad.trim()
+        ? `${formatoDepartamentoEtiqueta(envioDepartamento.trim())} · ${envioCiudad.trim()} · falta dirección`
+        : 'Departamento, ciudad/municipio y dirección'
 
   const innerFieldClass = clsx(fieldClass, 'mt-1.5')
 
@@ -604,6 +651,40 @@ export function PublicCheckoutPage() {
     </ul>
   )
 
+  const resumenCtaAccentClass =
+    'mt-3 w-full rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40'
+
+  const onepayResumenCta = mostrarOnepayEnCheckout ? (
+    <>
+      {errMsg ? <p className="mt-3 text-sm leading-relaxed text-red-700">{errMsg}</p> : null}
+      <button
+        type="button"
+        onClick={() => void pagarConOnepay()}
+        disabled={onepayBusy || busy || !preciosOk || subtotalCop <= 0}
+        className={resumenCtaAccentClass}
+      >
+        {onepayBusy ? 'Abriendo OnePay…' : `Pagar · ${totalCop > 0 ? formatCop(totalCop) : '—'}`}
+      </button>
+    </>
+  ) : null
+
+  const whatsappResumenCta =
+    checkoutVentasModo === 'whatsapp' ? (
+      <>
+        {errMsg ? <p className="mt-3 text-sm leading-relaxed text-red-700">{errMsg}</p> : null}
+        <button
+          type="button"
+          onClick={pedirPorWhatsapp}
+          disabled={busy || onepayBusy || !preciosOk || subtotalCop <= 0}
+          className={resumenCtaAccentClass}
+        >
+          Pedir por Whatsapp
+        </button>
+      </>
+    ) : null
+
+  const resumenCta = onepayResumenCta ?? whatsappResumenCta
+
   return (
     <div className="mc-public-catalog-inset py-7 sm:py-9 lg:max-w-7xl">
       <div className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
@@ -625,7 +706,7 @@ export function PublicCheckoutPage() {
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--cat-muted)] sm:mt-3">
             {mostrarOnepayEnCheckout
-              ? 'Al pagar se abre OnePay: ahí elegís tarjeta, PSE u otros medios que tenga el comercio. Podés usar otra pestaña o ventana y volver acá al finalizar.'
+              ? 'Completá tus datos; en el resumen del pedido tenés el total y el botón para abrir el cobro seguro de OnePay.'
               : checkoutVentasModo === 'whatsapp'
                 ? 'Completá tus datos para registrar el pedido. Esta tienda coordina el pago por WhatsApp.'
                 : 'Completá tus datos; cuando la tienda active la pasarela podrás pagar en línea.'}
@@ -651,39 +732,15 @@ export function PublicCheckoutPage() {
         )}
       </div>
 
-      {onePayReturn && onpayReturnStatus === 'legacy' && (
-        <p className="mb-6 rounded-2xl border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] bg-[color-mix(in_srgb,var(--cat-bg)_50%,var(--cat-surface)_50%)] px-4 py-3 text-sm leading-relaxed text-[var(--cat-text)] sm:px-5">
-          Volviste desde OnePay. Si ya pagaste, la tienda verá el cobro en su panel. Si el pago sigue pendiente, usá el
-          link que te envió OnePay por WhatsApp o correo.
-        </p>
-      )}
-      {onePayReturn && onepayOrderId && onepayViewToken && onpayReturnStatus === 'checking' && (
-        <p className="mb-6 rounded-2xl border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] bg-[color-mix(in_srgb,var(--cat-bg)_50%,var(--cat-surface)_50%)] px-4 py-3 text-sm leading-relaxed text-[var(--cat-text)] sm:px-5">
-          Comprobando el pago con la tienda…
-        </p>
-      )}
-      {onePayReturn && onepayOrderId && onepayViewToken && onpayReturnStatus === 'pendiente' && (
-        <p className="mb-6 rounded-2xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm leading-relaxed text-amber-950 sm:px-5">
-          El pago aún se está acreditando. En cuanto el banco o OnePay lo confirmen, la venta quedará como “Pagada” en el
-          panel. Podés dejar esta página abierta o volver al catálogo: no se vuelve a cobrar.
-        </p>
-      )}
-      {onePayReturn && onepayOrderId && onepayViewToken && onpayReturnStatus === 'cancelado' && (
-        <p className="mb-6 rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm leading-relaxed text-red-950 sm:px-5">
-          El cobro no se completó o venció. Volvé a intentar el pago o contactá a la tienda.
-        </p>
-      )}
-      {onePayReturn && onepayOrderId && onepayViewToken && onpayReturnStatus === 'error' && (
-        <p className="mb-6 rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm leading-relaxed text-red-950 sm:px-5">
-          No pudimos consultar el estado del pedido. Si ya pagaste, la tienda lo verá en Pedidos al confirmarse.
-        </p>
-      )}
-
       <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-10 xl:gap-12">
         <div className="space-y-5 lg:col-span-7 lg:space-y-6">
           <div className="lg:hidden">
             <CheckoutDisclosure title="Resumen del pedido" hint={resumenHint} initialOpen>
               {resumenList}
+              <p className="mt-4 text-xs leading-relaxed text-[var(--cat-muted)]">
+                Cupón y envío se reflejan en el total.
+              </p>
+              {resumenCta}
             </CheckoutDisclosure>
           </div>
 
@@ -777,6 +834,41 @@ export function PublicCheckoutPage() {
                 autoComplete="email"
               />
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                  Tipo de documento <span className="text-red-700">*</span>
+                </label>
+                <select
+                  className={innerFieldClass}
+                  value={clienteTipoDocumento}
+                  onChange={(e) => setClienteTipoDocumento(e.target.value)}
+                  required
+                >
+                  <option value="">Elegí…</option>
+                  {MC_CHECKOUT_DOCUMENTO_TIPOS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                  Número de documento <span className="text-red-700">*</span>
+                </label>
+                <input
+                  className={innerFieldClass}
+                  value={clienteDocumentoNumero}
+                  onChange={(e) => setClienteDocumentoNumero(e.target.value)}
+                  inputMode="text"
+                  autoComplete="off"
+                  required
+                  minLength={5}
+                  placeholder="Sin puntos ni espacios"
+                />
+              </div>
+            </div>
           </div>
         </CheckoutCard>
 
@@ -784,27 +876,75 @@ export function PublicCheckoutPage() {
           <div className="space-y-4">
             <div>
               <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                Ciudad <span className="text-red-700">*</span>
+                Departamento <span className="text-red-700">*</span>
               </label>
-              <input
-                className={innerFieldClass}
-                value={envioCiudad}
-                onChange={(e) => setEnvioCiudad(e.target.value)}
-                autoComplete="address-level2"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                Departamento / provincia (opcional)
-              </label>
-              <input
+              <select
                 className={innerFieldClass}
                 value={envioDepartamento}
-                onChange={(e) => setEnvioDepartamento(e.target.value)}
-                autoComplete="address-level1"
-              />
+                required
+                onChange={(e) => {
+                  const v = e.target.value
+                  setEnvioDepartamento(v)
+                  if (!ciudadManual) setEnvioCiudad('')
+                }}
+              >
+                <option value="">Elegí departamento…</option>
+                {COLOMBIA_DEPARTAMENTOS.map((d) => (
+                  <option key={d} value={d}>
+                    {formatoDepartamentoEtiqueta(d)}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            <div>
+              <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                Ciudad o municipio <span className="text-red-700">*</span>
+              </label>
+              {ciudadManual ? (
+                <input
+                  className={innerFieldClass}
+                  value={envioCiudad}
+                  onChange={(e) => setEnvioCiudad(e.target.value)}
+                  autoComplete="address-level2"
+                  required
+                  placeholder="Ej. nombre del municipio"
+                />
+              ) : (
+                <MunicipioCombobox
+                  departamento={envioDepartamento}
+                  value={envioCiudad}
+                  onChange={setEnvioCiudad}
+                  disabled={busy || onepayBusy}
+                  required
+                  inputClassName={innerFieldClass}
+                  placeholder="Buscá y elegí tu municipio…"
+                />
+              )}
+              {!ciudadManual && (
+                <p className="mt-1.5 text-[11px] leading-relaxed mc-pc-muted">
+                  Escribí las primeras letras para filtrar. El envío se calcula con la ciudad indicada y las tarifas de la
+                  tienda (o Mi Catálogo si la tienda lo configuró).
+                </p>
+              )}
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-dashed mc-pc-border px-3 py-2.5">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={ciudadManual}
+                onChange={(e) => {
+                  const v = e.target.checked
+                  setCiudadManual(v)
+                  if (!v) setEnvioCiudad('')
+                }}
+              />
+              <span className="text-[13px] leading-snug mc-pc-text">
+                Mi ciudad no aparece en la lista (escribir manualmente)
+              </span>
+            </label>
+
             <div>
               <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
                 Dirección <span className="text-red-700">*</span>
@@ -846,55 +986,11 @@ export function PublicCheckoutPage() {
           />
         </CheckoutDisclosure>
 
-        <CheckoutDisclosure
-          title="Pago"
-          hint={
-            mostrarOnepayEnCheckout
-              ? 'Tarjeta, PSE y otros medios: en la página segura de OnePay (paso siguiente)'
-              : checkoutVentasModo === 'whatsapp'
-                ? 'Pedido para coordinar con la tienda (sin pasarela en esta página)'
-                : 'Tarjeta de demostración · no se cobra de verdad'
-          }
-        >
-          {mostrarOnepayEnCheckout && (
-            <>
-              <div className="mb-4 rounded-md border border-[color-mix(in_srgb,var(--cat-accent)_25%,transparent)] bg-[color-mix(in_srgb,var(--cat-accent)_10%,var(--cat-surface)_90%)] px-3 py-3 sm:px-4">
-                <p className="text-sm font-medium mc-pc-text">Pago real con OnePay</p>
-                <p className="mt-1 text-[13px] leading-relaxed mc-pc-muted">
-                  Acá <strong className="font-medium text-[var(--cat-text)]">no</strong> se eligen tarjeta ni PSE: al tocar{' '}
-                  <strong className="font-medium text-[var(--cat-text)]">Pagar con OnePay</strong> se abre el cobro oficial,
-                  donde podés pagar con <strong className="font-medium text-[var(--cat-text)]">tarjeta</strong>,{' '}
-                  <strong className="font-medium text-[var(--cat-text)]">PSE</strong>, débito a cuenta y otros medios que
-                  tenga habilitados tu comercio en OnePay. Si usás ventana emergente y el navegador la bloquea, se abre en
-                  esta misma pestaña.
-                </p>
-                <p className="mt-2 text-[12px] leading-relaxed mc-pc-muted">
-                  Más info:{' '}
-                  <a
-                    href="https://docs.onepay.la/client/payments/index"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4"
-                  >
-                    cobros OnePay
-                  </a>
-                  . Si en esa pantalla no ves PSE u otro canal, suele ser la configuración del comercio en OnePay:
-                  contactá a su soporte para habilitar medios.
-                </p>
-              </div>
-              <div className="rounded-md border mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_25%,var(--cat-surface)_75%)] px-3 py-3 sm:px-4">
-                <p className="text-[11px] font-medium uppercase tracking-[0.12em] mc-pc-muted">
-                  Medios habituales en OnePay (según la cuenta)
-                </p>
-                <ul className="mt-2 list-inside list-disc space-y-1 text-[13px] leading-relaxed mc-pc-text">
-                  <li>Tarjeta débito o crédito</li>
-                  <li>PSE (bancos en Colombia)</li>
-                  <li>Cuentas / otros que OnePay muestre para ese comercio</li>
-                </ul>
-              </div>
-            </>
-          )}
-          {!mostrarOnepayEnCheckout && (
+        {!mostrarOnepayEnCheckout && checkoutVentasModo !== 'whatsapp' && (
+          <CheckoutDisclosure
+            title="Pago"
+            hint="Tarjeta de demostración · no se cobra de verdad"
+          >
             <div className="rounded-md border border-dashed mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] px-3 py-4 sm:px-4">
               <p className="text-[11px] font-medium uppercase tracking-[0.12em] mc-pc-muted">Tarjeta (demo)</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -914,39 +1010,27 @@ export function PublicCheckoutPage() {
               </div>
               <p className="mt-3 text-[11px] leading-relaxed mc-pc-muted">
                 Simulación: los datos no van a una pasarela. Si la tienda tiene OnePay, el pago real es solo en la página
-                que se abre con el botón de OnePay.
+                que se abre con el botón de pago del resumen.
               </p>
             </div>
-          )}
-        </CheckoutDisclosure>
+          </CheckoutDisclosure>
+        )}
 
-        {errMsg && <p className="text-sm leading-relaxed text-red-700">{errMsg}</p>}
+        {!mostrarOnepayEnCheckout && checkoutVentasModo !== 'whatsapp' && errMsg ? (
+          <p className="text-sm leading-relaxed text-red-700">{errMsg}</p>
+        ) : null}
 
-        <div className="flex flex-col gap-2">
-          {mostrarOnepayEnCheckout && (
-            <button
-              type="button"
-              onClick={() => void pagarConOnepay()}
-              disabled={onepayBusy || busy || !preciosOk || subtotalCop <= 0}
-              className="w-full rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {onepayBusy ? 'Abriendo OnePay…' : `Pagar con OnePay · ${totalCop > 0 ? formatCop(totalCop) : '—'}`}
-            </button>
-          )}
-          {!mostrarOnepayEnCheckout && (
+        {!mostrarOnepayEnCheckout && checkoutVentasModo !== 'whatsapp' ? (
+          <div className="flex flex-col gap-2">
             <button
               type="submit"
               disabled={busy || onepayBusy || !preciosOk || subtotalCop <= 0}
               className="w-full rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy
-                ? 'Procesando…'
-                : checkoutVentasModo === 'whatsapp'
-                  ? 'Registrar pedido'
-                  : 'Confirmar pago simulado'}
+              {busy ? 'Procesando…' : 'Confirmar pago simulado'}
             </button>
-          )}
-        </div>
+          </div>
+        ) : null}
       </form>
         </div>
 
@@ -959,6 +1043,7 @@ export function PublicCheckoutPage() {
             <p className="mt-4 text-xs leading-relaxed text-[var(--cat-muted)]">
               Cupón y envío se reflejan en el total.
             </p>
+            {resumenCta}
           </div>
         </aside>
       </div>

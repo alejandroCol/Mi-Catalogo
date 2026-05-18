@@ -28,6 +28,11 @@ export interface McUser {
 }
 
 export interface McEnvioCiudadPrecio {
+  /**
+   * Nombre oficial DIVIPOLA del departamento (mismo valor que en `COLOMBIA_DEPARTAMENTOS`).
+   * Si viene vacío/u omitido en datos viejos, el checkout igualó solo por ciudad.
+   */
+  departamento?: string
   /** Ej. Cali, Medellín (se normaliza al comparar). */
   ciudad: string
   /** Costo en COP para esa ciudad. */
@@ -61,6 +66,11 @@ export interface McTenant {
   envioEstimadoEtiqueta?: string
   /** Tarifas por ciudad; si la ciudad del cliente no está en la lista, se usa `envioEstimadoCop`. */
   envioPorCiudad?: McEnvioCiudadPrecio[]
+  /**
+   * Si es true y hay datos en la plataforma (`mc_platform/settings`), el checkout usa las tarifas
+   * cargadas por súper admin en lugar de `envioEstimadoCop` / `envioPorCiudad` de la tienda.
+   */
+  envioUsarTarifasMicatalogo?: boolean
   /** Subtotal mínimo (solo productos, sin cupón) para envío gratis en checkout. */
   envioGratisDesdeCop?: number
   /** Cupones de descuento para el checkout del catálogo. */
@@ -80,13 +90,19 @@ export interface McTenant {
   onepayKeyHint?: string
   /**
    * Token de ruta para el webhook (query `?k=`). No es el secreto HMAC: solo enrutamiento.
-   * Secreto del webhook y clave API viven en `private_onepay/credentials`.
+   * Claves en `private_onepay/credentials`: `secretKey` (sk_), `webhookSecret` (whsec_),
+   * `webhookToken` (wh_hdr_ / x-webhook-token), `publicKey` (pk_, opcional).
    */
   onpayWebHookK?: string
-  onpayWebhookHint?: string
+  /** Últimos caracteres del secreto HMAC del webhook (whsec_…). */
+  onepayWebhookHint?: string
+  /** Últimos caracteres del token de cabecera (wh_hdr_… → x-webhook-token). */
+  onepayWebhookTokenHint?: string
+  /** Últimos caracteres de la clave pública API (pk_test_… / pk_live_…). */
+  onepayPublicKeyHint?: string
   /**
    * Preferencia del vendedor para el checkout: cobro con OnePay o venta coordinada sin pasarela (WhatsApp).
-   * Si falta y la tienda tiene `onepayPaymentsEnabled`, el cliente puede ver pasarela; si no, se asume modo WhatsApp.
+   * Debe setearse explícitamente en Cuenta; si falta, el checkout público y «Ver catálogo» quedan bloqueados.
    * `pasarela_micatalogo` usa la cuenta OnePay de Mi Catálogo (sin KYB/comercio propio).
    */
   checkoutVentasModo?: 'pasarela' | 'whatsapp' | 'pasarela_micatalogo'
@@ -188,9 +204,20 @@ export interface McOrdenCatalogo {
   clienteNombre?: string
   clienteTelefono?: string
   clienteEmail?: string
+  /** Tipo de documento del comprador (checkout Colombia). */
+  clienteTipoDocumento?: string
+  /** Número de documento del comprador. */
+  clienteDocumentoNumero?: string
   notaCliente?: string
   trackingNumber?: string
   trackingImageUrl?: string
+  /** Código corto para seguimiento público (ej. MC-A1B2C3D4). */
+  numeroReferencia?: string
+  /** Código que el comprador ingresa para ver estado y guía (ej. SG-AB12-CD34). */
+  seguimientoCompraAt?: number
+  seguimientoPreparacionAt?: number
+  seguimientoDespachoAt?: number
+  seguimientoEntregaAt?: number
   /** Suma de líneas (antes de envío y cupón). */
   subtotalCop?: number
   envioCop?: number
@@ -208,7 +235,15 @@ export interface McPlatformSettings {
   onpayWebHookK?: string
   onepayKeyHint?: string
   onepayWebhookHint?: string
+  onepayWebhookTokenHint?: string
+  onepayPublicKeyHint?: string
   updatedAt?: number
+  /** Envío por defecto en COP para tiendas que usan tarifas plataforma (sin ciudad en tabla). */
+  envioMicatalogoEstimadoCop?: number
+  /** Tarifas por ciudad definidas por súper admin (ej. importación Excel). */
+  envioMicatalogoPorCiudad?: McEnvioCiudadPrecio[]
+  /** Millis UTC de la última actualización de tarifas plataforma. */
+  envioMicatalogoUpdatedAt?: number
 }
 
 export interface McSlugDoc {

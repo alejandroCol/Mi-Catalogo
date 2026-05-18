@@ -201,6 +201,7 @@ service cloud.firestore {
         'envioEstimadoCop',
         'envioEstimadoEtiqueta',
         'envioPorCiudad',
+        'envioUsarTarifasMicatalogo',
         'envioGratisDesdeCop',
         'cuponesCatalogo',
         'politicasEnvios',
@@ -219,6 +220,7 @@ service cloud.firestore {
         'envioEstimadoCop',
         'envioEstimadoEtiqueta',
         'envioPorCiudad',
+        'envioUsarTarifasMicatalogo',
         'envioGratisDesdeCop',
         'cuponesCatalogo',
         'politicasEnvios',
@@ -415,8 +417,11 @@ service cloud.firestore {
         && (!('envioCiudad' in request.resource.data) || request.resource.data.envioCiudad is string)
         && (!('envioDireccion' in request.resource.data) || request.resource.data.envioDireccion is string)
         && (!('envioReferencia' in request.resource.data) || request.resource.data.envioReferencia is string)
-        && (!('envioDepartamento' in request.resource.data)
-          || request.resource.data.envioDepartamento is string);
+        && (!('envioDepartamento' in request.resource.data) || request.resource.data.envioDepartamento is string)
+        && (!('clienteTipoDocumento' in request.resource.data)
+          || request.resource.data.clienteTipoDocumento is string)
+        && (!('clienteDocumentoNumero' in request.resource.data)
+          || request.resource.data.clienteDocumentoNumero is string);
       allow read: if mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin());
       allow update: if mcSignedIn()
         && mcBelongsToTenant(tid)
@@ -436,7 +441,16 @@ service cloud.firestore {
           'cancelado'
         ]
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['estado', 'updatedAt', 'trackingNumber', 'trackingImageUrl']);
+          .hasOnly([
+            'estado',
+            'updatedAt',
+            'trackingNumber',
+            'trackingImageUrl',
+            'seguimientoCompraAt',
+            'seguimientoPreparacionAt',
+            'seguimientoDespachoAt',
+            'seguimientoEntregaAt'
+          ]);
       allow delete: if false;
     }
   }

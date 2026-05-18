@@ -13,7 +13,6 @@ import {
   resolvePublicCatalogTheme,
 } from '@/lib/catalogTheme'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
-import { buildCartShareData, canUseWebShare, shareSafe } from '@/lib/webShare'
 import { usePublicTenant } from '@/public/usePublicTenant'
 import { McCatalogModal } from '@/public/McCatalogModal'
 
@@ -27,7 +26,7 @@ function CartChrome() {
   const cartItemCount = lines.length
 
   const pathBase = slug ? `/c/${slug}` : '/'
-  const enCheckout = slug ? pathname === `${pathBase}/checkout` : false
+  const enCheckout = slug ? pathname.startsWith(`${pathBase}/checkout`) : false
   const isCatalogListHome = Boolean(slug && pathname === pathBase)
 
   const navLink = (active: boolean) =>
@@ -60,6 +59,15 @@ function CartChrome() {
             className="hidden min-w-0 items-center justify-center gap-0.5 sm:flex md:gap-1"
             aria-label="Tienda pública"
           >
+            {slug ? (
+              <Link
+                to={`${pathBase}/seguimiento`}
+                className={navLink(pathname === `${pathBase}/seguimiento`)}
+                onClick={() => setCartOpen(false)}
+              >
+                Seguir mi pedido
+              </Link>
+            ) : null}
             {slug && tenant && tenantHasPoliticas(tenant) && (
               <Link
                 to={`${pathBase}/politicas`}
@@ -152,14 +160,24 @@ function CartChrome() {
               'Catálogo'
             )}
           </p>
-          {slug && tenant && tenantHasPoliticas(tenant) && (
-            <Link
-              to={`${pathBase}/politicas`}
-              className="text-[11px] font-medium sm:text-xs text-[var(--cat-text)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_50%,transparent)] underline-offset-4 transition hover:opacity-80"
-            >
-              Envíos, pagos y cambios
-            </Link>
-          )}
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:justify-end">
+            {slug ? (
+              <Link
+                to={`${pathBase}/seguimiento`}
+                className="text-[11px] font-medium sm:text-xs text-[var(--cat-text)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_50%,transparent)] underline-offset-4 transition hover:opacity-80"
+              >
+                Seguir mi pedido
+              </Link>
+            ) : null}
+            {slug && tenant && tenantHasPoliticas(tenant) && (
+              <Link
+                to={`${pathBase}/politicas`}
+                className="text-[11px] font-medium sm:text-xs text-[var(--cat-text)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_50%,transparent)] underline-offset-4 transition hover:opacity-80"
+              >
+                Envíos, pagos y cambios
+              </Link>
+            )}
+          </div>
         </div>
       </footer>
 
@@ -177,24 +195,6 @@ function CartChrome() {
               >
                 Vaciar
               </button>
-              {lines.length > 0 && slug && tenant && canUseWebShare() && (
-                <button
-                  type="button"
-                  className="inline-flex w-full items-center justify-center rounded-full border mc-pc-border bg-transparent px-4 py-2.5 text-sm font-medium mc-pc-text transition duration-200 ease-in-out hover:opacity-80 sm:w-auto"
-                  onClick={() =>
-                    void shareSafe(
-                      buildCartShareData({
-                        nombreTienda: tenant.nombreTienda,
-                        catalogUrl: `${window.location.origin}/c/${slug}`,
-                        lines,
-                        totalPiezas,
-                      }),
-                    )
-                  }
-                >
-                  Compartir pedido
-                </button>
-              )}
             </div>
             {lines.length > 0 && slug && (
               <Link

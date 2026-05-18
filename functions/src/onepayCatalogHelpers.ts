@@ -22,6 +22,120 @@ export function collectOnePaySignatureHeader(headersNorm: Record<string, string>
   return ''
 }
 
+/** Cabeceras útiles para depurar entregas sin firma válida. */
+export function onePayWebhookInterestingHeaderKeys(headersNorm: Record<string, string>): string[] {
+  return Object.keys(headersNorm).filter((k) =>
+    /sig|signature|webhook|onepay|hmac|token|x-/i.test(k),
+  )
+}
+
+function looksLikeOnePayHmacSecret(value: string): boolean {
+  const v = value.trim()
+  return (
+    v.startsWith('whsec_') ||
+    v.startsWith('wh_tok_') ||
+    (v.length >= 16 && !v.startsWith('wh_hdr_'))
+  )
+}
+
+function looksLikeOnePayWebhookToken(value: string): boolean {
+  return value.trim().startsWith('wh_hdr_')
+}
+
+/**
+ * Normaliza secret/token guardados (a veces se intercambian al copiar del panel).
+ * whsec_/wh_tok_ → HMAC; wh_hdr_ → x-webhook-token.
+ */
+export function resolveOnePayWebhookCredentials(stored: {
+  webhookSecret?: string
+  webhookToken?: string
+}): { hmacSecret: string; headerToken: string } {
+  let hmacSecret = normalizeOnePaySecretValue(stored.webhookSecret || '')
+  let headerToken = normalizeOnePaySecretValue(stored.webhookToken || '')
+
+  if (looksLikeOnePayWebhookToken(hmacSecret) && !headerToken) {
+    headerToken = hmacSecret
+    hmacSecret = ''
+  }
+  if (looksLikeOnePayHmacSecret(headerToken) && !hmacSecret) {
+    hmacSecret = headerToken
+    headerToken = ''
+  }
+
+  return { hmacSecret, headerToken }
+}
+
+export type OnePayWebhookAuthResult =
+  | { ok: true; via: 'hmac' | 'token' }
+  | { ok: false; reason: 'missing_config' | 'invalid_signature' | 'invalid_token' }
+
+/**
+ * Valida webhooks OnePay como Ticket Colombia:
+ * 1) Con x-signature / x-onepay-signature: HMAC (whsec_/wh_tok_).
+ * 2) Sin firma: x-webhook-token (wh_hdr_).
+ */
+export function authenticateOnePayWebhook(params: {
+  rawBody: string
+  parsedBody: unknown
+  webhookSecret: string
+  webhookToken?: string
+  headersNorm: Record<string, string>
+}): OnePayWebhookAuthResult {
+  const { hmacSecret, headerToken } = resolveOnePayWebhookCredentials({
+    webhookSecret: params.webhookSecret,
+    webhookToken: params.webhookToken,
+  })
+
+  const tok = normalizeOnePaySecretValue(
+    params.headersNorm['x-webhook-token'] || params.headersNorm['x-onepay-token'] || '',
+  )
+  const sig = collectOnePaySignatureHeader(params.headersNorm)
+  const hasSig = Boolean(sig)
+
+  if (hasSig) {
+    if (!hmacSecret) {
+      return { ok: false, reason: 'missing_config' }
+    }
+    if (
+      verifyOnePayWebhookSignatureDetailed(
+        params.rawBody,
+        params.parsedBody,
+        hmacSecret,
+        sig,
+      ).ok
+    ) {
+      return { ok: true, via: 'hmac' }
+    }
+    if (headerToken && tok === headerToken) {
+      console.warn(
+        '[mcOnepayCatalogWebhook] HMAC rechazado; aceptado por x-webhook-token (revisá que el secreto sea whsec_/wh_tok_, no wh_hdr_)',
+      )
+      return { ok: true, via: 'token' }
+    }
+    console.error('[mcOnepayCatalogWebhook] firma HMAC rechazada', {
+      rawBodyLength: params.rawBody.length,
+      signatureHeaderLen: sig.length,
+      interestingHeaders: onePayWebhookInterestingHeaderKeys(params.headersNorm),
+      hasWebhookTokenConfigured: Boolean(headerToken),
+      hint: 'El secreto del webhook debe ser whsec_… (panel OnePay al crear el webhook), no el valor del header x-onepay-signature.',
+    })
+    return { ok: false, reason: 'invalid_signature' }
+  }
+
+  if (!headerToken) {
+    return { ok: false, reason: 'missing_config' }
+  }
+  if (tok !== headerToken) {
+    console.error('[mcOnepayCatalogWebhook] Sin firma HMAC y token inválido', {
+      headerTokenLen: tok.length,
+      expectedTokenLen: headerToken.length,
+    })
+    return { ok: false, reason: 'invalid_token' }
+  }
+  console.warn('[mcOnepayCatalogWebhook] Aceptado solo con x-webhook-token (no vino firma HMAC)')
+  return { ok: true, via: 'token' }
+}
+
 export function onePayHmacHexMatchesBody(
   body: string,
   webhookSecret: string,
@@ -57,8 +171,8 @@ export function onePayHmacHexMatchesBody(
 }
 
 /**
- * OnePay (guía Node) puede firmar `JSON.stringify(req.body)`; Firebase expone rawBody.
- * Aceptamos si cualquiera de los dos coincide con el HMAC.
+ * OnePay firma el body crudo (docs) o `JSON.stringify(req.body)` (guía Node legacy).
+ * Priorizamos rawBody; Firebase/Express deben exponer los bytes originales del POST.
  */
 export function verifyOnePayWebhookSignatureDetailed(
   rawBody: string,
@@ -70,6 +184,7 @@ export function verifyOnePayWebhookSignatureDetailed(
     return { ok: false }
   }
   const parts: string[] = []
+  if (rawBody?.length) parts.push(rawBody)
   if (parsedBody !== undefined && parsedBody !== null) {
     try {
       parts.push(JSON.stringify(parsedBody))
@@ -77,7 +192,6 @@ export function verifyOnePayWebhookSignatureDetailed(
       /* ignore */
     }
   }
-  if (rawBody?.length) parts.push(rawBody)
   const seen = new Set<string>()
   for (const body of parts) {
     if (!body || seen.has(body)) continue

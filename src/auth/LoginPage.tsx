@@ -21,6 +21,7 @@ export function LoginPage() {
     setBusy(true)
     try {
       await signInWithEmailAndPassword(getAuthApp(), email.trim(), password)
+      /** La verificación de correo la decide `RequireMcAuth` (bypass para super admin vía Firestore). */
       nav('/app', { replace: true })
     } catch {
       setErr('No pudimos iniciar sesión. Revisa correo y contraseña.')

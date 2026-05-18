@@ -28,6 +28,8 @@ export function SuperAdminPasarelaMicatalogoPage() {
   const [loading, setLoading] = useState(true)
   const [onePaySk, setOnePaySk] = useState('')
   const [onePayWebhookSecret, setOnePayWebhookSecret] = useState('')
+  const [onePayWebhookToken, setOnePayWebhookToken] = useState('')
+  const [onePayPublicKey, setOnePayPublicKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [hookKHint, setHookKHint] = useState<string | null>(null)
@@ -62,6 +64,8 @@ export function SuperAdminPasarelaMicatalogoPage() {
     if (!firebaseConfigured) return
     const k = onePaySk.trim()
     const wh = onePayWebhookSecret.trim()
+    const wt = onePayWebhookToken.trim()
+    const pk = onePayPublicKey.trim()
     if (!k.startsWith('sk_test_') && !k.startsWith('sk_live_')) {
       setMsg('La clave debe ser la API secret de OnePay (sk_test_… o sk_live_…).')
       return
@@ -72,7 +76,18 @@ export function SuperAdminPasarelaMicatalogoPage() {
     try {
       const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepayLinkPlatformPasarela')
       const res = (await fn(
-        wh.length >= 8 ? { secretKey: k, webhookSecret: wh } : { secretKey: k },
+        wh.length >= 8
+          ? {
+              secretKey: k,
+              webhookSecret: wh,
+              ...(wt.length >= 8 ? { webhookToken: wt } : {}),
+              ...(pk.length >= 8 ? { publicKey: pk } : {}),
+            }
+          : {
+              secretKey: k,
+              ...(wt.length >= 8 ? { webhookToken: wt } : {}),
+              ...(pk.length >= 8 ? { publicKey: pk } : {}),
+            },
       )) as { data: { onpayWebHookK?: string; needWebhookSecret?: boolean } }
       setOnePaySk('')
       if (res.data?.onpayWebHookK) {
@@ -84,6 +99,8 @@ export function SuperAdminPasarelaMicatalogoPage() {
         )
       } else {
         setOnePayWebhookSecret('')
+        setOnePayWebhookToken('')
+        setOnePayPublicKey('')
         setMsg('Pasarela Mi Catálogo activa.')
       }
       await load()
@@ -97,16 +114,24 @@ export function SuperAdminPasarelaMicatalogoPage() {
   async function completarWebhook() {
     if (!firebaseConfigured) return
     const wh = onePayWebhookSecret.trim()
+    const wt = onePayWebhookToken.trim()
+    const pk = onePayPublicKey.trim()
     if (wh.length < 8) {
-      setMsg('Pegá el Secreto del webhook.')
+      setMsg('Pegá el Secreto del webhook (whsec_…).')
       return
     }
     setBusy(true)
     setMsg(null)
     try {
       const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepaySetPlatformWebhookSecret')
-      await fn({ webhookSecret: wh })
+      await fn({
+        webhookSecret: wh,
+        ...(wt.length >= 8 ? { webhookToken: wt } : {}),
+        ...(pk.length >= 8 ? { publicKey: pk } : {}),
+      })
       setOnePayWebhookSecret('')
+      setOnePayWebhookToken('')
+      setOnePayPublicKey('')
       setMsg('Webhook guardado y pasarela activada.')
       await load()
     } catch (e) {
@@ -175,7 +200,9 @@ export function SuperAdminPasarelaMicatalogoPage() {
           <p className="text-[15px] text-emerald-800">
             <strong>Activa</strong>
             {settings?.onepayKeyHint ? <> · API ···{settings.onepayKeyHint}</> : null}
-            {settings?.onepayWebhookHint ? <> · webhook ···{settings.onepayWebhookHint}</> : null}
+            {settings?.onepayWebhookHint ? <> · whsec ···{settings.onepayWebhookHint}</> : null}
+            {settings?.onepayWebhookTokenHint ? <> · wh_hdr ···{settings.onepayWebhookTokenHint}</> : null}
+            {settings?.onepayPublicKeyHint ? <> · pk ···{settings.onepayPublicKeyHint}</> : null}
           </p>
         ) : (
           <p className="text-[15px] text-mc-800">
@@ -197,7 +224,7 @@ export function SuperAdminPasarelaMicatalogoPage() {
             rel="noreferrer"
             className="font-medium underline decoration-neutral-300 underline-offset-4"
           >
-            x-onepay-signature
+            verificación de firma
           </a>
           .
         </p>
@@ -259,18 +286,44 @@ export function SuperAdminPasarelaMicatalogoPage() {
               </p>
             </div>
             <div>
-              <p className="text-[12px] font-medium text-mc-700">Paso 2 · Secreto del webhook</p>
+              <p className="text-[12px] font-medium text-mc-700">Paso 2 · Webhook OnePay</p>
               <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">
-                Secreto (<span className="font-mono">x-onepay-signature</span>)
+                Secreto HMAC (<span className="font-mono">whsec_…</span>)
               </label>
               <input
                 type="password"
                 className="mc-input mt-1 py-2.5 font-mono text-[14px]"
                 autoComplete="off"
-                placeholder="Secreto de OnePay"
+                placeholder="whsec_…"
                 value={onePayWebhookSecret}
                 disabled={busy}
                 onChange={(e) => setOnePayWebhookSecret(e.target.value)}
+              />
+              <label className="ios-footnote mt-3 block font-medium text-[var(--cat-text)] opacity-80">
+                Header / token (<span className="font-mono">wh_hdr_…</span> →{' '}
+                <span className="font-mono">x-webhook-token</span>)
+              </label>
+              <input
+                type="password"
+                className="mc-input mt-1 py-2.5 font-mono text-[14px]"
+                autoComplete="off"
+                placeholder="wh_hdr_…"
+                value={onePayWebhookToken}
+                disabled={busy}
+                onChange={(e) => setOnePayWebhookToken(e.target.value)}
+              />
+              <label className="ios-footnote mt-3 block font-medium text-[var(--cat-text)] opacity-80">
+                Clave pública opcional (<span className="font-mono">pk_test_…</span> /{' '}
+                <span className="font-mono">pk_live_…</span>)
+              </label>
+              <input
+                type="password"
+                className="mc-input mt-1 py-2.5 font-mono text-[14px]"
+                autoComplete="off"
+                placeholder="pk_test_…"
+                value={onePayPublicKey}
+                disabled={busy}
+                onChange={(e) => setOnePayPublicKey(e.target.value)}
               />
               {(settings?.onepayKeyHint || hookKHint) && !activa && kShown ? (
                 <button

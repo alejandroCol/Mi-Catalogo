@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { signOut, updateProfile } from 'firebase/auth'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 import { billingPlanOf } from '@/lib/catalogTheme'
 import { isSubscriptionActive } from '@/lib/subscription'
-import { effectiveCheckoutVentasModo } from '@/lib/checkoutVentasModo'
+import {
+  catalogoVendedorGate,
+  explicitCheckoutVentasModo,
+  isCatalogoVendedorListo,
+} from '@/lib/checkoutVentasModo'
 import { IconClipboard } from '@/icons/McIcons'
 import {
   WA_COUNTRY_PREFIXES,
@@ -16,22 +20,33 @@ import {
   splitStoredWaDigits,
 } from '@/lib/waPhonePrefixes'
 import type { McPlatformSettings } from '@/types/mc'
+import { CheckoutEnvioRequiredModal } from '@/app/CheckoutEnvioRequiredModal'
+import { CheckoutVentasModoOptions } from '@/app/CheckoutVentasModoOptions'
+import {
+  CheckoutVentasRequiredModal,
+  MC_CHECKOUT_VENTAS_ANCHOR,
+  MC_CHECKOUT_WHATSAPP_ANCHOR,
+} from '@/app/CheckoutVentasRequiredModal'
 
 export function CuentaPage() {
   const { profile, tenant, firebaseUser } = useMcAuth()
+  const nav = useNavigate()
+  const location = useLocation()
   const [waPrefix, setWaPrefix] = useState(DEFAULT_WA_PREFIX)
   const [waLocal, setWaLocal] = useState('')
   const [waEditorOpen, setWaEditorOpen] = useState(false)
   const [intro, setIntro] = useState('')
   const [salesPeriod, setSalesPeriod] = useState<'week' | 'fortnight'>('week')
   const [checkoutVentasModo, setCheckoutVentasModo] = useState<
-    'pasarela' | 'whatsapp' | 'pasarela_micatalogo'
-  >('whatsapp')
+    'pasarela' | 'whatsapp' | 'pasarela_micatalogo' | null
+  >(null)
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [ownerDisplayName, setOwnerDisplayName] = useState('')
   const [copiedCatalogo, setCopiedCatalogo] = useState(false)
+  const [ventasRequiredModalOpen, setVentasRequiredModalOpen] = useState(false)
+  const [envioRequiredModalOpen, setEnvioRequiredModalOpen] = useState(false)
 
   const [politicasCambios, setPoliticasCambios] = useState('')
 
@@ -59,17 +74,51 @@ export function CuentaPage() {
     setWaLocal(local)
     setIntro(tenant.mensajeIntro ?? '')
     setSalesPeriod(tenant.salesSummaryPeriod === 'fortnight' ? 'fortnight' : 'week')
-    setCheckoutVentasModo(effectiveCheckoutVentasModo(tenant))
+    setCheckoutVentasModo(explicitCheckoutVentasModo(tenant))
     setPoliticasCambios(tenant.politicasCambios ?? '')
     setOwnerDisplayName(profile?.displayName?.trim() ?? '')
   }, [tenant, profile?.displayName])
+
+  useEffect(() => {
+    if (!tenant) return
+    const hash = location.hash
+    const anchorId =
+      hash === `#${MC_CHECKOUT_VENTAS_ANCHOR}`
+        ? MC_CHECKOUT_VENTAS_ANCHOR
+        : hash === `#${MC_CHECKOUT_WHATSAPP_ANCHOR}`
+          ? MC_CHECKOUT_WHATSAPP_ANCHOR
+          : null
+    if (!anchorId) return
+    const t = window.setTimeout(() => {
+      document.getElementById(anchorId)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+      if (anchorId === MC_CHECKOUT_WHATSAPP_ANCHOR) setWaEditorOpen(true)
+    }, 120)
+    return () => clearTimeout(t)
+  }, [tenant, location.hash])
 
   const catalogoUrlAbsolute = useMemo(() => {
     if (!tenant?.slug || typeof window === 'undefined') return ''
     return `${window.location.origin}/c/${tenant.slug}`
   }, [tenant?.slug])
 
+  function solicitarAccesoCatalogo(): boolean {
+    const gate = tenant ? catalogoVendedorGate(tenant, platformSettings) : 'ventas'
+    if (gate === 'ventas') {
+      setVentasRequiredModalOpen(true)
+      return false
+    }
+    if (gate === 'envio') {
+      setEnvioRequiredModalOpen(true)
+      return false
+    }
+    return true
+  }
+
   async function copiarUrlCatalogo() {
+    if (!solicitarAccesoCatalogo()) return
     if (!catalogoUrlAbsolute || !navigator.clipboard?.writeText) return
     try {
       await navigator.clipboard.writeText(catalogoUrlAbsolute)
@@ -88,6 +137,11 @@ export function CuentaPage() {
       const digits = combineWaDigits(waPrefix, waLocal).replace(/\D/g, '')
       if (digits.length < 10 || digits.length > 15) {
         setMsg('Revisá el WhatsApp: código de país + número local (sin 0 inicial donde aplique).')
+        setBusy(false)
+        return
+      }
+      if (checkoutVentasModo === null) {
+        setMsg('Elegí cómo cerrás ventas en «Checkout · cómo cerrás ventas» antes de guardar.')
         setBusy(false)
         return
       }
@@ -114,12 +168,14 @@ export function CuentaPage() {
   async function salir() {
     if (!firebaseConfigured) return
     await signOut(getAuthApp())
+    nav('/login', { replace: true })
   }
 
   const active = tenant ? isSubscriptionActive(tenant.subscriptionEndsAt) : false
   const plan = tenant ? billingPlanOf(tenant) : 'free'
   const pasarelaLista = tenant?.onepayPaymentsEnabled === true
   const pasarelaMicatalogoOk = platformSettings?.pasarelaMicatalogoActiva === true
+  const catalogoListo = tenant ? isCatalogoVendedorListo(tenant, platformSettings) : false
   const cuponesCount = tenant?.cuponesCatalogo?.length ?? 0
 
   const waDigitsPreview = useMemo(
@@ -197,6 +253,11 @@ export function CuentaPage() {
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200/75 bg-[var(--cat-surface)] px-3 py-2.5 text-[14px] font-medium text-[var(--cat-text)] transition hover:bg-neutral-50/90 sm:flex-initial"
                     disabled={!catalogoUrlAbsolute}
                     onClick={() => void copiarUrlCatalogo()}
+                    title={
+                      catalogoListo
+                        ? undefined
+                        : 'Configurá método de pago y envío antes de compartir el catálogo'
+                    }
                   >
                     <IconClipboard size={17} />
                     {copiedCatalogo ? 'Copiado' : 'Copiar URL para venta'}
@@ -204,6 +265,16 @@ export function CuentaPage() {
                   <Link
                     to={`/c/${tenant.slug}`}
                     className="mc-btn-secondary inline-flex flex-1 items-center justify-center py-2.5 text-[14px] no-underline sm:flex-initial"
+                    onClick={(e) => {
+                      if (catalogoListo) return
+                      e.preventDefault()
+                      void solicitarAccesoCatalogo()
+                    }}
+                    title={
+                      catalogoListo
+                        ? undefined
+                        : 'Configurá método de pago y envío antes de abrir el catálogo'
+                    }
                   >
                     Abrir catálogo
                   </Link>
@@ -233,7 +304,7 @@ export function CuentaPage() {
               )}
             </div>
 
-            <div>
+            <div id={MC_CHECKOUT_WHATSAPP_ANCHOR} className="scroll-mt-6">
               <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">
                 WhatsApp para pedidos
               </label>
@@ -324,78 +395,27 @@ export function CuentaPage() {
               </Link>
             </div>
 
-            <div className="border-t border-neutral-200/50 pt-5">
+            <div id={MC_CHECKOUT_VENTAS_ANCHOR} className="scroll-mt-6 border-t border-neutral-200/50 pt-5">
               <p className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">Checkout · cómo cerrás ventas</p>
               <p className="ios-footnote mt-1 leading-relaxed text-[var(--cat-muted)]">
                 Elegí una opción. La pasarela con tu cuenta OnePay requiere que el equipo la vincule a tu tienda. Podés usar
                 también la pasarela de Mi Catálogo sin registrar comercio propio, si el equipo la tiene activa.
               </p>
-              <div className="mt-3 grid gap-2 lg:grid-cols-3">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setCheckoutVentasModo('pasarela')}
-                  className={`rounded-lg border px-4 py-3.5 text-left transition ${
-                    checkoutVentasModo === 'pasarela'
-                      ? 'border-mc-500 bg-mc-50/50 ring-1 ring-mc-400/40'
-                      : 'border-neutral-200/60 bg-neutral-50/20 hover:border-neutral-300/80'
-                  }`}
-                >
-                  <p className="text-[14px] font-semibold text-[var(--cat-text)]">Pasarela (OnePay)</p>
-                  <p className="mt-1 text-[12px] leading-relaxed text-[var(--cat-muted)]">
-                    El cliente puede pagar en línea en el checkout.
-                  </p>
-                  {!pasarelaLista ? (
-                    <p className="mt-2 text-[11px] font-medium text-amber-800">
-                      Aún no está vinculada: contactá al administrador de la plataforma.
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-[11px] font-medium text-emerald-800">Pasarela lista para tu tienda.</p>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setCheckoutVentasModo('whatsapp')}
-                  className={`rounded-lg border px-4 py-3.5 text-left transition ${
-                    checkoutVentasModo === 'whatsapp'
-                      ? 'border-mc-500 bg-mc-50/50 ring-1 ring-mc-400/40'
-                      : 'border-neutral-200/60 bg-neutral-50/20 hover:border-neutral-300/80'
-                  }`}
-                >
-                  <p className="text-[14px] font-semibold text-[var(--cat-text)]">WhatsApp</p>
-                  <p className="mt-1 text-[12px] leading-relaxed text-[var(--cat-muted)]">
-                    Priorizás coordinar pago y entrega por WhatsApp; el checkout no muestra cobro con tarjeta.
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setCheckoutVentasModo('pasarela_micatalogo')}
-                  className={`rounded-lg border px-4 py-3.5 text-left transition lg:min-h-[8.5rem] ${
-                    checkoutVentasModo === 'pasarela_micatalogo'
-                      ? 'border-mc-500 bg-mc-50/50 ring-1 ring-mc-400/40'
-                      : 'border-neutral-200/60 bg-neutral-50/20 hover:border-neutral-300/80'
-                  }`}
-                >
-                  <p className="text-[14px] font-semibold text-[var(--cat-text)]">Pasarela sin registro OnePay</p>
-                  <p className="mt-1 text-[12px] leading-relaxed text-[var(--cat-muted)]">
-                    Cobrá en línea con la cuenta OnePay de Mi Catálogo, sin dar de alta tu comercio ni KYB desde acá.
-                  </p>
-                  <p className="mt-2 rounded-md border border-amber-200/80 bg-amber-50/50 px-2 py-1.5 text-[11px] leading-snug text-amber-950">
-                    <span className="font-semibold">Costo al retirar fondos:</span> si no creás tu cuenta comercio en
-                    OnePay, al desembolsar el dinero se descontará <strong className="font-medium">0,02%</strong> más{' '}
-                    <strong className="font-medium">$900 COP</strong> sobre el monto a retirar.
-                  </p>
-                  {!pasarelaMicatalogoOk ? (
-                    <p className="mt-2 text-[11px] font-medium text-amber-800">
-                      El equipo de Mi Catálogo aún no activó esta pasarela.
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-[11px] font-medium text-emerald-800">Disponible para tu checkout.</p>
-                  )}
-                </button>
-              </div>
+              {checkoutVentasModo === null && (
+                <p className="ios-footnote mt-2 font-medium text-amber-900">
+                  Elegí una opción abajo para activar el catálogo público y el checkout.
+                </p>
+              )}
+              <CheckoutVentasModoOptions
+                value={checkoutVentasModo}
+                disabled={busy}
+                pasarelaLista={pasarelaLista}
+                pasarelaMicatalogoOk={pasarelaMicatalogoOk}
+                onSelect={(modo) => {
+                  setCheckoutVentasModo(modo)
+                  if (modo === 'pasarela') nav('/app/pagos-pasarela')
+                }}
+              />
               <Link
                 to="/app/pagos-pasarela"
                 className="mc-btn-secondary mt-3 inline-flex w-full items-center justify-center py-3 text-[15px] no-underline"
@@ -455,6 +475,20 @@ export function CuentaPage() {
         Cerrar sesión
       </button>
       <p className="text-center ios-footnote">{firebaseUser?.email}</p>
+
+      <CheckoutVentasRequiredModal
+        open={ventasRequiredModalOpen}
+        onClose={() => setVentasRequiredModalOpen(false)}
+        context="cuenta"
+        tenant={tenant ?? null}
+        tenantId={profile?.tenantId}
+        platformSettings={platformSettings}
+        onModoSelected={setCheckoutVentasModo}
+      />
+      <CheckoutEnvioRequiredModal
+        open={envioRequiredModalOpen}
+        onClose={() => setEnvioRequiredModalOpen(false)}
+      />
     </div>
   )
 }

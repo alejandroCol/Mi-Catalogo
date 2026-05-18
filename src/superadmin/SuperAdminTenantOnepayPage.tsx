@@ -29,6 +29,8 @@ export function SuperAdminTenantOnepayPage() {
   const [loading, setLoading] = useState(true)
   const [onePaySk, setOnePaySk] = useState('')
   const [onePayWebhookSecret, setOnePayWebhookSecret] = useState('')
+  const [onePayWebhookToken, setOnePayWebhookToken] = useState('')
+  const [onePayPublicKey, setOnePayPublicKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [hookKHint, setHookKHint] = useState<string | null>(null)
@@ -70,6 +72,8 @@ export function SuperAdminTenantOnepayPage() {
     if (!firebaseConfigured || !tenantId) return
     const k = onePaySk.trim()
     const wh = onePayWebhookSecret.trim()
+    const wt = onePayWebhookToken.trim()
+    const pk = onePayPublicKey.trim()
     if (!k.startsWith('sk_test_') && !k.startsWith('sk_live_')) {
       setMsg('La clave debe ser la API secret de OnePay (sk_test_… o sk_live_…).')
       return
@@ -81,8 +85,19 @@ export function SuperAdminTenantOnepayPage() {
       const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepayLinkMerchant')
       const res = (await fn(
         wh.length >= 8
-          ? { secretKey: k, webhookSecret: wh, targetTenantId: tenantId }
-          : { secretKey: k, targetTenantId: tenantId },
+          ? {
+              secretKey: k,
+              webhookSecret: wh,
+              ...(wt.length >= 8 ? { webhookToken: wt } : {}),
+              ...(pk.length >= 8 ? { publicKey: pk } : {}),
+              targetTenantId: tenantId,
+            }
+          : {
+              secretKey: k,
+              ...(wt.length >= 8 ? { webhookToken: wt } : {}),
+              ...(pk.length >= 8 ? { publicKey: pk } : {}),
+              targetTenantId: tenantId,
+            },
       )) as { data: { onpayWebHookK?: string; needWebhookSecret?: boolean } }
       setOnePaySk('')
       if (res.data?.onpayWebHookK) {
@@ -94,6 +109,8 @@ export function SuperAdminTenantOnepayPage() {
         )
       } else {
         setOnePayWebhookSecret('')
+        setOnePayWebhookToken('')
+        setOnePayPublicKey('')
         setMsg('OnePay activo para esta tienda.')
       }
       await load()
@@ -107,16 +124,25 @@ export function SuperAdminTenantOnepayPage() {
   async function completarWebhookOnepay() {
     if (!firebaseConfigured || !tenantId) return
     const wh = onePayWebhookSecret.trim()
+    const wt = onePayWebhookToken.trim()
+    const pk = onePayPublicKey.trim()
     if (wh.length < 8) {
-      setMsg('Pegá el Secreto del webhook.')
+      setMsg('Pegá el Secreto del webhook (whsec_…).')
       return
     }
     setBusy(true)
     setMsg(null)
     try {
       const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepaySetWebhookSecret')
-      await fn({ webhookSecret: wh, targetTenantId: tenantId })
+      await fn({
+        webhookSecret: wh,
+        ...(wt.length >= 8 ? { webhookToken: wt } : {}),
+        ...(pk.length >= 8 ? { publicKey: pk } : {}),
+        targetTenantId: tenantId,
+      })
       setOnePayWebhookSecret('')
+      setOnePayWebhookToken('')
+      setOnePayPublicKey('')
       setMsg('Webhook guardado y pasarela activada.')
       await load()
     } catch (e) {
@@ -262,7 +288,9 @@ export function SuperAdminTenantOnepayPage() {
               <p className="ios-subhead text-[13px] leading-relaxed text-emerald-800">
                 Pasarela activa
                 {tenant.onepayKeyHint ? <> · API ···{tenant.onepayKeyHint}</> : null}
-                {tenant.onpayWebhookHint ? <> · webhook ···{tenant.onpayWebhookHint}</> : null}
+                {tenant.onepayWebhookHint ? <> · whsec ···{tenant.onepayWebhookHint}</> : null}
+                {tenant.onepayWebhookTokenHint ? <> · wh_hdr ···{tenant.onepayWebhookTokenHint}</> : null}
+                {tenant.onepayPublicKeyHint ? <> · pk ···{tenant.onepayPublicKeyHint}</> : null}
               </p>
               <button
                 type="button"
@@ -300,18 +328,44 @@ export function SuperAdminTenantOnepayPage() {
                 </p>
               </div>
               <div>
-                <p className="text-[12px] font-medium text-mc-700">Paso 2 · Secreto del webhook</p>
+                <p className="text-[12px] font-medium text-mc-700">Paso 2 · Webhook OnePay</p>
                 <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">
-                  Secreto (<span className="font-mono">x-onepay-signature</span>)
+                  Secreto HMAC (<span className="font-mono">whsec_…</span>, al crear el webhook)
                 </label>
                 <input
                   type="password"
                   className="mc-input mt-1 py-2.5 font-mono text-[14px]"
                   autoComplete="off"
-                  placeholder="Secreto de OnePay"
+                  placeholder="whsec_…"
                   value={onePayWebhookSecret}
                   disabled={busy}
                   onChange={(e) => setOnePayWebhookSecret(e.target.value)}
+                />
+                <label className="ios-footnote mt-3 block font-medium text-[var(--cat-text)] opacity-80">
+                  Header / token (<span className="font-mono">wh_hdr_…</span> → cabecera{' '}
+                  <span className="font-mono">x-webhook-token</span>)
+                </label>
+                <input
+                  type="password"
+                  className="mc-input mt-1 py-2.5 font-mono text-[14px]"
+                  autoComplete="off"
+                  placeholder="wh_hdr_…"
+                  value={onePayWebhookToken}
+                  disabled={busy}
+                  onChange={(e) => setOnePayWebhookToken(e.target.value)}
+                />
+                <label className="ios-footnote mt-3 block font-medium text-[var(--cat-text)] opacity-80">
+                  Clave pública opcional (<span className="font-mono">pk_test_…</span> /{' '}
+                  <span className="font-mono">pk_live_…</span>)
+                </label>
+                <input
+                  type="password"
+                  className="mc-input mt-1 py-2.5 font-mono text-[14px]"
+                  autoComplete="off"
+                  placeholder="pk_test_…"
+                  value={onePayPublicKey}
+                  disabled={busy}
+                  onChange={(e) => setOnePayPublicKey(e.target.value)}
                 />
                 {(tenant.onepayKeyHint || hookKHint) &&
                 !tenant.onepayPaymentsEnabled &&

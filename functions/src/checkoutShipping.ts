@@ -8,7 +8,80 @@ function normalizeCiudadKey(raw: string): string {
     .replace(/\s+/g, ' ')
 }
 
-type EnvioCiudad = { ciudad?: string; cop?: number }
+type EnvioCiudad = { ciudad?: string; cop?: number; departamento?: string }
+
+function findListedTarifaPorCiudad(
+  lista: EnvioCiudad[],
+  ciudadKey: string,
+  departamentoKey: string,
+): EnvioCiudad | undefined {
+  if (!ciudadKey || lista.length === 0) return undefined
+
+  const cityMatches = (x: EnvioCiudad) =>
+    Boolean(x?.ciudad && normalizeCiudadKey(String(x.ciudad)) === ciudadKey)
+
+  const deptoNormalized = normalizeCiudadKey(departamentoKey)
+
+  if (deptoNormalized) {
+    const explicit = lista.find(
+      (x) =>
+        cityMatches(x) &&
+        x.departamento &&
+        normalizeCiudadKey(String(x.departamento)) === deptoNormalized,
+    )
+    if (explicit) return explicit
+    return lista.find((x) => cityMatches(x) && (!x.departamento || !String(x.departamento).trim()))
+  }
+
+  return lista.find((x) => cityMatches(x) && (!x.departamento || !String(x.departamento).trim()))
+}
+
+type TenantEnvioSlice = {
+  envioEstimadoCop?: number
+  envioPorCiudad?: EnvioCiudad[]
+  envioGratisDesdeCop?: number
+  envioUsarTarifasMicatalogo?: boolean
+}
+
+type PlatformEnvioSlice = {
+  envioMicatalogoEstimadoCop?: number
+  envioMicatalogoPorCiudad?: EnvioCiudad[]
+}
+
+export function mergeTenantPlatformEnvio(
+  tenant: TenantEnvioSlice | undefined,
+  platform: PlatformEnvioSlice | undefined,
+): { envioEstimadoCop?: number; envioPorCiudad?: EnvioCiudad[]; envioGratisDesdeCop?: number } {
+  const gratis = tenant?.envioGratisDesdeCop
+  const plat = platform
+  const platformHasTariffs =
+    !!plat &&
+    ((typeof plat.envioMicatalogoEstimadoCop === 'number' &&
+      Number.isFinite(plat.envioMicatalogoEstimadoCop)) ||
+      ((plat.envioMicatalogoPorCiudad?.length ?? 0) > 0))
+
+  if (tenant?.envioUsarTarifasMicatalogo === true && platformHasTariffs && plat) {
+    const platformDefault =
+      typeof plat.envioMicatalogoEstimadoCop === 'number' &&
+      Number.isFinite(plat.envioMicatalogoEstimadoCop)
+        ? Math.max(0, Math.round(plat.envioMicatalogoEstimadoCop))
+        : typeof tenant?.envioEstimadoCop === 'number' && Number.isFinite(tenant.envioEstimadoCop)
+          ? Math.max(0, Math.round(tenant.envioEstimadoCop))
+          : 0
+
+    return {
+      envioEstimadoCop: platformDefault,
+      envioPorCiudad: plat.envioMicatalogoPorCiudad ?? [],
+      envioGratisDesdeCop: gratis,
+    }
+  }
+
+  return {
+    envioEstimadoCop: tenant?.envioEstimadoCop,
+    envioPorCiudad: tenant?.envioPorCiudad,
+    envioGratisDesdeCop: gratis,
+  }
+}
 
 export function resolveEnvioCopForCheckout(
   tenant:
@@ -20,6 +93,7 @@ export function resolveEnvioCopForCheckout(
     | undefined,
   ciudadInput: string,
   subtotalCop: number,
+  departamentoInput?: string,
 ): number {
   const sub = Math.max(0, Math.round(subtotalCop))
   const defaultCop =
@@ -29,10 +103,11 @@ export function resolveEnvioCopForCheckout(
   const lista = tenant?.envioPorCiudad ?? []
   const ciudad = ciudadInput.trim()
   const key = ciudad ? normalizeCiudadKey(ciudad) : ''
+  const dept = departamentoInput?.trim() ?? ''
 
   let base = defaultCop
   if (key && lista.length > 0) {
-    const found = lista.find((x) => x?.ciudad && normalizeCiudadKey(String(x.ciudad)) === key)
+    const found = findListedTarifaPorCiudad(lista, key, dept)
     if (found) {
       const c = typeof found.cop === 'number' && Number.isFinite(found.cop) ? Math.round(found.cop) : 0
       base = Math.max(0, c)

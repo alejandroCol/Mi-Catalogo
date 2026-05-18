@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured } from '@/lib/firebase'
+import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 
 export function RequireMcAuth({ children }: { children: ReactNode }) {
   const { firebaseUser, profile, profileReady, loading } = useMcAuth()
@@ -23,6 +24,9 @@ export function RequireMcAuth({ children }: { children: ReactNode }) {
   }
   if (!firebaseUser) {
     return <Navigate to="/login" replace />
+  }
+  if (!firebaseUser.emailVerified && !isMcSuperAdminUser(profile)) {
+    return <Navigate to="/verificar-email" replace />
   }
   if (profileReady && !profile) {
     return <Navigate to="/registro" replace />

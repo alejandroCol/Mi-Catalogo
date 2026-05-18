@@ -9,7 +9,10 @@ import { MC_TRIAL_DAYS, trialEndMs } from '@/lib/subscription'
 import { markPendingSellerOnboarding } from '@/lib/onboardingStorage'
 import { resolveAvailablePublicSlug, slugifyStoreName } from '@/lib/publicSlug'
 import { combineWaDigits, DEFAULT_WA_PREFIX, WA_COUNTRY_PREFIXES } from '@/lib/waPhonePrefixes'
+import { callMcSendAuthVerificationEmail } from '@/lib/mcSendAuthVerificationEmail'
 import { IconPhotoStack } from '@/icons/McIcons'
+
+const VERIFY_EMAIL_COOLDOWN_MS = 60_000
 
 type StepId = 'tienda' | 'whatsapp' | 'email' | 'clave'
 
@@ -126,7 +129,8 @@ export function RegisterPage() {
 
       const newTenantRef = doc(collection(db, MC.tenants))
       tid = newTenantRef.id
-      const emailNorm = (cred.user.email ?? email.trim()).toLowerCase()
+      /** Debe coincidir con `request.auth.token.email` (reglas Firestore); no normalizar a minúsculas. */
+      const emailForFirestore = cred.user.email ?? email.trim()
 
       const batch = writeBatch(db)
       batch.set(newTenantRef, {
@@ -141,7 +145,7 @@ export function RegisterPage() {
       })
       batch.set(doc(db, MC.users, cred.user.uid), {
         uid: cred.user.uid,
-        email: emailNorm,
+        email: emailForFirestore,
         displayName: friendlyName,
         tenantId: tid,
         isSuperAdmin: false,
@@ -156,7 +160,22 @@ export function RegisterPage() {
       })
 
       markPendingSellerOnboarding(tid)
-      nav('/app', { replace: true })
+
+      let verifyNavState: { verifySendError?: string } | undefined
+      const sent = await callMcSendAuthVerificationEmail()
+      if (!sent.ok) {
+        if (sent.code === 'functions/resource-exhausted') {
+          sessionStorage.setItem('mcVerifyEmailCooldownUntil', String(Date.now() + VERIFY_EMAIL_COOLDOWN_MS))
+        } else {
+          verifyNavState = {
+            verifySendError:
+              sent.message ||
+              'No pudimos enviar el correo de verificación. Probá «Reenviar correo» en la siguiente pantalla.',
+          }
+        }
+      }
+
+      nav('/verificar-email', { replace: true, state: verifyNavState })
     } catch (e: unknown) {
       const code =
         e && typeof e === 'object' && e !== null && 'code' in e ? String((e as { code: string }).code) : ''
@@ -308,6 +327,9 @@ export function RegisterPage() {
                   autoComplete="email"
                   autoFocus
                 />
+                <p className="mt-2 text-[13px] leading-relaxed text-mc-600">
+                  Te enviaremos un enlace para confirmar que este correo es tuyo antes de usar el panel.
+                </p>
               </div>
             )}
 

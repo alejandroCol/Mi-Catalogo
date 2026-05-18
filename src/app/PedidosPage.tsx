@@ -14,17 +14,15 @@ import { useMcAuth } from '@/auth/McAuthContext'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
 import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { formatCop } from '@/lib/formatCop'
+import { formatoDepartamentoEtiqueta } from '@/lib/colombiaGeo'
 import { mcOrdenesCatalogoCollection, mcPedidosCollection } from '@/lib/mcCollections'
 import { IconChevronRight } from '@/icons/McIcons'
+import { ADMIN_SEGUIMIENTO_ESTADOS } from '@/lib/catalogOrderTracking'
 import type { McOrdenCatalogo, McOrdenCatalogoEstado, McPedido } from '@/types/mc'
 
 const ESTADOS_ORDEN: { value: McOrdenCatalogoEstado; label: string }[] = [
-  { value: 'esperando_pago', label: 'Pago pend.' },
-  { value: 'pagado', label: 'Pagado' },
-  { value: 'en_preparacion', label: 'Prep.' },
-  { value: 'listo_envio', label: 'Listo envío' },
-  { value: 'enviado', label: 'Enviado' },
-  { value: 'entregado', label: 'Entregado' },
+  { value: 'esperando_pago', label: 'Pago pendiente' },
+  ...ADMIN_SEGUIMIENTO_ESTADOS,
   { value: 'cancelado', label: 'Cancelado' },
 ]
 
@@ -98,10 +96,28 @@ export function PedidosPage() {
     await deleteDoc(doc(getDb(), mcPedidosCollection(profile.tenantId), id))
   }
 
-  async function setEstadoOrden(id: string, estado: McOrdenCatalogoEstado) {
+  async function setEstadoOrden(
+    orden: McOrdenCatalogo & { id: string },
+    estado: McOrdenCatalogoEstado,
+  ) {
+    if (!profile?.tenantId) return
+    if (estado === 'enviado' && !orden.trackingImageUrl) {
+      window.alert('Subí la imagen de la guía de rastreo antes de marcar el pedido como Despachado.')
+      return
+    }
+    const now = Date.now()
+    const patch: Record<string, unknown> = { estado, updatedAt: now }
+    if (estado === 'pagado') patch.seguimientoCompraAt = orden.seguimientoCompraAt ?? now
+    if (estado === 'en_preparacion') patch.seguimientoPreparacionAt = now
+    if (estado === 'enviado') patch.seguimientoDespachoAt = now
+    if (estado === 'entregado') patch.seguimientoEntregaAt = now
+    await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(profile.tenantId), orden.id), patch)
+  }
+
+  async function setTrackingNumber(id: string, trackingNumber: string) {
     if (!profile?.tenantId) return
     await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(profile.tenantId), id), {
-      estado,
+      trackingNumber: trackingNumber.trim() || undefined,
       updatedAt: Date.now(),
     })
   }
@@ -166,6 +182,11 @@ export function PedidosPage() {
                         </button>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                            {o.numeroReferencia ? (
+                              <span className="font-mono text-[11px] font-medium text-mc-600">
+                                {o.numeroReferencia}
+                              </span>
+                            ) : null}
                             <time className="text-[12px] tabular-nums text-mc-500">
                               {new Date(o.createdAt).toLocaleString('es-CO', {
                                 day: '2-digit',
@@ -192,7 +213,7 @@ export function PedidosPage() {
                           className="mc-input max-w-[9.5rem] py-1.5 text-[12px]"
                           value={o.estado}
                           aria-label="Estado del pedido"
-                          onChange={(e) => void setEstadoOrden(o.id, e.target.value as McOrdenCatalogoEstado)}
+                          onChange={(e) => void setEstadoOrden(o, e.target.value as McOrdenCatalogoEstado)}
                         >
                           {ESTADOS_ORDEN.map((x) => (
                             <option key={x.value} value={x.value}>
@@ -249,11 +270,21 @@ export function PedidosPage() {
                             ))}
                           </tbody>
                         </table>
+                        {(o.clienteTipoDocumento || o.clienteDocumentoNumero) && (
+                          <div className="mt-2 border-t border-neutral-200/40 pt-2 text-[12px] leading-relaxed text-mc-700">
+                            <p className="font-medium text-mc-800">Documento</p>
+                            <p className="tabular-nums">
+                              {[o.clienteTipoDocumento, o.clienteDocumentoNumero].filter(Boolean).join(' · ')}
+                            </p>
+                          </div>
+                        )}
                         {(o.envioCiudad || o.envioDireccion) && (
                           <div className="mt-2 border-t border-neutral-200/40 pt-2 text-[12px] leading-relaxed text-mc-700">
                             <p className="font-medium text-mc-800">Envío</p>
                             {o.envioCiudad ? <p>{o.envioCiudad}</p> : null}
-                            {o.envioDepartamento ? <p className="text-mc-600">{o.envioDepartamento}</p> : null}
+                            {o.envioDepartamento ? (
+                              <p className="text-mc-600">{formatoDepartamentoEtiqueta(o.envioDepartamento)}</p>
+                            ) : null}
                             {o.envioDireccion ? <p className="mt-1 whitespace-pre-wrap">{o.envioDireccion}</p> : null}
                             {o.envioReferencia ? (
                               <p className="mt-1 text-mc-600">Ref.: {o.envioReferencia}</p>
@@ -299,6 +330,24 @@ export function PedidosPage() {
                             {o.notaCliente}
                           </p>
                         ) : null}
+                        <div className="mt-3 border-t border-neutral-200/40 pt-3">
+                          <p className="text-[12px] font-medium text-mc-800">Guía de rastreo</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-mc-500">
+                            Obligatoria al marcar «Despachado». El comprador la verá en el seguimiento.
+                          </p>
+                          <label className="mt-2 block text-[11px] font-medium text-mc-600">
+                            Nº de guía (opcional)
+                          </label>
+                          <input
+                            className="mc-input mt-1 py-2 text-[13px] font-mono"
+                            defaultValue={o.trackingNumber ?? ''}
+                            placeholder="Ej. 1234567890"
+                            onBlur={(e) => {
+                              const v = e.target.value.trim()
+                              if (v !== (o.trackingNumber ?? '')) void setTrackingNumber(o.id, v)
+                            }}
+                          />
+                        </div>
                         {!firebaseStorageConfigured && (
                           <p className="mt-2 text-[11px] leading-relaxed text-mc-500">
                             Storage no configurado: no podés subir la guía en imagen.

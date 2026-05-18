@@ -9,6 +9,9 @@ const LoginPage = lazy(() =>
 const RegisterPage = lazy(() =>
   import('@/auth/RegisterPage').then((m) => ({ default: m.RegisterPage })),
 )
+const VerifyEmailPage = lazy(() =>
+  import('@/auth/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })),
+)
 const AppShell = lazy(() =>
   import('@/app/AppShell').then((m) => ({ default: m.AppShell })),
 )
@@ -52,6 +55,11 @@ const SuperAdminPasarelaMicatalogoPage = lazy(() =>
     default: m.SuperAdminPasarelaMicatalogoPage,
   })),
 )
+const SuperAdminEnviosMicatalogoPage = lazy(() =>
+  import('@/superadmin/SuperAdminEnviosMicatalogoPage').then((m) => ({
+    default: m.SuperAdminEnviosMicatalogoPage,
+  })),
+)
 const SuperAdminTenantOnepayPage = lazy(() =>
   import('@/superadmin/SuperAdminTenantOnepayPage').then((m) => ({
     default: m.SuperAdminTenantOnepayPage,
@@ -77,6 +85,21 @@ const PublicCheckoutPage = lazy(() =>
     default: m.PublicCheckoutPage,
   })),
 )
+const PublicCheckoutPagoValidandoPage = lazy(() =>
+  import('@/public/PublicCheckoutPagoValidandoPage').then((m) => ({
+    default: m.PublicCheckoutPagoValidandoPage,
+  })),
+)
+const PublicCheckoutSuccessPage = lazy(() =>
+  import('@/public/PublicCheckoutSuccessPage').then((m) => ({
+    default: m.PublicCheckoutSuccessPage,
+  })),
+)
+const PublicOrderTrackingPage = lazy(() =>
+  import('@/public/PublicOrderTrackingPage').then((m) => ({
+    default: m.PublicOrderTrackingPage,
+  })),
+)
 const PublicPoliciesPage = lazy(() =>
   import('@/public/PublicPoliciesPage').then((m) => ({
     default: m.PublicPoliciesPage,
@@ -98,6 +121,7 @@ export function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/registro" element={<RegisterPage />} />
+          <Route path="/verificar-email" element={<VerifyEmailPage />} />
           <Route
             path="/app"
             element={
@@ -134,6 +158,14 @@ export function App() {
             }
           />
           <Route
+            path="/superadmin/envios-micatalogo"
+            element={
+              <RequireMcAuth>
+                <SuperAdminEnviosMicatalogoPage />
+              </RequireMcAuth>
+            }
+          />
+          <Route
             path="/superadmin/tienda/:tenantId/onepay"
             element={
               <RequireMcAuth>
@@ -144,7 +176,10 @@ export function App() {
           <Route path="/c/:slug" element={<PublicCatalogLayout />}>
             <Route index element={<PublicCatalogListPage />} />
             <Route path="p/:productId" element={<PublicProductDetailPage />} />
+            <Route path="checkout/pago-validando" element={<PublicCheckoutPagoValidandoPage />} />
+            <Route path="checkout/exito" element={<PublicCheckoutSuccessPage />} />
             <Route path="checkout" element={<PublicCheckoutPage />} />
+            <Route path="seguimiento" element={<PublicOrderTrackingPage />} />
             <Route path="politicas" element={<PublicPoliciesPage />} />
           </Route>
           <Route path="/" element={<Navigate to="/login" replace />} />

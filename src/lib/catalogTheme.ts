@@ -11,58 +11,62 @@ export type ResolvedCatalogColors = {
 }
 
 /**
- * Colores del catálogo público para plan Free (misma sensación que el diseño Morning anterior).
+ * Catálogo público Free: acento único neutro (acción principal), fondo hueso, grises cálidos.
  */
 export const FREE_PUBLIC_THEME_COLORS: ResolvedCatalogColors = {
-  accent: '#7c5ce0',
-  accentText: '#ffffff',
-  bg: '#fce6ef',
+  accent: '#171717',
+  accentText: '#fafaf9',
+  bg: '#f4f3f0',
   surface: '#ffffff',
-  text: '#4a2c3c',
-  muted: '#945172',
+  text: '#0a0a0a',
+  muted: '#737373',
 }
 
 const PRESETS: Record<McCatalogThemePreset, ResolvedCatalogColors> = {
+  /** Ropa y marcas: cuadrícula limpia, acento índigo. */
   ios: {
-    accent: '#007aff',
-    accentText: '#ffffff',
-    bg: '#f2f2f7',
+    accent: '#1d4ed8',
+    accentText: '#eff6ff',
+    bg: '#e8edf5',
     surface: '#ffffff',
-    text: '#1c1c1e',
-    muted: '#636366',
+    text: '#0f172a',
+    muted: '#64748b',
   },
-  /** Paleta y sensación del catálogo “Morning” original (rosados + acento lilac). */
+  /** El rey: editorial cálido, mismo criterio que Free en layout. */
   morning: {
-    accent: '#7c5ce0',
-    accentText: '#ffffff',
-    bg: '#fce6ef',
+    accent: '#171717',
+    accentText: '#fafaf9',
+    bg: '#f4f3f0',
     surface: '#ffffff',
-    text: '#4a2c3c',
-    muted: '#945172',
+    text: '#0a0a0a',
+    muted: '#737373',
   },
+  /** Lujo / joyería: crema, bronce y serif en títulos. */
   minimal: {
-    accent: '#1c1c1e',
-    accentText: '#ffffff',
-    bg: '#ffffff',
-    surface: '#f7f7f8',
-    text: '#1c1c1e',
-    muted: '#c7c7cc',
+    accent: '#854d0e',
+    accentText: '#fffbeb',
+    bg: '#f8f5ee',
+    surface: '#f2ebe0',
+    text: '#1c1917',
+    muted: '#78716c',
   },
+  /** Niños y color: fondo claro alegre, acento mandarina. */
   bold: {
-    accent: '#ff3b30',
-    accentText: '#ffffff',
-    bg: '#1c1c1e',
-    surface: '#2c2c2e',
-    text: '#ffffff',
-    muted: '#8e8e93',
-  },
-  boutique: {
-    accent: '#8b5a2b',
-    accentText: '#fffaf3',
-    bg: '#faf6f0',
+    accent: '#ea580c',
+    accentText: '#fff7ed',
+    bg: '#ecfeff',
     surface: '#ffffff',
-    text: '#2c1810',
-    muted: '#7a6560',
+    text: '#0e7490',
+    muted: '#0d9488',
+  },
+  /** Dulce / loungewear: rosa empolvado y tipografía redonda. */
+  boutique: {
+    accent: '#be185d',
+    accentText: '#fdf2f8',
+    bg: '#fdf2f8',
+    surface: '#ffffff',
+    text: '#831843',
+    muted: '#9d174d',
   },
 }
 
@@ -82,7 +86,7 @@ export function billingPlanOf(tenant: McTenant | null | undefined): 'free' | 'ex
   return tenant?.billingPlan === 'expert' ? 'expert' : 'free'
 }
 
-/** Tema del panel admin: plan free → iOS; expert aplica preset (por defecto Morning) y colores. */
+/** Tema del panel admin: plan free → editorial neutro (morning); expert aplica preset elegido y colores. */
 export function resolveCatalogTheme(tenant: McTenant | null | undefined): {
   preset: McCatalogThemePreset
   colors: ResolvedCatalogColors
@@ -93,7 +97,7 @@ export function resolveCatalogTheme(tenant: McTenant | null | undefined): {
     ? expertPreset && expertPreset in PRESETS
       ? expertPreset
       : 'morning'
-    : 'ios'
+    : 'morning'
   const base = PRESETS[preset]
   const custom = expert
     ? pickDefined(tenant?.catalogTheme?.colors as unknown as Record<string, string | undefined>)
@@ -142,20 +146,20 @@ export function publicCatalogPresetClass(preset: McCatalogThemePreset): string {
 }
 
 export const CATALOG_PRESET_LABELS: Record<McCatalogThemePreset, string> = {
-  ios: 'Clásico (iOS)',
-  morning: 'Rosado (Morning · clásico)',
-  minimal: 'Minimal',
-  bold: 'Contraste',
-  boutique: 'Boutique',
+  ios: 'Moda · ropa',
+  morning: 'El clásico · rey',
+  minimal: 'Lujo · joyería',
+  bold: 'Niños & color',
+  boutique: 'Dulce · loungewear',
 }
 
-/** Una línea: cómo se ve el listado en el catálogo público (para el selector Expert). */
+/** Una línea: listado público + para qué tienda encaja (selector Expert). */
 export const CATALOG_PRESET_TAGLINES: Record<McCatalogThemePreset, string> = {
-  ios: 'Cuadrícula: foto al costado, datos al lado',
-  morning: 'Igual que iOS, paleta y fondo rosados',
-  minimal: 'Lista compacta, sin tarjetas',
-  bold: 'Foto grande arriba, nombre y precio centrados',
-  boutique: 'Grilla 2 columnas estilo vidriera',
+  ios: 'Cuadrícula tipo lookbook; ideal jeans, remeras, temporada',
+  morning: 'Editorial hueso: tu plantilla estrella, limpia y versátil',
+  minimal: 'Lista fina y elegantísima; joyas, relojes, piezas únicas',
+  bold: 'Foto grande y claridad; juguetería, infancias, regalos',
+  boutique: 'Vidriera 2 columnas; pijamas, casa, detalles femeninos',
 }
 
 /** Colores base de cada plantilla (para miniaturas y “Rellenar colores”). */

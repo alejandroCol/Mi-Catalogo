@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
-import type { McTenant } from '@/types/mc'
+import type { McPlatformSettings, McTenant } from '@/types/mc'
 
 export function usePublicTenant(slug: string | undefined) {
   const [tenantId, setTenantId] = useState<string | null>(null)
   const [tenant, setTenant] = useState<(McTenant & { id: string }) | null>(null)
+  const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,7 +30,10 @@ export function usePublicTenant(slug: string | undefined) {
           return
         }
         const tid = (ss.data() as { tenantId: string }).tenantId
-        const ts = await getDoc(doc(db, MC.tenants, tid))
+        const [ts, ps] = await Promise.all([
+          getDoc(doc(db, MC.tenants, tid)),
+          getDoc(doc(db, MC.mcPlatform, MC.mcPlatformSettingsDoc)),
+        ])
         if (cancelled) return
         if (!ts.exists()) {
           setError('Tienda no disponible.')
@@ -44,6 +48,7 @@ export function usePublicTenant(slug: string | undefined) {
         }
         setTenantId(tid)
         setTenant(t)
+        setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
         setError(null)
       } catch {
         if (!cancelled) setError('No se pudo cargar.')
@@ -56,5 +61,11 @@ export function usePublicTenant(slug: string | undefined) {
     }
   }, [slug])
 
-  return { tenantId, tenant, loading, error }
+  return {
+    tenantId,
+    tenant,
+    platformSettings,
+    loading,
+    error,
+  }
 }

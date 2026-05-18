@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { doc, onSnapshot } from 'firebase/firestore'
 import clsx from 'clsx'
@@ -9,10 +9,15 @@ import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } f
 import { resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
-import type { McProducto } from '@/types/mc'
+import { buildProductShareData, canUseWebShare, shareSafe } from '@/lib/webShare'
+import type { McProducto, McProductoVariante } from '@/types/mc'
 import { usePublicTenant } from '@/public/usePublicTenant'
 
 const DOCENA = 12
+
+function variantesValidas(prod: McProducto): McProductoVariante[] {
+  return (prod.variantes ?? []).filter((v) => v.nombre?.trim())
+}
 
 export function PublicProductDetailPage() {
   const { slug, productId } = useParams<{ slug: string; productId: string }>()
@@ -20,6 +25,9 @@ export function PublicProductDetailPage() {
   const { add, lines } = useCatalogoSimpleCart()
   const [p, setP] = useState<(McProducto & { id: string }) | null>(null)
   const [fullscreen, setFullscreen] = useState<{ src: string; alt: string } | null>(null)
+  const [selectedVid, setSelectedVid] = useState<string | null>(null)
+  const [galleryPick, setGalleryPick] = useState<string | null>(null)
+  const [qtyToAdd, setQtyToAdd] = useState(1)
 
   const preset = tenant ? resolvePublicCatalogTheme(tenant).preset : 'morning'
 
@@ -41,6 +49,67 @@ export function PublicProductDetailPage() {
     })
   }, [tenantId, productId])
 
+  const prod = p
+  const vars = prod ? variantesValidas(prod) : []
+  const hasVariants = vars.length > 0
+  const selected = hasVariants ? vars.find((v) => v.id === selectedVid) ?? vars[0] : undefined
+
+  useEffect(() => {
+    if (!prod) return
+    const vs = variantesValidas(prod)
+    if (vs.length > 0) {
+      setSelectedVid((prev) => {
+        if (prev && vs.some((v) => v.id === prev)) return prev
+        return vs[0]!.id
+      })
+    } else {
+      setSelectedVid(null)
+    }
+    setGalleryPick(null)
+  }, [prod?.id, prod?.updatedAt])
+
+  const mainSrc = useMemo(() => {
+    if (!prod) return null
+    if (galleryPick) return galleryPick
+    if (selected?.imageUrl) return selected.imageUrl
+    return prod.imageUrl ?? null
+  }, [prod, selected?.imageUrl, galleryPick])
+
+  const effectivePrice = selected?.precioCop ?? prod?.precioCop ?? 0
+
+  const enCarrito = useMemo(() => {
+    if (!prod) return 0
+    let n = 0
+    for (const l of lines) {
+      if (l.productId !== prod.id) continue
+      if (hasVariants) {
+        if (l.varianteId === selected?.id) n += l.cantidad
+      } else if (!l.varianteId) {
+        n += l.cantidad
+      }
+    }
+    return n
+  }, [lines, prod?.id, hasVariants, selected?.id])
+
+  const totalEnCarritoProducto = useMemo(() => {
+    if (!prod) return 0
+    return lines.filter((l) => l.productId === prod.id).reduce((s, l) => s + l.cantidad, 0)
+  }, [lines, prod?.id])
+
+  useEffect(() => {
+    setQtyToAdd(1)
+  }, [selected?.id, prod?.id])
+
+  useEffect(() => {
+    if (!prod) return
+    const d = Math.max(0, prod.stock - totalEnCarritoProducto)
+    if (d <= 0) {
+      setQtyToAdd(1)
+      return
+    }
+    setQtyToAdd((q) => Math.max(1, Math.min(q, d)))
+  }, [prod?.id, prod?.stock, totalEnCarritoProducto, selected?.id])
+
   if (!firebaseConfigured) {
     return <p className="mc-pc-text">Configurá Firebase.</p>
   }
@@ -50,7 +119,7 @@ export function PublicProductDetailPage() {
   if (error || !tenant) {
     return <p className="text-red-600">{error ?? 'No disponible'}</p>
   }
-  if (!p || !slug) {
+  if (!prod || !slug) {
     return (
       <div className="text-center">
         <p className="mc-pc-text">Artículo no disponible.</p>
@@ -61,170 +130,353 @@ export function PublicProductDetailPage() {
     )
   }
 
-  const prod = p
+  const product = prod
+  const disp = Math.max(0, product.stock - totalEnCarritoProducto)
 
-  let enCarrito = 0
-  for (const l of lines) {
-    if (l.productId === prod.id) enCarrito += l.cantidad
-  }
-  const disp = Math.max(0, prod.stock - enCarrito)
+  const galeriaUrls = (() => {
+    const u = new Set<string>()
+    const out: string[] = []
+    for (const x of [product.imageUrl, ...(product.galeriaImagenes ?? [])]) {
+      if (!x || u.has(x)) continue
+      u.add(x)
+      out.push(x)
+    }
+    return out
+  })()
 
   function sumar(cant: number) {
+    if (hasVariants && !selected) return
     if (cant > disp) {
       window.alert(`Máximo ${disp} unidades disponibles.`)
       return
     }
+    const titulo = hasVariants ? `${product.nombre} · ${selected!.nombre}` : product.nombre
     add({
-      productId: prod.id,
-      titulo: prod.nombre,
-      subtitulo: formatCop(prod.precioCop),
-      precioUnitarioCop: prod.precioCop,
+      productId: product.id,
+      varianteId: hasVariants ? selected!.id : undefined,
+      titulo,
+      subtitulo: formatCop(effectivePrice),
+      precioUnitarioCop: effectivePrice,
       cantidad: cant,
     })
   }
 
-  const shellMax =
-    preset === 'bold'
-      ? 'max-w-lg'
-      : preset === 'minimal'
-        ? 'max-w-xl'
-        : preset === 'boutique'
-          ? 'max-w-md'
-          : 'max-w-sm'
+  const isBold = preset === 'bold'
+  const isBoutique = preset === 'boutique'
 
-  const cardRounded =
-    preset === 'bold'
-      ? 'rounded-3xl'
-      : preset === 'minimal'
-        ? 'rounded-lg'
-        : preset === 'boutique'
-          ? 'rounded-md'
-          : 'rounded-2xl'
-
-  const titleClass = clsx(
-    'mc-pc-display mc-pc-text',
-    preset === 'bold' && 'text-center text-2xl font-black sm:text-3xl',
-    preset === 'minimal' && 'text-left text-xl font-semibold sm:text-2xl',
-    preset === 'boutique' && 'text-center text-xl font-semibold italic sm:text-2xl',
-    (preset === 'ios' || preset === 'morning') && 'text-left text-xl font-semibold sm:text-2xl',
+  const Breadcrumb = () => (
+    <nav
+      className="flex flex-wrap items-center gap-1.5 text-[12px] sm:text-[13px] mc-pc-muted"
+      aria-label="Migas de pan"
+    >
+      <Link to={`/c/${slug}`} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
+        {tenant.nombreTienda}
+      </Link>
+      <span aria-hidden className="text-[color-mix(in_srgb,var(--cat-muted)_60%,transparent)]">
+        /
+      </span>
+      <span className="line-clamp-1 text-[var(--cat-muted)]">Producto</span>
+    </nav>
   )
 
-  const priceClass = clsx(
-    'font-semibold tabular-nums mc-pc-text',
-    preset === 'bold' && 'text-center text-2xl sm:text-3xl',
-    preset === 'boutique' && 'text-center text-lg italic',
-    preset === 'minimal' && 'text-left text-lg',
-    (preset === 'ios' || preset === 'morning') && 'text-left text-base',
+  const VariantChips = ({ className }: { className?: string }) =>
+    hasVariants ? (
+      <div className={clsx('space-y-2', className)}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
+          Elegí opción
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {vars.map((v) => {
+            const active = v.id === selected?.id
+            return (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => {
+                  setSelectedVid(v.id)
+                  setGalleryPick(null)
+                }}
+                className={clsx(
+                  'inline-flex min-h-[44px] items-center gap-2 rounded-full border px-3.5 py-2 text-left text-[13px] font-medium transition',
+                  active
+                    ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_12%,var(--cat-surface)_88%)] text-[var(--cat-text)] ring-1 ring-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)]'
+                    : 'mc-pc-border bg-[var(--cat-surface)] text-[var(--cat-text)] hover:border-[color-mix(in_srgb,var(--cat-text)_22%,transparent)]',
+                )}
+              >
+                {v.hex ? (
+                  <span
+                    className="h-6 w-6 shrink-0 rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_28%,transparent)] shadow-sm"
+                    style={{ backgroundColor: v.hex }}
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border mc-pc-border text-[10px] mc-pc-muted">
+                    ·
+                  </span>
+                )}
+                <span className="min-w-0">
+                  <span className="block leading-tight">{v.nombre}</span>
+                  <span className="mt-0.5 block text-[11px] font-semibold tabular-nums text-[var(--cat-muted)]">
+                    {formatCop(v.precioCop ?? product.precioCop)}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    ) : null
+
+  const CtaGroup = ({ className }: { className?: string }) => (
+    <div className={clsx('space-y-3', className)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-medium text-[var(--cat-muted)]">Cantidad</span>
+        <div className="flex items-center rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_22%,transparent)] bg-[var(--cat-surface)] p-0.5">
+          <button
+            type="button"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold leading-none transition hover:bg-[color-mix(in_srgb,var(--cat-text)_6%,transparent)] disabled:opacity-35"
+            disabled={disp < 1 || qtyToAdd <= 1}
+            onClick={() => setQtyToAdd((q) => Math.max(1, q - 1))}
+            aria-label="Menos unidades"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={Math.max(1, disp)}
+            value={qtyToAdd}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10)
+              if (Number.isNaN(v)) return
+              const top = Math.max(1, disp)
+              setQtyToAdd(Math.max(1, Math.min(v, top)))
+            }}
+            className="w-8 border-0 bg-transparent text-center text-[12px] font-semibold tabular-nums text-[var(--cat-text)] outline-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            aria-label="Cantidad a añadir"
+          />
+          <button
+            type="button"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold leading-none transition hover:bg-[color-mix(in_srgb,var(--cat-text)_6%,transparent)] disabled:opacity-35"
+            disabled={disp < 1 || qtyToAdd >= disp}
+            onClick={() => setQtyToAdd((q) => Math.min(disp, q + 1))}
+            aria-label="Más unidades"
+          >
+            +
+          </button>
+        </div>
+        {disp >= 1 ? (
+          <span className="text-[10px] leading-tight mc-pc-muted sm:text-[11px]">
+            Hasta {disp} {disp === 1 ? 'unidad' : 'unidades'}
+          </span>
+        ) : (
+          <span className="text-[10px] mc-pc-muted sm:text-[11px]">Sin stock disponible</span>
+        )}
+      </div>
+      <button
+        type="button"
+        className="min-h-[52px] w-full rounded-2xl bg-[#0a0a0a] px-4 py-3.5 text-[15px] font-semibold text-white shadow-sm transition duration-200 ease-in-out hover:bg-neutral-800 disabled:opacity-40 sm:min-h-[48px] sm:text-base"
+        disabled={disp < 1}
+        onClick={() => sumar(qtyToAdd)}
+      >
+        Añadir al carrito
+      </button>
+      <button
+        type="button"
+        className="min-h-[48px] w-full rounded-2xl border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out disabled:opacity-40"
+        disabled={disp < DOCENA}
+        onClick={() => sumar(DOCENA)}
+      >
+        Añadir 1 docena
+      </button>
+    </div>
   )
-
-  const backClass = clsx(
-    'mb-4 inline-block text-sm mc-pc-muted hover:underline',
-    preset === 'bold' && 'w-full text-center',
-    preset === 'boutique' && 'w-full text-center',
-  )
-
-  const imgRing =
-    preset === 'bold'
-      ? 'ring-2 ring-[color-mix(in_srgb,var(--cat-text)_12%,transparent)]'
-      : preset === 'boutique'
-        ? 'border border-[color-mix(in_srgb,var(--cat-text)_15%,var(--cat-surface)_85%)]'
-        : ''
-
-  const btnWrap = clsx('flex flex-wrap gap-2', preset === 'bold' && 'flex-col sm:flex-row')
 
   return (
-    <div className={clsx('mx-auto w-full', shellMax)}>
-      <Link to={`/c/${slug}`} className={backClass}>
-        ← Catálogo
-      </Link>
-
-      <h1 className={titleClass}>{prod.nombre}</h1>
-      <p className={clsx('mt-1', priceClass)}>{formatCop(prod.precioCop)}</p>
-
+    <div className="pb-28 md:pb-0">
       <div
         className={clsx(
-          'mc-pc-card relative mx-auto mt-4 overflow-hidden border mc-pc-border mc-pc-surface shadow-sm',
-          cardRounded,
-          preset === 'bold' && 'shadow-xl shadow-black/20',
+          'md:grid md:items-start',
+          isBold
+            ? 'md:mx-auto md:max-w-3xl md:grid-cols-1 md:justify-items-center'
+            : 'md:max-w-6xl md:grid-cols-2 md:gap-8 lg:gap-12',
         )}
       >
-        <div className={clsx('relative aspect-square mc-pc-image-placeholder', imgRing)}>
-          {prod.imageUrl ? (
-            <button
-              type="button"
-              className="group/img relative h-full w-full cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-inset mc-pc-ring-focus"
-              onClick={() => setFullscreen({ src: prod.imageUrl!, alt: prod.nombre })}
-              aria-label={`Ver ${prod.nombre} en pantalla completa`}
-            >
-              <img
-                src={prod.imageUrl}
-                alt=""
-                className="pointer-events-none h-full w-full object-cover transition group-hover/img:brightness-[0.97]"
-              />
-              <span className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-[color-mix(in_srgb,var(--cat-text)_58%,transparent)] px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm sm:text-xs">
-                Pantalla completa
-              </span>
-            </button>
-          ) : (
-            <div className="flex h-full items-center justify-center mc-pc-muted">Sin imagen</div>
-          )}
-        </div>
         <div
           className={clsx(
-            'space-y-3',
-            preset === 'bold' ? 'p-5 sm:p-6' : preset === 'minimal' ? 'p-4' : 'p-4',
+            !isBold && 'md:sticky md:top-24',
+            isBold && 'w-full',
           )}
         >
-          <p
+          <Breadcrumb />
+          <div
             className={clsx(
-              'text-sm mc-pc-muted',
-              (preset === 'bold' || preset === 'boutique') && 'text-center',
+              'relative mt-4 overflow-hidden mc-pc-surface',
+              isBold
+                ? 'mc-pc-rey-card aspect-[5/3] w-full min-h-[220px] sm:aspect-[2/1] sm:min-h-0'
+                : 'mc-pc-rey-card aspect-square w-full max-w-xl md:max-w-none',
             )}
           >
-            Stock bodega {prod.stock}
-            {enCarrito > 0 && ` · en carrito ${enCarrito}`} · podés pedir {disp}
+            {mainSrc ? (
+              <button
+                type="button"
+                className="group/img relative h-full w-full cursor-zoom-in focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
+                onClick={() => setFullscreen({ src: mainSrc, alt: product.nombre })}
+                aria-label={`Ver ${product.nombre} en pantalla completa`}
+              >
+                <img
+                  src={mainSrc}
+                  alt=""
+                  className="h-full w-full object-cover transition duration-500 group-hover/img:brightness-[0.98]"
+                />
+                <span className="pointer-events-none absolute bottom-3 right-3 rounded-full border border-white/30 bg-[color-mix(in_srgb,var(--cat-text)_40%,transparent)] px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm sm:bottom-4 sm:right-4 sm:text-[11px]">
+                  Ampliar
+                </span>
+              </button>
+            ) : (
+              <div className="flex h-full items-center justify-center mc-pc-muted">Sin imagen</div>
+            )}
+          </div>
+          {galeriaUrls.length > 1 ? (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {galeriaUrls.map((url) => {
+                const thumbActive = galleryPick != null ? galleryPick === url : url === mainSrc
+                return (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => setGalleryPick(url)}
+                    className={clsx(
+                      'relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition sm:h-16 sm:w-16',
+                      thumbActive
+                        ? 'border-[var(--cat-accent)] ring-1 ring-[color-mix(in_srgb,var(--cat-accent)_30%,transparent)]'
+                        : 'border-transparent opacity-85 hover:opacity-100',
+                    )}
+                  >
+                    <img src={url} alt="" className="h-full w-full object-cover" />
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          className={clsx(
+            'mt-6 min-w-0 md:mt-0',
+            isBold && 'max-w-2xl text-center',
+            isBoutique && 'text-center md:text-left',
+          )}
+        >
+          <div
+            className={clsx(
+              'mb-2 flex flex-wrap items-center gap-2',
+              (isBold || isBoutique) && 'justify-center md:justify-start',
+            )}
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--cat-muted)] sm:text-[11px]">
+              {tenant.nombreTienda}
+            </span>
+            {canUseWebShare() && (
+              <button
+                type="button"
+                className="text-[11px] font-medium text-[var(--cat-muted)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_40%,transparent)] underline-offset-4 transition hover:text-[var(--cat-text)] sm:text-xs"
+                onClick={() =>
+                  void shareSafe(
+                    buildProductShareData({
+                      nombreTienda: tenant.nombreTienda,
+                      productName: product.nombre,
+                      productUrl: `${window.location.origin}/c/${slug}/p/${product.id}`,
+                    }),
+                  )
+                }
+              >
+                Compartir
+              </button>
+            )}
+          </div>
+
+          <h1
+            className={clsx(
+              'mc-pc-display text-[var(--cat-text)]',
+              isBold && 'text-2xl font-bold tracking-tighter sm:text-3xl',
+              isBoutique && 'text-2xl font-semibold tracking-tight sm:text-3xl',
+              preset === 'minimal' && 'text-left text-xl font-semibold sm:text-2xl',
+              (preset === 'ios' || preset === 'morning') && 'text-left text-2xl font-semibold sm:text-3xl',
+            )}
+          >
+            {product.nombre}
+          </h1>
+          <p
+            className={clsx(
+              'mt-2 font-semibold tabular-nums text-[var(--cat-text)] sm:mt-3',
+              isBold && 'text-center text-2xl sm:text-3xl',
+              isBoutique && 'text-center text-xl md:text-left',
+              preset === 'minimal' && 'text-left text-lg',
+              (preset === 'ios' || preset === 'morning') && 'text-left text-lg sm:text-xl',
+            )}
+          >
+            {formatCop(effectivePrice)}
           </p>
-          {prod.imageUrl && (
+
+          <VariantChips
+            className={clsx('mt-5', (isBold || isBoutique) && 'md:mx-auto md:max-w-md')}
+          />
+
+          <CtaGroup className={clsx('mt-6 max-md:hidden', isBold && 'mx-auto max-w-xl')} />
+
+          <p
+            className={clsx(
+              'mt-4 text-sm leading-relaxed text-[var(--cat-muted)]',
+              (isBold || isBoutique) && 'text-center md:text-left',
+            )}
+          >
+            Stock bodega {product.stock}
+            {enCarrito > 0 ? ` · podés sumar hasta ${disp} más` : ` · podés pedir ${disp}`}
+          </p>
+
+          {mainSrc && (
             <button
               type="button"
-              className={clsx(
-                'w-full rounded-xl border mc-pc-border mc-pc-surface px-4 py-2.5 text-xs font-medium mc-pc-text shadow-sm transition mc-pc-line-softer hover:opacity-95',
-                preset === 'bold' && 'py-3 text-sm',
-              )}
+              className="mt-5 w-full rounded-full border mc-pc-border bg-transparent px-4 py-2.5 text-xs font-medium text-[var(--cat-text)] transition duration-200 ease-in-out hover:opacity-80 sm:mt-6 sm:max-w-xs sm:py-2"
               onClick={() =>
-                void downloadCatalogImage(prod.imageUrl!, `${prod.nombre.replace(/\s+/g, '_')}.jpg`, {
+                void downloadCatalogImage(mainSrc, `${product.nombre.replace(/\s+/g, '_')}.jpg`, {
                   getFirebaseStorage: () => (firebaseStorageConfigured ? getStorageApp() : null),
                 })
               }
             >
-              Descargar foto
+              Descargar imagen
             </button>
           )}
-          <div className={btnWrap}>
-            <button
-              type="button"
-              className={clsx(
-                'mc-pc-accent-soft flex-1 rounded-xl px-4 py-2.5 text-xs font-semibold shadow-sm transition disabled:opacity-45',
-                preset === 'bold' && 'py-3.5 text-sm',
-              )}
-              disabled={disp < 1}
-              onClick={() => sumar(1)}
-            >
-              +1 unidad
-            </button>
-            <button
-              type="button"
-              className={clsx(
-                'mc-pc-accent-soft flex-1 rounded-xl px-4 py-2.5 text-xs font-semibold shadow-sm transition disabled:opacity-45',
-                preset === 'bold' && 'py-3.5 text-sm',
-              )}
-              disabled={disp < DOCENA}
-              onClick={() => sumar(DOCENA)}
-            >
-              +1 docena
-            </button>
+        </div>
+      </div>
+
+      <p className="mt-2 md:mt-8">
+        <Link
+          to={`/c/${slug}`}
+          className="text-sm font-medium text-[var(--cat-muted)] transition hover:text-[var(--cat-text)]"
+        >
+          ← Todos los productos
+        </Link>
+      </p>
+
+      <div
+        className="mc-pc-rey-cta-mobile fixed bottom-0 left-0 right-0 z-20 border-t border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] bg-[color-mix(in_srgb,var(--cat-surface)_94%,transparent)] px-3 pt-3 backdrop-blur-md md:hidden"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+      >
+        <div className="mx-auto flex max-w-lg items-end justify-between gap-3 pb-1">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-medium text-[var(--cat-text)]">{product.nombre}</p>
+            {hasVariants && selected ? (
+              <p className="truncate text-[11px] text-[var(--cat-muted)]">{selected.nombre}</p>
+            ) : null}
+            <p className="text-[15px] font-semibold tabular-nums text-[var(--cat-text)]">
+              {formatCop(effectivePrice)}
+            </p>
           </div>
         </div>
+        <CtaGroup className="mt-1 pb-1" />
       </div>
 
       <FullscreenImageOverlay

@@ -2,6 +2,9 @@ export const MC = {
   users: 'mc_users',
   tenants: 'mc_tenants',
   slugs: 'mc_slugs',
+  /** Doc `settings`: banderas públicas de la plataforma (ej. pasarela sin registro). */
+  mcPlatform: 'mc_platform',
+  mcPlatformSettingsDoc: 'settings',
 } as const
 
 export function mcProductosCollection(tenantId: string) {

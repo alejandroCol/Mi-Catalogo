@@ -1,6 +1,7 @@
 import { type FirebaseApp, getApps, initializeApp } from 'firebase/app'
 import { getAuth, type Auth } from 'firebase/auth'
 import { getFirestore, type Firestore } from 'firebase/firestore'
+import { getFunctions, type Functions } from 'firebase/functions'
 import { getStorage, type FirebaseStorage } from 'firebase/storage'
 
 function readConfig() {
@@ -23,6 +24,7 @@ let app: FirebaseApp | null = null
 let db: Firestore | null = null
 let auth: Auth | null = null
 let storage: FirebaseStorage | null = null
+let functions: Functions | null = null
 
 if (firebaseConfigured) {
   const cfg = readConfig()
@@ -32,6 +34,8 @@ if (firebaseConfigured) {
   if (cfg.storageBucket) {
     storage = getStorage(app)
   }
+  const fnRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION as string | undefined
+  functions = fnRegion ? getFunctions(app, fnRegion) : getFunctions(app)
 }
 
 export function getDb(): Firestore {
@@ -51,4 +55,11 @@ export function getStorageApp(): FirebaseStorage {
     throw new Error('Define VITE_FIREBASE_STORAGE_BUCKET para subir fotos.')
   }
   return storage
+}
+
+export function getFirebaseFunctions(): Functions {
+  if (!functions) {
+    throw new Error('Firebase no está configurado o faltan Cloud Functions.')
+  }
+  return functions
 }

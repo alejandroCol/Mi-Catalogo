@@ -43,28 +43,31 @@ export function PlanUpgradePage() {
   }
 
   return (
-    <div className="mc-shell space-y-5">
+    <div className="mc-shell space-y-8">
       <div>
-        <Link to="/app/cuenta" className="ios-footnote font-medium text-[var(--cat-accent)]">
+        <Link
+          to="/app/cuenta"
+          className="text-[13px] font-medium text-[var(--cat-muted)] transition duration-200 ease-in-out hover:opacity-70"
+        >
           ← Cuenta
         </Link>
-        <h1 className="ios-large-title mt-2">Plan Expert</h1>
-        <p className="ios-subhead mt-1.5">
-          Elegí facturación mensual o anual. Por ahora es una <strong className="font-semibold text-[var(--cat-text)]">simulación</strong> de
-          pago; luego conectaremos la pasarela real.
+        <h1 className="ios-large-title mt-3">Plan Expert</h1>
+        <p className="ios-subhead mt-3 max-w-xl leading-relaxed">
+          Elegí facturación mensual o anual. Por ahora es una{' '}
+          <strong className="font-medium text-[var(--cat-text)]">simulación</strong> de pago; luego conectaremos la pasarela real.
         </p>
       </div>
 
       {plan === 'expert' ? (
-        <p className="rounded-[10px] border border-ios-green/35 bg-ios-green/10 px-4 py-3 ios-footnote text-[var(--cat-text)]">
-          Ya estás en <strong className="font-semibold">Expert</strong>. Podés volver a Cuenta para editar el tema del catálogo.
+        <p className="border border-neutral-200/60 bg-neutral-50/50 px-4 py-3 text-[13px] leading-relaxed text-[var(--cat-text)]">
+          Ya estás en <strong className="font-medium">Expert</strong>. En Cuenta tocá <strong className="font-medium">Configurar estilo</strong> para la plantilla y colores del catálogo.
         </p>
       ) : (
         <>
-          <div className="mc-card space-y-3">
+          <div className="mc-card space-y-4">
             <p className="ios-headline">Expert mensual</p>
-            <p className="ios-subhead">Plantillas de catálogo, colores personalizados y panel alineado al tema.</p>
-            <p className="text-[15px] font-semibold text-[var(--cat-text)]">$29.900 COP / mes (demo)</p>
+            <p className="ios-subhead leading-relaxed">Plantillas de catálogo, colores personalizados y panel alineado al tema.</p>
+            <p className="text-[15px] font-medium tracking-tight text-[var(--cat-text)]">$29.900 COP / mes (demo)</p>
             <button
               type="button"
               className="mc-btn-primary w-full"
@@ -74,10 +77,10 @@ export function PlanUpgradePage() {
               {busy ? 'Procesando…' : 'Simular compra mensual'}
             </button>
           </div>
-          <div className="mc-card space-y-3">
+          <div className="mc-card space-y-4">
             <p className="ios-headline">Expert anual</p>
-            <p className="ios-subhead">Mismo beneficio con mejor precio relativo (valores de ejemplo).</p>
-            <p className="text-[15px] font-semibold text-[var(--cat-text)]">$299.000 COP / año (demo)</p>
+            <p className="ios-subhead leading-relaxed">Mismo beneficio con mejor precio relativo (valores de ejemplo).</p>
+            <p className="text-[15px] font-medium tracking-tight text-[var(--cat-text)]">$299.000 COP / año (demo)</p>
             <button
               type="button"
               className="mc-btn-secondary w-full"
@@ -90,9 +93,12 @@ export function PlanUpgradePage() {
         </>
       )}
 
-      {msg && <p className="ios-footnote text-[var(--cat-text)]">{msg}</p>}
+      {msg && <p className="text-[13px] leading-relaxed text-[var(--cat-text)]">{msg}</p>}
 
-      <Link to="/app/cuenta" className="block text-center ios-footnote font-medium text-[var(--cat-accent)]">
+      <Link
+        to="/app/cuenta"
+        className="block text-center text-[13px] font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4 transition duration-200 ease-in-out hover:opacity-70"
+      >
         Volver a Cuenta
       </Link>
     </div>

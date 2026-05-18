@@ -1,3 +1,4 @@
+import { cartLineKey } from '@/catalog-local/cartLineKey'
 import type { LineaCarritoSimple } from '@/catalog-local/simpleCartTypes'
 
 export function loadSimpleCart(storageKey: string): LineaCarritoSimple[] {
@@ -19,7 +20,8 @@ export function addOrMergeSimpleLine(
   lines: LineaCarritoSimple[],
   line: LineaCarritoSimple,
 ): LineaCarritoSimple[] {
-  const idx = lines.findIndex((l) => l.productId === line.productId)
+  const key = cartLineKey(line)
+  const idx = lines.findIndex((l) => cartLineKey(l) === key)
   if (idx === -1) return [...lines, line]
   const next = [...lines]
   const cur = next[idx]!
@@ -31,9 +33,11 @@ export function setSimpleLineQty(
   lines: LineaCarritoSimple[],
   productId: string,
   cantidad: number,
+  varianteId?: string,
 ): LineaCarritoSimple[] {
-  if (cantidad <= 0) return lines.filter((l) => l.productId !== productId)
-  return lines.map((l) => (l.productId === productId ? { ...l, cantidad } : l))
+  const key = cartLineKey({ productId, varianteId })
+  if (cantidad <= 0) return lines.filter((l) => cartLineKey(l) !== key)
+  return lines.map((l) => (cartLineKey(l) === key ? { ...l, cantidad } : l))
 }
 
 export function clearSimpleCart(storageKey: string) {

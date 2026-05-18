@@ -1,0 +1,188 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { doc, updateDoc } from 'firebase/firestore'
+import { useMcAuth } from '@/auth/McAuthContext'
+import { getDb } from '@/lib/firebase'
+import { MC } from '@/lib/mcCollections'
+import {
+  billingPlanOf,
+  buildCatalogThemeForSave,
+  defaultColorsForPreset,
+} from '@/lib/catalogTheme'
+import { CatalogPresetPickerGrid } from '@/app/CatalogPresetPickerGrid'
+import { PublicCatalogThemePreview } from '@/app/PublicCatalogThemePreview'
+import type { McCatalogThemePreset } from '@/types/mc'
+
+const HEX = /^#[0-9A-Fa-f]{6}$/
+
+export function CuentaEstiloPage() {
+  const { profile, tenant } = useMcAuth()
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const [preset, setPreset] = useState<McCatalogThemePreset>('morning')
+  const [cAccent, setCAccent] = useState('')
+  const [cAccentText, setCAccentText] = useState('')
+  const [cBg, setCBg] = useState('')
+  const [cSurface, setCSurface] = useState('')
+  const [cText, setCText] = useState('')
+  const [cMuted, setCMuted] = useState('')
+
+  const plan = tenant ? billingPlanOf(tenant) : 'free'
+
+  useEffect(() => {
+    if (!tenant) return
+    const p = tenant.catalogTheme?.preset ?? 'morning'
+    setPreset(p)
+    const cols = tenant.catalogTheme?.colors
+    setCAccent(cols?.accent ?? '')
+    setCAccentText(cols?.accentText ?? '')
+    setCBg(cols?.bg ?? '')
+    setCSurface(cols?.surface ?? '')
+    setCText(cols?.text ?? '')
+    setCMuted(cols?.muted ?? '')
+  }, [tenant])
+
+  async function guardarTema() {
+    if (!profile?.tenantId || !tenant || billingPlanOf(tenant) !== 'expert') return
+    setBusy(true)
+    setMsg(null)
+    try {
+      const colors = {
+        ...(HEX.test(cAccent) ? { accent: cAccent } : {}),
+        ...(HEX.test(cAccentText) ? { accentText: cAccentText } : {}),
+        ...(HEX.test(cBg) ? { bg: cBg } : {}),
+        ...(HEX.test(cSurface) ? { surface: cSurface } : {}),
+        ...(HEX.test(cText) ? { text: cText } : {}),
+        ...(HEX.test(cMuted) ? { muted: cMuted } : {}),
+      }
+      await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), {
+        catalogTheme: buildCatalogThemeForSave(preset, colors),
+      })
+      setMsg('Tema actualizado (catálogo público y panel).')
+    } catch {
+      setMsg('No se pudo guardar el tema.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function onPresetChange(next: McCatalogThemePreset) {
+    setPreset(next)
+    const c = defaultColorsForPreset(next)
+    setCAccent(c.accent)
+    setCAccentText(c.accentText)
+    setCBg(c.bg)
+    setCSurface(c.surface)
+    setCText(c.text)
+    setCMuted(c.muted)
+  }
+
+  return (
+    <div className="mc-shell space-y-6">
+      <div>
+        <Link
+          to="/app/cuenta"
+          className="ios-footnote font-medium text-mc-700 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-80"
+        >
+          ← Volver a Cuenta
+        </Link>
+        <h1 className="ios-large-title mt-3">Estilo del portal de venta</h1>
+        <p className="ios-subhead mt-2 max-w-xl leading-relaxed text-[var(--cat-muted)]">
+          Definí cómo se ve tu catálogo público: plantilla, colores y vista previa antes de publicar.
+        </p>
+      </div>
+
+      {!tenant ? (
+        <p className="text-[15px] text-[var(--cat-muted)]">Cargando tienda…</p>
+      ) : plan !== 'expert' ? (
+        <div className="mc-card space-y-4">
+          <p className="ios-subhead leading-relaxed text-[var(--cat-text)]">
+            La personalización de plantillas y colores está incluida en el plan{' '}
+            <strong className="font-medium">Expert</strong>.
+          </p>
+          <Link
+            to="/app/plan"
+            className="mc-btn-primary inline-flex w-full items-center justify-center py-3 text-[15px] no-underline"
+          >
+            Ver planes y pasar a Expert
+          </Link>
+        </div>
+      ) : (
+        <div className="mc-card space-y-6">
+          <div>
+            <p className="ios-headline">Tema · Expert</p>
+            <p className="ios-subhead mt-2 leading-relaxed">
+              Elegí <strong className="font-medium text-[var(--cat-text)]">cómo se ve el catálogo</strong>: cada plantilla
+              tiene un layout distinto (lista, cuadrícula, vidriera, fotos grandes…). Los colores del panel siguen el tema.
+              Guardá para publicar en{' '}
+              <Link
+                to={`/c/${tenant.slug}`}
+                className="font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4"
+              >
+                tu URL pública
+              </Link>
+              .
+            </p>
+          </div>
+          <div>
+            <p className="ios-footnote mb-2 font-medium text-[var(--cat-text)] opacity-80">Plantilla del catálogo</p>
+            <CatalogPresetPickerGrid value={preset} disabled={busy} onChange={onPresetChange} />
+            <p className="ios-footnote mt-2 text-[var(--cat-muted)]">
+              Al tocar una plantilla se aplican sus colores por defecto; podés afinarlos abajo antes de guardar.
+            </p>
+          </div>
+          <PublicCatalogThemePreview
+            tenant={tenant}
+            preset={preset}
+            cAccent={cAccent}
+            cAccentText={cAccentText}
+            cBg={cBg}
+            cSurface={cSurface}
+            cText={cText}
+            cMuted={cMuted}
+          />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {(
+              [
+                ['Acento (botones)', cAccent, setCAccent],
+                ['Texto sobre acento', cAccentText, setCAccentText],
+                ['Fondo página', cBg, setCBg],
+                ['Tarjetas / cabecera', cSurface, setCSurface],
+                ['Texto principal', cText, setCText],
+                ['Texto secundario', cMuted, setCMuted],
+              ] as const
+            ).map(([label, val, setVal]) => (
+              <div key={label}>
+                <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">{label}</label>
+                <div className="mt-1 flex gap-2">
+                  <input
+                    className="mc-input flex-1 py-2 font-mono text-[14px]"
+                    placeholder="#171717"
+                    value={val}
+                    onChange={(e) => setVal(e.target.value)}
+                    maxLength={7}
+                  />
+                  <input
+                    type="color"
+                    className="h-11 w-14 cursor-pointer rounded-md border border-neutral-200/50 bg-transparent p-0"
+                    aria-label={label}
+                    value={HEX.test(val) ? val : '#000000'}
+                    onChange={(e) => setVal(e.target.value)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="ios-footnote text-[var(--cat-muted)]">
+            Dejá un campo vacío o borrá el hex para volver al valor de la plantilla en ese color.
+          </p>
+          {msg && <p className="text-[15px] text-[var(--cat-text)] opacity-90">{msg}</p>}
+          <button type="button" className="mc-btn-primary w-full" disabled={busy} onClick={() => void guardarTema()}>
+            Guardar tema del panel
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}

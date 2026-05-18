@@ -1,0 +1,1 @@
+function e(e){let t=e?.checkoutVentasModo;return t===`pasarela`||t===`whatsapp`||t===`pasarela_micatalogo`?t:e?.onepayPaymentsEnabled===!0?`pasarela`:`whatsapp`}export{e as t};

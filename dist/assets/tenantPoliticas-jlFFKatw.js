@@ -1,0 +1,1 @@
+function e(e){if(!e)return!1;let t=(e.politicasEnvios??``).trim(),n=(e.politicasPagos??``).trim(),r=(e.politicasCambios??``).trim();return!!(t||n||r)}export{e as t};

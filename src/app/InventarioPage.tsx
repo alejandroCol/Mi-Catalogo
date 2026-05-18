@@ -7,9 +7,16 @@ import { mcProductosCollection } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
 import type { McProducto } from '@/types/mc'
 import { BulkAddProductsModal } from '@/app/BulkAddProductsModal'
+import { EditProductModal } from '@/app/EditProductModal'
 import { QuickAddProductModal } from '@/app/QuickAddProductModal'
 import { billingPlanOf } from '@/lib/catalogTheme'
-import { mcDeleteProductoDoc, mcToggleProductoActivo, mcToggleProductoCatalogo } from '@/lib/mcWrites'
+import {
+  mcDeleteProductoDoc,
+  mcToggleProductoActivo,
+  mcToggleProductoCatalogo,
+  mcToggleProductoNovedad,
+} from '@/lib/mcWrites'
+import { isProductNovedad } from '@/lib/catalogNovedad'
 import { IconPlus } from '@/icons/McIcons'
 
 export function InventarioPage() {
@@ -17,6 +24,7 @@ export function InventarioPage() {
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
+  const [editProduct, setEditProduct] = useState<(McProducto & { id: string }) | null>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -38,6 +46,11 @@ export function InventarioPage() {
     await mcToggleProductoActivo(profile.tenantId, p)
   }
 
+  async function toggleNovedad(p: McProducto & { id: string }) {
+    if (!profile?.tenantId) return
+    await mcToggleProductoNovedad(profile.tenantId, p)
+  }
+
   async function removeProduct(p: McProducto & { id: string }) {
     if (!profile?.tenantId || !window.confirm(`¿Eliminar «${p.nombre}»?`)) return
     if (firebaseStorageConfigured && p.imageUrl?.includes('firebasestorage')) {
@@ -57,8 +70,8 @@ export function InventarioPage() {
   return (
     <div className="mc-shell">
       <h1 className="ios-large-title">Inventario</h1>
-      <p className="ios-subhead mt-1.5">
-        Tocá el botón azul para agregar un artículo con foto, nombre, precio y stock.
+      <p className="ios-subhead mt-2 max-w-2xl leading-relaxed">
+        Tocá el botón <strong className="font-medium text-[var(--cat-text)]">+</strong> para agregar un artículo con foto, nombre, precio y stock.
         {expert && (
           <>
             {' '}
@@ -77,17 +90,17 @@ export function InventarioPage() {
       {expert && (
         <button
           type="button"
-          className="mt-3 w-full rounded-[12px] border border-[color-mix(in_srgb,var(--cat-muted)_35%,transparent)] bg-[color-mix(in_srgb,var(--cat-surface)_92%,var(--cat-accent)_8%)] px-4 py-3 text-[15px] font-semibold text-[var(--cat-text)] active:opacity-90 sm:w-auto"
+          className="mc-btn-secondary mt-4 w-full px-5 py-3 text-[15px] sm:w-auto"
           onClick={() => setBulkOpen(true)}
         >
           Carga masiva (varias fotos)
         </button>
       )}
 
-      <ul className="mt-6 space-y-3">
+      <ul className="mt-8 space-y-4">
         {rows.map((p) => (
-          <li key={p.id} className="mc-card flex gap-3 py-3">
-            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[10px] bg-mc-100">
+          <li key={p.id} className="mc-card flex gap-4 py-4">
+            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md border border-neutral-200/40 bg-mc-100">
               {p.imageUrl ? (
                 <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
               ) : (
@@ -98,25 +111,44 @@ export function InventarioPage() {
               <p className="ios-headline">{p.nombre}</p>
               <p className="ios-subhead tabular-nums">
                 {formatCop(p.precioCop)} · stock {p.stock}
+                {isProductNovedad(p) && (
+                  <span className="ml-2 inline-block border border-neutral-200/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-mc-600">
+                    Novedad
+                  </span>
+                )}
               </p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="rounded-full bg-[color-mix(in_srgb,var(--cat-surface)_82%,var(--cat-muted)_18%)] px-3 py-1.5 text-[13px] font-medium text-[var(--cat-accent)]"
+                  className="rounded-md border border-[var(--cat-accent)]/35 bg-[color-mix(in_srgb,var(--cat-accent)_8%,transparent)] px-3 py-1.5 text-[13px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out hover:opacity-90"
+                  onClick={() => setEditProduct(p)}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-neutral-200/70 bg-transparent px-3 py-1.5 text-[13px] font-medium text-[var(--cat-text)] transition duration-200 ease-in-out hover:border-neutral-300/90"
+                  onClick={() => void toggleNovedad(p)}
+                >
+                  {p.marcarNovedad ? 'Novedad fija: sí' : 'Novedad fija: no'}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-neutral-200/70 bg-transparent px-3 py-1.5 text-[13px] font-medium text-[var(--cat-text)] transition duration-200 ease-in-out hover:border-neutral-300/90"
                   onClick={() => void toggleCatalogo(p)}
                 >
                   {p.enCatalogo ? 'En catálogo' : 'Oculto'}
                 </button>
                 <button
                   type="button"
-                  className="rounded-full bg-mc-100 px-3 py-1.5 text-[13px] font-medium text-mc-700"
+                  className="rounded-md border border-neutral-200/70 bg-transparent px-3 py-1.5 text-[13px] font-medium text-mc-700 transition duration-200 ease-in-out hover:border-neutral-300/90"
                   onClick={() => void toggleActivo(p)}
                 >
                   {p.activo ? 'Activo' : 'Pausado'}
                 </button>
                 <button
                   type="button"
-                  className="rounded-full bg-ios-red/10 px-3 py-1.5 text-[13px] font-medium text-ios-red"
+                  className="rounded-md border border-transparent px-3 py-1.5 text-[13px] font-medium text-mc-500 underline decoration-neutral-300 underline-offset-2 transition duration-200 ease-in-out hover:text-mc-900"
                   onClick={() => void removeProduct(p)}
                 >
                   Borrar
@@ -138,7 +170,7 @@ export function InventarioPage() {
         aria-label="Agregar artículo"
         onClick={() => setModalOpen(true)}
       >
-        <IconPlus size={26} className="text-white" />
+        <IconPlus size={24} className="text-[var(--cat-accent-text)]" />
       </button>
 
       {modalOpen && profile?.tenantId && (
@@ -146,6 +178,14 @@ export function InventarioPage() {
           tenantId={profile.tenantId}
           onClose={() => setModalOpen(false)}
           nextOrden={rows.length}
+        />
+      )}
+
+      {editProduct && profile?.tenantId && (
+        <EditProductModal
+          tenantId={profile.tenantId}
+          product={editProduct}
+          onClose={() => setEditProduct(null)}
         />
       )}
 

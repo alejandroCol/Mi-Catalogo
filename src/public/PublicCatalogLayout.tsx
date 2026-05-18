@@ -1,23 +1,42 @@
-import { Link, Outlet, useParams } from 'react-router-dom'
+import { Link, Outlet, useLocation, useParams } from 'react-router-dom'
 import { useState } from 'react'
+import clsx from 'clsx'
 import {
   CatalogoSimpleCartProvider,
   useCatalogoSimpleCart,
 } from '@/catalog-local/CatalogoSimpleCartContext'
 import { buildPedidoWhatsappTextSimple, whatsappUrlFromNumber } from '@/catalog-local/buildWhatsappUrl'
+import { cartLineKey } from '@/catalog-local/cartLineKey'
 import {
   publicCatalogCssVars,
   publicCatalogPresetClass,
   resolvePublicCatalogTheme,
 } from '@/lib/catalogTheme'
+import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
+import { buildCartShareData, canUseWebShare, shareSafe } from '@/lib/webShare'
 import { usePublicTenant } from '@/public/usePublicTenant'
 import { McCatalogModal } from '@/public/McCatalogModal'
 
 function CartChrome() {
   const { slug } = useParams<{ slug: string }>()
+  const { pathname } = useLocation()
   const { tenant } = usePublicTenant(slug)
-  const { lines, totalPiezas, updateQty, clear } = useCatalogoSimpleCart()
+  const { lines, totalPiezas, updateQty, clear, highlightProductId, cartBumpGeneration } =
+    useCatalogoSimpleCart()
   const [cartOpen, setCartOpen] = useState(false)
+  const cartItemCount = lines.length
+
+  const pathBase = slug ? `/c/${slug}` : '/'
+  const enCheckout = slug ? pathname === `${pathBase}/checkout` : false
+  const isCatalogListHome = Boolean(slug && pathname === pathBase)
+
+  const navLink = (active: boolean) =>
+    clsx(
+      'rounded-full px-3 py-1.5 text-[13px] font-medium transition',
+      active
+        ? 'bg-[color-mix(in_srgb,var(--cat-text)_8%,transparent)] text-[var(--cat-text)]'
+        : 'mc-pc-muted hover:text-[var(--cat-text)]',
+    )
 
   const waUrl =
     tenant?.whatsappNumero &&
@@ -28,76 +47,160 @@ function CartChrome() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 border-b mc-pc-border mc-pc-surface shadow-sm">
-        <div className="mc-public-catalog-inset flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-3">
+      <header className="mc-pc-elev-header sticky top-0 z-30">
+        <div className="mc-public-catalog-inset flex h-[3.25rem] items-center justify-between gap-2 sm:h-[3.75rem] sm:gap-4">
           <Link
-            to={`/c/${slug}`}
-            className="mc-pc-display text-lg font-semibold mc-pc-text transition hover:opacity-80"
+            to={pathBase}
+            className="mc-pc-display min-w-0 truncate text-[15px] font-semibold tracking-tight text-[var(--cat-text)] transition hover:opacity-80 sm:text-base"
           >
             {tenant?.nombreTienda ?? 'Catálogo'}
           </Link>
-          <button
-            type="button"
-            onClick={() => setCartOpen(true)}
-            aria-label={totalPiezas > 0 ? `Abrir carrito, ${totalPiezas} unidades` : 'Abrir carrito'}
-            className="mc-pc-cart-button group relative flex w-full items-center justify-center gap-2.5 overflow-visible rounded-2xl border px-5 py-3 text-sm font-semibold transition duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 mc-pc-ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--cat-surface)] sm:w-auto"
+
+          <nav
+            className="hidden min-w-0 items-center justify-center gap-0.5 sm:flex md:gap-1"
+            aria-label="Tienda pública"
           >
-            <span className="mc-pc-cart-icon-wrap relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 transition">
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.75}
-                aria-hidden
+            {slug && tenant && tenantHasPoliticas(tenant) && (
+              <Link
+                to={`${pathBase}/politicas`}
+                className={navLink(pathname === `${pathBase}/politicas`)}
+                onClick={() => setCartOpen(false)}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.25 3h1.386c.51 0 .955.343 1.087.835l3.383 12.75a1.125 1.125 0 001.085.83h8.218a1.125 1.125 0 001.085-.83l2.17-8.175a.75.75 0 00-.57-.88H6.375M16.5 19.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8.25 19.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"
-                />
-              </svg>
-              {totalPiezas > 0 && (
-                <span className="mc-pc-cart-badge absolute -right-1 -top-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none shadow-sm ring-2 ring-[var(--cat-surface)]">
-                  {totalPiezas > 99 ? '99+' : totalPiezas}
+                Ayuda
+              </Link>
+            )}
+            {lines.length > 0 && slug && (
+              <Link
+                to={`${pathBase}/checkout`}
+                className={navLink(enCheckout)}
+                onClick={() => setCartOpen(false)}
+              >
+                Pagar
+              </Link>
+            )}
+          </nav>
+
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {slug && tenant && tenantHasPoliticas(tenant) && (
+              <Link
+                to={`${pathBase}/politicas`}
+                className="rounded-full p-2 sm:hidden"
+                aria-label="Políticas de la tienda"
+              >
+                <span className="text-lg leading-none mc-pc-muted" aria-hidden>
+                  ⓘ
                 </span>
-              )}
-            </span>
-            <span className="flex flex-col items-start leading-tight">
-              <span>Carrito</span>
-              <span className="text-[11px] font-normal mc-pc-muted opacity-90 group-hover:opacity-100">
-                {totalPiezas > 0 ? 'Ver o editar pedido' : 'Armá tu pedido'}
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              aria-label={
+                cartItemCount > 0
+                  ? `Carrito, ${cartItemCount} ${cartItemCount === 1 ? 'artículo' : 'artículos'} · ${totalPiezas} uds.`
+                  : 'Abrir carrito'
+              }
+              className="group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_22%,transparent)] bg-[var(--cat-surface)] text-[var(--cat-text)] shadow-sm transition hover:border-[color-mix(in_srgb,var(--cat-text)_16%,transparent)]"
+            >
+              <span className="mc-pc-cart-icon-wrap relative flex h-8 w-8 items-center justify-center rounded-full border-0 !shadow-none">
+                <svg
+                  className="h-[1.1rem] w-[1.1rem]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2.25 3h1.386c.51 0 .955.343 1.087.835l3.383 12.75a1.125 1.125 0 001.085.83h8.218a1.125 1.125 0 001.085-.83l2.17-8.175a.75.75 0 00-.57-.88H6.375M16.5 19.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8.25 19.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"
+                  />
+                </svg>
+                {cartItemCount > 0 && (
+                  <span
+                    key={cartBumpGeneration}
+                    className={clsx(
+                      'mc-pc-cart-badge absolute -right-0.5 -top-0.5 flex h-[1.05rem] min-w-[1.05rem] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none ring-2 ring-[var(--cat-surface)]',
+                      cartBumpGeneration > 0 && 'mc-pc-cart-badge-bump',
+                    )}
+                  >
+                    {cartItemCount > 99 ? '99+' : cartItemCount}
+                  </span>
+                )}
               </span>
-            </span>
-          </button>
+            </button>
+          </div>
         </div>
-        <p className="mc-public-catalog-inset pb-3 text-center text-xs leading-relaxed mc-pc-muted">
-          Catálogo de tu tienda · Descargá fotos y pedí por WhatsApp
-        </p>
       </header>
 
-      <main className="mc-public-catalog-main pb-12 sm:pb-16">
+      <main
+        className={clsx('mc-public-catalog-main', isCatalogListHome && 'mc-public-catalog-main--list-home')}
+      >
         <Outlet />
       </main>
+
+      <footer className="mt-auto border-t mc-pc-border py-6 sm:py-8">
+        <div className="mc-public-catalog-inset flex flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
+          <p className="max-w-md text-[11px] leading-relaxed sm:text-xs mc-pc-muted">
+            {tenant?.nombreTienda ? (
+              <>
+                <span className="font-medium text-[var(--cat-text)]">{tenant.nombreTienda}</span>
+                <span> · Compras seguras y atención directa con la tienda</span>
+              </>
+            ) : (
+              'Catálogo'
+            )}
+          </p>
+          {slug && tenant && tenantHasPoliticas(tenant) && (
+            <Link
+              to={`${pathBase}/politicas`}
+              className="text-[11px] font-medium sm:text-xs text-[var(--cat-text)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_50%,transparent)] underline-offset-4 transition hover:opacity-80"
+            >
+              Envíos, pagos y cambios
+            </Link>
+          )}
+        </div>
+      </footer>
 
       <McCatalogModal
         open={cartOpen}
         title="Tu pedido"
         onClose={() => setCartOpen(false)}
         footer={
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-            <button
-              type="button"
-              className="inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium mc-pc-text transition mc-pc-line-softer hover:opacity-90"
-              onClick={() => clear()}
-            >
-              Vaciar
-            </button>
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-stretch sm:gap-3">
+            <div className="flex flex-col gap-2 sm:flex-1 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="inline-flex w-full items-center justify-center rounded-full border border-transparent px-4 py-2.5 text-sm font-medium mc-pc-text transition duration-200 ease-in-out hover:opacity-65 sm:w-auto"
+                onClick={() => clear()}
+              >
+                Vaciar
+              </button>
+              {lines.length > 0 && slug && tenant && canUseWebShare() && (
+                <button
+                  type="button"
+                  className="inline-flex w-full items-center justify-center rounded-full border mc-pc-border bg-transparent px-4 py-2.5 text-sm font-medium mc-pc-text transition duration-200 ease-in-out hover:opacity-80 sm:w-auto"
+                  onClick={() =>
+                    void shareSafe(
+                      buildCartShareData({
+                        nombreTienda: tenant.nombreTienda,
+                        catalogUrl: `${window.location.origin}/c/${slug}`,
+                        lines,
+                        totalPiezas,
+                      }),
+                    )
+                  }
+                >
+                  Compartir pedido
+                </button>
+              )}
+            </div>
             {lines.length > 0 && slug && (
               <Link
                 to={`/c/${slug}/checkout`}
                 onClick={() => setCartOpen(false)}
-                className="inline-flex items-center justify-center rounded-xl bg-[var(--cat-accent)] px-4 py-2.5 text-sm font-semibold text-[var(--cat-accent-text)] shadow-sm transition hover:opacity-95"
+                className="inline-flex w-full items-center justify-center rounded-full bg-[var(--cat-accent)] px-4 py-3 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 sm:w-auto sm:shrink-0 sm:py-2.5"
               >
                 Comprar en línea
               </Link>
@@ -107,42 +210,45 @@ function CartChrome() {
                 href={waUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
+                className="inline-flex w-full items-center justify-center rounded-full border mc-pc-border bg-transparent px-4 py-3 text-sm font-medium mc-pc-text transition duration-200 ease-in-out hover:border-[color-mix(in_srgb,var(--cat-text)_22%,transparent)] sm:w-auto sm:py-2.5"
               >
-                Pedir por WhatsApp
+                WhatsApp
               </a>
             ) : (
-              <span className="text-xs mc-pc-muted">La tienda aún no configuró WhatsApp.</span>
+              <span className="text-center text-xs leading-relaxed mc-pc-muted sm:text-left">La tienda aún no configuró WhatsApp.</span>
             )}
           </div>
         }
       >
         {lines.length === 0 ? (
-          <p className="text-sm mc-pc-muted">Aún no agregaste productos.</p>
+          <p className="text-sm leading-relaxed mc-pc-muted">Aún no agregaste productos.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="divide-y mc-pc-border border-y mc-pc-border">
             {lines.map((l) => (
               <li
-                key={l.productId}
-                className="flex flex-col gap-2 rounded-xl border mc-pc-border mc-pc-line-softer p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                key={cartLineKey(l)}
+                className={clsx(
+                  'flex flex-col gap-3 py-4 text-sm sm:flex-row sm:items-center sm:justify-between',
+                  highlightProductId === l.productId && 'mc-pc-cart-line-enter',
+                )}
               >
                 <div>
-                  <p className="font-medium mc-pc-text">{l.titulo}</p>
-                  {l.subtitulo && <p className="text-xs mc-pc-muted">{l.subtitulo}</p>}
+                  <p className="font-medium tracking-tight mc-pc-text">{l.titulo}</p>
+                  {l.subtitulo && <p className="mt-0.5 text-xs leading-relaxed mc-pc-muted">{l.subtitulo}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="rounded-lg border mc-pc-border mc-pc-surface px-2 py-1"
-                    onClick={() => updateQty(l.productId, l.cantidad - 1)}
+                    className="rounded-md border mc-pc-border mc-pc-surface px-2.5 py-1 text-sm transition duration-200 ease-in-out hover:opacity-75"
+                    onClick={() => updateQty(l.productId, l.cantidad - 1, l.varianteId)}
                   >
                     −
                   </button>
-                  <span className="w-10 text-center font-medium mc-pc-text">{l.cantidad}</span>
+                  <span className="w-10 text-center text-sm font-medium tabular-nums mc-pc-text">{l.cantidad}</span>
                   <button
                     type="button"
-                    className="rounded-lg border mc-pc-border mc-pc-surface px-2 py-1"
-                    onClick={() => updateQty(l.productId, l.cantidad + 1)}
+                    className="rounded-md border mc-pc-border mc-pc-surface px-2.5 py-1 text-sm transition duration-200 ease-in-out hover:opacity-75"
+                    onClick={() => updateQty(l.productId, l.cantidad + 1, l.varianteId)}
                   >
                     +
                   </button>
@@ -152,7 +258,7 @@ function CartChrome() {
           </ul>
         )}
         {lines.length > 0 && (
-          <p className="mt-4 text-sm font-medium mc-pc-text">Total piezas: {totalPiezas}</p>
+          <p className="mt-6 text-sm font-medium tracking-tight mc-pc-text">Total piezas: {totalPiezas}</p>
         )}
       </McCatalogModal>
     </>
@@ -171,7 +277,7 @@ export function PublicCatalogLayout() {
 
   return (
     <div
-      className={`mc-public-catalog-page ${publicCatalogPresetClass(preset)}`}
+      className={`mc-public-catalog-page flex min-h-svh flex-col ${publicCatalogPresetClass(preset)}`}
       style={publicCatalogCssVars(tenant)}
     >
       <CatalogoSimpleCartProvider storageKey={key}>

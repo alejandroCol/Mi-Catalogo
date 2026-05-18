@@ -29,7 +29,7 @@ import {
   setSubscriptionFromNow,
 } from '@/lib/subscription'
 import { billingPlanOf } from '@/lib/catalogTheme'
-import { isEnvSuperAdminEmail, superAdminEnvGateEnabled } from '@/lib/superAdmin'
+import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 import type { McBillingPlan, McTenant } from '@/types/mc'
 import { fetchTenantsOverview, type TenantOverviewRow } from './fetchTenantsOverview'
 
@@ -67,6 +67,8 @@ export function SuperAdminPage() {
 
   const [slugLookup, setSlugLookup] = useState('')
   const [slugTenant, setSlugTenant] = useState<(McTenant & { id: string }) | null>(null)
+  /** Filtro rápido de tiendas relacionadas con OnePay (KYB / pasarela). */
+  const [onepayListFilter, setOnepayListFilter] = useState<'all' | 'kyb_pending' | 'pasarela_on'>('all')
 
   const reload = useCallback(async () => {
     setErr(null)
@@ -82,15 +84,20 @@ export function SuperAdminPage() {
   }, [])
 
   useEffect(() => {
-    if (!profile?.isSuperAdmin) return
-    if (superAdminEnvGateEnabled() && !isEnvSuperAdminEmail(profile.email)) return
+    if (!isMcSuperAdminUser(profile)) return
     void reload()
-  }, [profile?.isSuperAdmin, profile?.email, reload])
+  }, [profile, reload])
 
   const filtered = useMemo(() => {
+    let base = rows
+    if (onepayListFilter === 'kyb_pending') {
+      base = base.filter((r) => r.tenant.onepayKybStatus === 'pending')
+    } else if (onepayListFilter === 'pasarela_on') {
+      base = base.filter((r) => r.tenant.onepayPaymentsEnabled === true)
+    }
     const q = search.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter((r) => {
+    if (!q) return base
+    return base.filter((r) => {
       const t = r.tenant
       const hay =
         t.nombreTienda.toLowerCase().includes(q) ||
@@ -100,7 +107,7 @@ export function SuperAdminPage() {
         t.id.toLowerCase().includes(q)
       return hay
     })
-  }, [rows, search])
+  }, [rows, search, onepayListFilter])
 
   const stats = useMemo(() => {
     let activas = 0
@@ -118,6 +125,8 @@ export function SuperAdminPage() {
       productos,
       pedidos,
       conProductos: rows.filter((r) => r.productCount > 0).length,
+      kybPending: rows.filter((r) => r.tenant.onepayKybStatus === 'pending').length,
+      pasarelaOn: rows.filter((r) => r.tenant.onepayPaymentsEnabled === true).length,
     }
   }, [rows])
 
@@ -154,6 +163,21 @@ export function SuperAdminPage() {
       setMsg(`Plan producto: ${plan === 'expert' ? 'Expert' : 'Free'}.`)
     } catch {
       setErr('No se pudo cambiar el plan Free / Expert.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function patchOnepayKyb(tenantId: string, patch: Record<string, unknown>) {
+    setBusy(true)
+    setMsg(null)
+    setErr(null)
+    try {
+      await updateDoc(doc(getDb(), MC.tenants, tenantId), patch)
+      await reload()
+      setMsg('Estado OnePay KYB actualizado.')
+    } catch {
+      setErr('No se pudo actualizar el estado KYB.')
     } finally {
       setBusy(false)
     }
@@ -243,29 +267,19 @@ export function SuperAdminPage() {
     }
   }
 
-  if (!profile?.isSuperAdmin) {
+  if (!isMcSuperAdminUser(profile)) {
     return (
       <div className="mc-shell space-y-4">
         <p className="ios-subhead text-mc-900">No tenés permisos de súper admin.</p>
-        <Link to="/app" className="inline-flex items-center gap-0.5 text-[17px] font-semibold text-ios-blue">
-          <IconChevronLeft size={20} className="text-ios-blue" />
-          Volver
-        </Link>
-      </div>
-    )
-  }
-
-  if (superAdminEnvGateEnabled() && !isEnvSuperAdminEmail(profile.email)) {
-    return (
-      <div className="mc-shell space-y-4">
-        <p className="ios-subhead text-mc-900">
-          Tu cuenta tiene súper admin en Firestore, pero <code className="rounded-md bg-mc-100 px-1.5 py-0.5 text-[13px]">VITE_MC_SUPERADMIN_EMAILS</code> en <code className="rounded-md bg-mc-100 px-1.5 py-0.5 text-[13px]">.env</code> no incluye este correo (o está mal escrito). Agregalo en minúsculas, separado por comas si hay varios, y volvé a hacer build y deploy.
+        <p className="text-[13px] leading-relaxed text-mc-600">
+          El acceso se define con <code className="rounded bg-mc-100 px-1">isSuperAdmin: true</code> en el documento{' '}
+          <code className="rounded bg-mc-100 px-1">mc_users/&#123;tuUid&#125;</code> (consola o panel).
         </p>
-        <p className="ios-footnote text-mc-600">
-          Si preferís no usar esa lista, dejá <code className="rounded-md bg-mc-100 px-1.5 py-0.5 text-[12px]">VITE_MC_SUPERADMIN_EMAILS</code> vacía: al desplegar, solo se usará <code className="rounded-md bg-mc-100 px-1.5 py-0.5 text-[12px]">isSuperAdmin</code> en Firestore.
-        </p>
-        <Link to="/app" className="inline-flex items-center gap-0.5 text-[17px] font-semibold text-ios-blue">
-          <IconChevronLeft size={20} />
+        <Link
+          to="/app"
+          className="inline-flex items-center gap-1 text-[15px] font-medium text-mc-900 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-70"
+        >
+          <IconChevronLeft size={18} />
           Volver
         </Link>
       </div>
@@ -273,9 +287,12 @@ export function SuperAdminPage() {
   }
 
   return (
-    <div className="mc-shell space-y-5 pb-32">
-      <Link to="/app" className="inline-flex items-center gap-0.5 text-[17px] font-semibold text-ios-blue">
-        <IconChevronLeft size={22} />
+    <div className="mc-shell space-y-8 pb-32">
+      <Link
+        to="/app"
+        className="inline-flex items-center gap-1 text-[15px] font-medium text-mc-900 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-70"
+      >
+        <IconChevronLeft size={18} />
         Volver
       </Link>
 
@@ -294,57 +311,71 @@ export function SuperAdminPage() {
         </button>
       </div>
 
+      <Link
+        to="/superadmin/pasarela-micatalogo"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-mc-50/60 px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:bg-mc-100/70 sm:w-auto sm:justify-start"
+      >
+        Configurar pasarela Mi Catálogo (tiendas sin cuenta OnePay)
+      </Link>
+
       {loading ? (
         <div className="flex flex-col items-center gap-3 py-12">
-          <span className="h-9 w-9 animate-spin rounded-full border-2 border-mc-200 border-t-ios-blue" aria-hidden />
+          <span className="h-9 w-9 animate-spin rounded-full border-2 border-mc-200 border-t-mc-900" aria-hidden />
           <p className="ios-subhead text-mc-600">Cargando tiendas…</p>
         </div>
       ) : (
         <>
-          <section aria-label="Resumen" className="space-y-3">
-            <h2 className="ios-footnote font-semibold uppercase tracking-wide text-mc-500">Resumen</h2>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+          <section aria-label="Resumen" className="space-y-4">
+            <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">Resumen</h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <div className="mc-card">
                 <div className="flex items-center gap-2 text-mc-500">
-                  <IconHome size={18} />
+                  <IconHome size={17} />
                   <span className="ios-footnote font-medium">Tiendas</span>
                 </div>
-                <p className="mt-1.5 text-[22px] font-bold tracking-tight text-mc-900">{stats.total}</p>
-              </div>
-              <div className="mc-card">
-                <div className="flex items-center gap-2 text-ios-green">
-                  <IconChartBars size={18} className="text-ios-green" />
-                  <span className="ios-footnote font-medium text-mc-600">Suscripción activa</span>
-                </div>
-                <p className="mt-1.5 text-[22px] font-bold tracking-tight text-mc-900">{stats.activas}</p>
-              </div>
-              <div className="mc-card">
-                <div className="flex items-center gap-2 text-ios-red">
-                  <IconChartBars size={18} className="text-ios-red" />
-                  <span className="ios-footnote font-medium text-mc-600">Vencidas</span>
-                </div>
-                <p className="mt-1.5 text-[22px] font-bold tracking-tight text-mc-900">{stats.vencidas}</p>
+                <p className="mt-2 text-[1.35rem] font-medium tracking-tighter tabular-nums text-mc-900">{stats.total}</p>
               </div>
               <div className="mc-card">
                 <div className="flex items-center gap-2 text-mc-500">
-                  <IconCube size={18} />
+                  <IconChartBars size={17} />
+                  <span className="ios-footnote font-medium text-mc-600">Suscripción activa</span>
+                </div>
+                <p className="mt-2 text-[1.35rem] font-medium tracking-tighter tabular-nums text-mc-900">{stats.activas}</p>
+              </div>
+              <div className="mc-card">
+                <div className="flex items-center gap-2 text-mc-500">
+                  <IconChartBars size={17} />
+                  <span className="ios-footnote font-medium text-mc-600">Vencidas</span>
+                </div>
+                <p className="mt-2 text-[1.35rem] font-medium tracking-tighter tabular-nums text-mc-900">{stats.vencidas}</p>
+              </div>
+              <div className="mc-card">
+                <div className="flex items-center gap-2 text-mc-500">
+                  <IconCube size={17} />
                   <span className="ios-footnote font-medium">Productos (total)</span>
                 </div>
-                <p className="mt-1.5 text-[22px] font-bold tracking-tight text-mc-900">{stats.productos}</p>
-                <p className="ios-footnote mt-0.5 text-mc-500">{stats.conProductos} tiendas con catálogo</p>
+                <p className="mt-2 text-[1.35rem] font-medium tracking-tighter tabular-nums text-mc-900">{stats.productos}</p>
+                <p className="ios-footnote mt-1 leading-relaxed text-mc-500">{stats.conProductos} tiendas con catálogo</p>
               </div>
               <div className="mc-card col-span-2 sm:col-span-1">
                 <div className="flex items-center gap-2 text-mc-500">
-                  <IconClipboard size={18} />
+                  <IconClipboard size={17} />
                   <span className="ios-footnote font-medium">Pedidos (total anotados)</span>
                 </div>
-                <p className="mt-1.5 text-[22px] font-bold tracking-tight text-mc-900">{stats.pedidos}</p>
+                <p className="mt-2 text-[1.35rem] font-medium tracking-tighter tabular-nums text-mc-900">{stats.pedidos}</p>
               </div>
             </div>
+            <p className="ios-footnote leading-relaxed text-mc-600">
+              <strong className="text-mc-900">OnePay</strong>:{' '}
+              <span className="tabular-nums">{stats.kybPending}</span> solicitud(es) KYB en estado{' '}
+              <span className="font-medium">pending</span> ·{' '}
+              <span className="tabular-nums">{stats.pasarelaOn}</span> tienda(s) con cobros por pasarela activos (
+              <code className="rounded bg-mc-100 px-1 text-[11px]">onepayPaymentsEnabled</code>).
+            </p>
           </section>
 
           <section className="space-y-3" aria-label="Buscar por slug">
-            <h2 className="ios-footnote font-semibold uppercase tracking-wide text-mc-500">Buscar por URL</h2>
+            <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">Buscar por URL</h2>
             <div className="mc-card flex flex-wrap gap-2">
               <div className="relative min-w-[12rem] flex-1">
                 <IconMagnifier
@@ -371,18 +402,30 @@ export function SuperAdminPage() {
 
           <section className="space-y-3" aria-label="Listado">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="ios-footnote font-semibold uppercase tracking-wide text-mc-500">Tiendas registradas</h2>
-              <div className="relative w-full sm:max-w-xs">
-                <IconMagnifier
-                  size={18}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mc-400"
-                />
-                <input
-                  className="mc-input pl-10"
-                  placeholder="Filtrar por nombre, slug, correo…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+              <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">Tiendas registradas</h2>
+              <div className="flex w-full flex-col gap-2 sm:max-w-lg sm:flex-row sm:items-center">
+                <select
+                  className="mc-input py-2 text-[13px] sm:w-[11.5rem]"
+                  value={onepayListFilter}
+                  onChange={(e) => setOnepayListFilter(e.target.value as typeof onepayListFilter)}
+                  aria-label="Filtrar por estado OnePay"
+                >
+                  <option value="all">Todas las tiendas</option>
+                  <option value="kyb_pending">Solo KYB pendiente</option>
+                  <option value="pasarela_on">Solo pasarela activa</option>
+                </select>
+                <div className="relative min-w-0 flex-1">
+                  <IconMagnifier
+                    size={18}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mc-400"
+                  />
+                  <input
+                    className="mc-input pl-10"
+                    placeholder="Filtrar por nombre, slug, correo…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
@@ -396,7 +439,7 @@ export function SuperAdminPage() {
                       type="button"
                       onClick={() => setSelectedId(selectedId === t.id ? null : t.id)}
                       className={`mc-card mc-card-press flex w-full items-center gap-3 text-left ${
-                        selectedId === t.id ? 'ring-2 ring-ios-blue/35' : ''
+                        selectedId === t.id ? 'ring-1 ring-neutral-400/50' : ''
                       }`}
                     >
                       <div className="min-w-0 flex-1">
@@ -404,26 +447,43 @@ export function SuperAdminPage() {
                         <p className="ios-footnote truncate text-mc-500">/{t.slug}</p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span
-                            className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${
-                              active ? 'bg-ios-green/15 text-ios-green' : 'bg-ios-red/12 text-ios-red'
+                            className={`border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${
+                              active
+                                ? 'border-neutral-200/80 text-mc-800'
+                                : 'border-neutral-200/60 text-mc-500'
                             }`}
                           >
                             {active ? 'Activa' : 'Vencida'}
                           </span>
                           <span
-                            className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${
+                            className={`border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${
                               billingPlanOf(t) === 'expert'
-                                ? 'bg-violet-100 text-violet-800'
-                                : 'bg-mc-100 text-mc-600'
+                                ? 'border-mc-900/25 text-mc-900'
+                                : 'border-neutral-200/70 text-mc-600'
                             }`}
                           >
                             {billingPlanOf(t) === 'expert' ? 'Expert' : 'Free'}
                           </span>
                           {t.subscriptionPlan && (
-                            <span className="rounded-full bg-mc-100 px-2.5 py-1 text-[12px] font-medium text-mc-700">
+                            <span className="border border-neutral-200/70 px-2 py-0.5 text-[11px] font-medium text-mc-700">
                               {planLabel(t.subscriptionPlan)}
                             </span>
                           )}
+                          {t.onepayKybStatus === 'pending' ? (
+                            <span className="border border-amber-300/80 bg-amber-50/90 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-950">
+                              KYB pendiente
+                            </span>
+                          ) : null}
+                          {t.onepayKybStatus === 'approved' && t.onepayPaymentsEnabled !== true ? (
+                            <span className="border border-sky-200/90 bg-sky-50/80 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-sky-950">
+                              KYB aprobada · sin claves
+                            </span>
+                          ) : null}
+                          {t.onepayPaymentsEnabled === true ? (
+                            <span className="border border-emerald-300/80 bg-emerald-50/80 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-emerald-950">
+                              Pasarela
+                            </span>
+                          ) : null}
                           <span className="ios-footnote text-mc-600">
                             {r.productCount} prod. · {r.pedidosCount} ped.
                           </span>
@@ -441,7 +501,7 @@ export function SuperAdminPage() {
           </section>
 
           {selected && (
-            <section className="space-y-4 border-t border-mc-200 pt-5" aria-label="Detalle de tienda">
+            <section className="space-y-4 border-t border-neutral-200/50 pt-8" aria-label="Detalle de tienda">
               <h2 className="ios-headline">Detalle · {selected.tenant.nombreTienda}</h2>
               <div className="mc-card space-y-3">
                 <dl className="space-y-2.5 text-[15px]">
@@ -452,7 +512,10 @@ export function SuperAdminPage() {
                   <div className="flex justify-between gap-3">
                     <dt className="text-mc-500">Slug</dt>
                     <dd className="text-right">
-                      <Link className="font-semibold text-ios-blue" to={`/c/${selected.tenant.slug}`}>
+                      <Link
+                        className="font-medium text-mc-900 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-70"
+                        to={`/c/${selected.tenant.slug}`}
+                      >
                         /c/{selected.tenant.slug}
                       </Link>
                     </dd>
@@ -479,7 +542,7 @@ export function SuperAdminPage() {
                   </div>
                   <div className="flex justify-between gap-3">
                     <dt className="text-mc-500">Vence</dt>
-                    <dd className="text-right font-semibold text-mc-900">
+                    <dd className="text-right font-medium text-mc-900">
                       {formatShortDate(selected.tenant.subscriptionEndsAt)}
                     </dd>
                   </div>
@@ -503,10 +566,100 @@ export function SuperAdminPage() {
                       <option value="expert">Expert</option>
                     </select>
                   </div>
+                  <div className="flex flex-col gap-2 border-t border-mc-100 pt-3">
+                    <span className="font-medium text-mc-900">1 · Alta empresa OnePay (KYB)</span>
+                    <span className="text-mc-500">El vendedor envía datos desde Mi Catálogo; queda registro en la tienda.</span>
+                    <p className="ios-footnote text-mc-600">
+                      Estado:{' '}
+                      <strong className="text-mc-900">
+                        {selected.tenant.onepayKybStatus ?? '—'}
+                      </strong>
+                      {selected.tenant.onepayCompanyId ? (
+                        <>
+                          {' '}
+                          · empresa{' '}
+                          <span className="font-mono text-[12px]">{selected.tenant.onepayCompanyId}</span>
+                        </>
+                      ) : null}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="mc-btn-secondary px-3 py-2 text-[14px]"
+                        disabled={busy}
+                        onClick={() =>
+                          void patchOnepayKyb(selected.tenant.id, { onepayKybStatus: 'approved' })
+                        }
+                      >
+                        Marcar KYB aprobada (tras revisar OnePay)
+                      </button>
+                      <button
+                        type="button"
+                        className="mc-btn-secondary px-3 py-2 text-[14px]"
+                        disabled={busy}
+                        onClick={() =>
+                          void patchOnepayKyb(selected.tenant.id, { onepayKybStatus: 'rejected' })
+                        }
+                      >
+                        Marcar rechazada
+                      </button>
+                      <button
+                        type="button"
+                        className="mc-btn-secondary px-3 py-2 text-[14px]"
+                        disabled={busy}
+                        onClick={() =>
+                          void patchOnepayKyb(selected.tenant.id, {
+                            onepayKybStatus: deleteField(),
+                            onepayCompanyId: deleteField(),
+                            onepayKybSubmittedAt: deleteField(),
+                            onepayKybTermsAcceptedAt: deleteField(),
+                            onepayKybTermsVersion: deleteField(),
+                          })
+                        }
+                      >
+                        Limpiar solicitud KYB
+                      </button>
+                    </div>
+                    <p className="ios-footnote leading-relaxed text-mc-500">
+                      Sincroniza con Firestore después de revisar el resultado en{' '}
+                      <strong className="font-medium text-mc-900">OnePay</strong>. Esto{' '}
+                      <strong className="font-medium text-mc-900">no</strong> habilita cobros en el catálogo por sí solo.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 border-t border-mc-100 pt-3">
+                    <span className="font-medium text-mc-900">2 · Pasarela de cobro en el catálogo</span>
+                    <span className="text-mc-500">
+                      Acá cargás las claves del <strong className="text-mc-900">comercio</strong> en OnePay. Es lo que marca
+                      la tienda como apta para cobrar con pasarela (
+                      <code className="rounded bg-mc-100 px-1 text-[11px]">onepayPaymentsEnabled</code>).
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${
+                          selected.tenant.onepayPaymentsEnabled
+                            ? 'border-emerald-300/80 text-emerald-900'
+                            : 'border-neutral-200/70 text-mc-600'
+                        }`}
+                      >
+                        {selected.tenant.onepayPaymentsEnabled ? 'Pasarela activa' : 'Sin claves / webhook'}
+                      </span>
+                      <Link
+                        to={`/superadmin/tienda/${selected.tenant.id}/onepay`}
+                        className="mc-btn-primary px-3 py-2 text-[13px] no-underline"
+                      >
+                        Cargar API y webhook →
+                      </Link>
+                    </div>
+                    <p className="ios-footnote text-mc-600">
+                      Solo súper admin. Clave <span className="font-mono">sk_test_</span> o{' '}
+                      <span className="font-mono">sk_live_</span> y secreto del webhook. El dueño elige modo pasarela en{' '}
+                      <strong className="font-medium text-mc-900">Cuenta</strong> cuando esto esté listo.
+                    </p>
+                  </div>
                 </dl>
 
                 {selected.tenant.mensajeIntro ? (
-                  <p className="rounded-[10px] bg-mc-50 px-3 py-2 ios-footnote text-mc-700">
+                  <p className="border border-neutral-200/50 bg-neutral-50/50 px-3 py-2 text-[13px] leading-relaxed text-mc-700">
                     Intro WhatsApp: {selected.tenant.mensajeIntro}
                   </p>
                 ) : null}
@@ -529,7 +682,7 @@ export function SuperAdminPage() {
                 </div>
 
                 <div className="space-y-2 border-t border-mc-100 pt-3">
-                  <p className="ios-footnote font-semibold text-mc-700">Extender (suma sobre el máximo entre hoy y vencimiento)</p>
+                  <p className="ios-footnote font-medium text-mc-700">Extender (suma sobre el máximo entre hoy y vencimiento)</p>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -566,7 +719,7 @@ export function SuperAdminPage() {
                 </div>
 
                 <div className="space-y-2 border-t border-mc-100 pt-3">
-                  <p className="ios-footnote font-semibold text-mc-700">Alta desde hoy (reemplaza la fecha de vencimiento)</p>
+                  <p className="ios-footnote font-medium text-mc-700">Alta desde hoy (reemplaza la fecha de vencimiento)</p>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -598,8 +751,10 @@ export function SuperAdminPage() {
             </section>
           )}
 
-          {err && <p className="ios-subhead text-ios-red">{err}</p>}
-          {msg && <p className="ios-subhead font-medium text-ios-green">{msg}</p>}
+          {err && <p className="border border-red-200/60 bg-red-50/40 px-3 py-2 text-[14px] leading-relaxed text-red-900">{err}</p>}
+          {msg && (
+            <p className="border border-neutral-200/60 bg-neutral-50/50 px-3 py-2 text-[14px] leading-relaxed text-mc-900">{msg}</p>
+          )}
         </>
       )}
     </div>

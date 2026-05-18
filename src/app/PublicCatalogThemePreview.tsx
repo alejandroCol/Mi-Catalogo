@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import {
   buildCatalogThemeForSave,
   catalogColorsToCssVars,
   publicCatalogPresetClass,
   resolveCatalogTheme,
 } from '@/lib/catalogTheme'
+import { IconChevronRight } from '@/icons/McIcons'
 import type { McCatalogThemePreset, McTenant } from '@/types/mc'
 
 const HEX = /^#[0-9A-Fa-f]{6}$/
@@ -105,37 +107,51 @@ export function PublicCatalogThemePreview({
   }).colors
 
   const vars = catalogColorsToCssVars(colors)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   return (
-    <div className="rounded-[14px] border border-zinc-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-      <p className="rounded-t-[13px] bg-zinc-100 px-3 py-2 text-[12px] font-medium text-zinc-600">
-        Vista previa ampliada · mismo layout que verán en la web
-      </p>
-      <div className="bg-zinc-50/80 p-2">
-        <div
-          className={`mc-public-catalog-page ${publicCatalogPresetClass(preset)} max-h-[min(210px,30vh)] overflow-y-auto rounded-lg border border-zinc-200/60 shadow-sm`}
-          style={vars}
-        >
-          <header className="border-b mc-pc-border mc-pc-surface px-3 py-2.5 shadow-sm">
-            <p className="mc-pc-display text-[15px] font-semibold mc-pc-text">{tenant.nombreTienda}</p>
-            <p className="mt-0.5 text-[10px] mc-pc-muted">Encabezado compartido · listado según plantilla</p>
-          </header>
-          <div className="px-3 py-4">
-            <h3
-              className={
-                preset === 'bold'
-                  ? 'mc-pc-display mb-3 text-center text-lg font-black mc-pc-text'
-                  : preset === 'minimal'
-                    ? 'mc-pc-display mb-3 border-l-4 border-[var(--cat-accent)] pl-3 text-left text-base font-semibold mc-pc-text'
-                    : 'mc-pc-display mb-3 text-center text-base font-semibold mc-pc-text'
-              }
-            >
-              Catálogo
-            </h3>
-            <PreviewListInner preset={preset} />
+    <div className="border border-neutral-200/50">
+      <button
+        type="button"
+        onClick={() => setPreviewOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 bg-neutral-50/80 px-4 py-3 text-left transition duration-200 ease-in-out hover:bg-neutral-100/80"
+        aria-expanded={previewOpen}
+      >
+        <span className="text-[13px] font-medium text-neutral-800">
+          {previewOpen ? 'Ocultar vista previa del catálogo' : 'Ver vista previa del catálogo público'}
+        </span>
+        <IconChevronRight
+          size={18}
+          className={`shrink-0 text-mc-500 transition-transform duration-200 ${previewOpen ? 'rotate-90' : ''}`}
+        />
+      </button>
+      {previewOpen && (
+        <div className="border-t border-neutral-200/40 bg-neutral-50/50 p-3">
+          <div
+            className={`mc-public-catalog-page ${publicCatalogPresetClass(preset)} max-h-[min(240px,38vh)] overflow-y-auto border border-neutral-200/50`}
+            style={vars}
+          >
+            <header className="border-b mc-pc-border mc-pc-surface px-3 py-2.5">
+              <p className="mc-pc-display text-[14px] font-medium tracking-tight mc-pc-text">{tenant.nombreTienda}</p>
+              <p className="mt-0.5 text-[10px] leading-relaxed mc-pc-muted">Encabezado · listado según plantilla</p>
+            </header>
+            <div className="px-3 py-4">
+              <h3
+                className={
+                  preset === 'bold'
+                    ? 'mc-pc-display mb-3 text-center text-base font-semibold tracking-tighter mc-pc-text'
+                    : preset === 'minimal'
+                      ? 'mc-pc-display mb-3 border-l-2 border-[var(--cat-accent)] pl-3 text-left text-sm font-medium mc-pc-text'
+                      : 'mc-pc-display mb-3 text-center text-sm font-medium tracking-tight mc-pc-text'
+                }
+              >
+                Catálogo
+              </h3>
+              <PreviewListInner preset={preset} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

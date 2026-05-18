@@ -58,6 +58,10 @@ export function BulkAddProductsModal({
     patchRow(key, { precio: formatIntegerEsCo(n) })
   }
 
+  function onStockChange(key: string, raw: string) {
+    patchRow(key, { stock: raw.replace(/\D/g, '') })
+  }
+
   function patchRow(key: string, partial: Partial<Pick<DraftRow, 'nombre' | 'precio' | 'stock'>>) {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...partial } : r)))
   }
@@ -77,7 +81,7 @@ export function BulkAddProductsModal({
         previewUrl: URL.createObjectURL(file),
         nombre: humanNameFromFile(file, idx - 1),
         precio: '',
-        stock: '0',
+        stock: '',
       })
     }
     if (additions.length === 0) {
@@ -139,6 +143,7 @@ export function BulkAddProductsModal({
           orden: nextOrden + i,
           createdAt: now,
           updatedAt: now,
+          marcarNovedad: false,
         })
         const pathRef = ref(storage, `mc_tenants/${tenantId}/productos/${docRef.id}.jpg`)
         const optimized = await compressImageForUpload(r.file)
@@ -160,7 +165,7 @@ export function BulkAddProductsModal({
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" role="dialog">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Cerrar" onClick={onClose} />
-      <div className="relative max-h-[92vh] w-full max-w-lg overflow-hidden rounded-t-[14px] bg-white shadow-xl sm:max-h-[90vh] sm:rounded-[14px]">
+      <div className="relative max-h-[92vh] w-full max-w-lg overflow-hidden rounded-t-lg border border-neutral-200/50 bg-white sm:max-h-[90vh] sm:rounded-lg">
         <div className="max-h-[92vh] overflow-y-auto p-5 sm:max-h-[90vh]">
           <h2 className="ios-headline">Carga masiva · Expert</h2>
           <p className="ios-footnote mt-1.5 text-mc-600">
@@ -169,7 +174,7 @@ export function BulkAddProductsModal({
           </p>
 
           {!firebaseStorageConfigured && (
-            <p className="mt-3 rounded-[10px] border border-ios-orange/30 bg-ios-orange/10 px-3 py-2.5 text-[13px] leading-snug text-mc-800">
+            <p className="mt-3 border border-neutral-200/60 bg-neutral-50/50 px-3 py-2.5 text-[13px] leading-relaxed text-mc-800">
               Falta configurar <strong>Firebase Storage</strong> en el proyecto (.env y consola); sin eso no se pueden
               guardar las imágenes.
             </p>
@@ -182,7 +187,7 @@ export function BulkAddProductsModal({
               accept="image/*"
               multiple
               disabled={busy}
-              className="mt-1.5 w-full text-[15px] text-mc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-mc-100 file:px-3 file:py-2 file:text-[13px] file:font-semibold file:text-ios-blue"
+              className="mt-1.5 w-full text-[15px] text-mc-600 file:mr-3 file:rounded-md file:border file:border-neutral-200/70 file:bg-neutral-50 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-mc-900"
               onChange={(e) => {
                 onPickFiles(e.target.files)
                 e.target.value = ''
@@ -199,10 +204,10 @@ export function BulkAddProductsModal({
                 {rows.map((r, idx) => (
                   <li
                     key={r.key}
-                    className="rounded-[12px] border border-mc-200/90 bg-mc-50/60 p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                    className="rounded-md border border-neutral-200/60 bg-neutral-50/40 p-3"
                   >
                     <div className="flex gap-3">
-                      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[10px] bg-mc-100">
+                      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md border border-neutral-200/40 bg-mc-100">
                         <img src={r.previewUrl} alt="" className="h-full w-full object-cover" />
                       </div>
                       <div className="min-w-0 flex-1 space-y-2">
@@ -229,15 +234,16 @@ export function BulkAddProductsModal({
                             placeholder="Stock"
                             inputMode="numeric"
                             value={r.stock}
-                            onChange={(e) => patchRow(r.key, { stock: e.target.value })}
+                            onChange={(e) => onStockChange(r.key, e.target.value)}
                             disabled={busy}
+                            autoComplete="off"
                           />
                         </div>
                       </div>
                     </div>
                     <button
                       type="button"
-                      className="mt-2 w-full rounded-lg py-2 text-[13px] font-semibold text-ios-red"
+                      className="mt-2 w-full py-2 text-[13px] font-medium text-mc-500 underline decoration-neutral-300 underline-offset-2 transition hover:text-mc-900"
                       disabled={busy}
                       onClick={() => removeRow(r.key)}
                     >
@@ -248,11 +254,11 @@ export function BulkAddProductsModal({
               </ul>
 
               {progress && (
-                <p className="ios-subhead text-ios-blue" aria-live="polite">
+                <p className="ios-subhead text-mc-700" aria-live="polite">
                   {progress}
                 </p>
               )}
-              {err && <p className="ios-subhead text-ios-red">{err}</p>}
+              {err && <p className="ios-subhead text-red-800">{err}</p>}
 
               <div className="flex flex-col gap-2 pt-2 sm:flex-row">
                 <button type="button" className="mc-btn-secondary w-full sm:flex-1" disabled={busy} onClick={onClose}>
@@ -269,7 +275,7 @@ export function BulkAddProductsModal({
             </form>
           )}
 
-          {rows.length === 0 && err && <p className="ios-subhead mt-4 text-ios-red">{err}</p>}
+          {rows.length === 0 && err && <p className="ios-subhead mt-4 text-red-800">{err}</p>}
         </div>
       </div>
     </div>

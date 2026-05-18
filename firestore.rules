@@ -192,17 +192,58 @@ service cloud.firestore {
     function mcTenantIsExpert(data) {
       return 'billingPlan' in data && data.billingPlan == 'expert';
     }
+    /** Campos que el dueño puede actualizar desde Cuenta (plan Free). */
+    function mcTenantOwnerPatchKeysFree() {
+      return [
+        'whatsappNumero',
+        'mensajeIntro',
+        'salesSummaryPeriod',
+        'envioEstimadoCop',
+        'envioEstimadoEtiqueta',
+        'envioPorCiudad',
+        'envioGratisDesdeCop',
+        'cuponesCatalogo',
+        'politicasEnvios',
+        'politicasPagos',
+        'politicasCambios',
+        'checkoutVentasModo',
+      ];
+    }
+    /** Incluye `catalogTheme` para plan Expert. */
+    function mcTenantOwnerPatchKeysExpert() {
+      return [
+        'whatsappNumero',
+        'mensajeIntro',
+        'salesSummaryPeriod',
+        'catalogTheme',
+        'envioEstimadoCop',
+        'envioEstimadoEtiqueta',
+        'envioPorCiudad',
+        'envioGratisDesdeCop',
+        'cuponesCatalogo',
+        'politicasEnvios',
+        'politicasPagos',
+        'politicasCambios',
+        'checkoutVentasModo',
+      ];
+    }
     function mcBelongsToTenant(tid) {
       return mcSignedIn()
         && exists(mcUserPath())
         && (mcUserData().tenantId == tid || mcUserData().isSuperAdmin == true);
     }
     /** exists() primero: un get() a doc inexistente tumba toda la condición de la regla. */
+    /** subscriptionEndsAt es ms (number). En Firestore puede almacenarse como double; is int fallaba → permission-denied en catálogo público. */
     function mcTenantSubActive(tid) {
       return exists(/databases/$(database)/documents/mc_tenants/$(tid))
-        && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt is int
-        && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt
-          > request.time.toMillis();
+        && (
+          (get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt is number
+            && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt
+              > request.time.toMillis())
+          || (get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt is timestamp
+            && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt
+              > request.time)
+        );
     }
 
     match /mc_users/{uid} {
@@ -260,13 +301,15 @@ service cloud.firestore {
               && resource.data.subscriptionEndsAt == request.resource.data.subscriptionEndsAt
               && (!('salesSummaryPeriod' in request.resource.data)
                 || request.resource.data.salesSummaryPeriod in ['week', 'fortnight'])
+              && (!('checkoutVentasModo' in request.resource.data)
+                || request.resource.data.checkoutVentasModo in ['pasarela', 'whatsapp', 'pasarela_micatalogo'])
               && (
                 request.resource.data.diff(resource.data).affectedKeys()
-                  .hasOnly(['whatsappNumero', 'mensajeIntro', 'salesSummaryPeriod'])
+                  .hasOnly(mcTenantOwnerPatchKeysFree())
                 || (
                   mcTenantIsExpert(resource.data) && mcTenantIsExpert(request.resource.data)
                   && request.resource.data.diff(resource.data).affectedKeys()
-                    .hasOnly(['whatsappNumero', 'mensajeIntro', 'catalogTheme', 'salesSummaryPeriod'])
+                    .hasOnly(mcTenantOwnerPatchKeysExpert())
                 )
               )
             )
@@ -291,6 +334,33 @@ service cloud.firestore {
         && request.auth.uid
           == get(/databases/$(database)/documents/mc_tenants/$(resource.data.tenantId)).data.ownerUid;
       allow delete: if false;
+    }
+
+    /** Credenciales OnePay: solo backend (Admin SDK). */
+    match /mc_tenants/{tid}/private_onepay/{doc} {
+      allow read, write: if false;
+    }
+    match /mc_tenants/{tid}/onpay_idem/{id} {
+      allow read, write: if false;
+    }
+
+    /** Enrutamiento y deduplicación de webhooks OnePay: solo Admin / Functions. */
+    match /mc_onpay_webhook_routes/{key} {
+      allow read, write: if false;
+    }
+    match /mc_onpay_event_log/{id} {
+      allow read, write: if false;
+    }
+
+    /** Ajustes de plataforma (catálogo): lectura pública mínima para checkout. */
+    match /mc_platform/settings {
+      allow get: if true;
+      allow list: if false;
+      allow write: if mcIsSuperAdmin();
+    }
+
+    match /mc_platform/credentials_onepay {
+      allow read, write: if false;
     }
 
     match /mc_tenants/{tid}/productos/{pid} {
@@ -323,11 +393,30 @@ service cloud.firestore {
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int
         && request.resource.data.totalCop is number
-        && request.resource.data.totalCop > 0
+        && request.resource.data.totalCop >= 0
         && request.resource.data.totalCop < 1000000000
         && request.resource.data.lineas is list
         && request.resource.data.lineas.size() > 0
-        && request.resource.data.lineas.size() <= 100;
+        && request.resource.data.lineas.size() <= 100
+        && (!('subtotalCop' in request.resource.data)
+          || (request.resource.data.subtotalCop is number
+            && request.resource.data.subtotalCop > 0
+            && request.resource.data.subtotalCop < 1000000000))
+        && (!('envioCop' in request.resource.data)
+          || (request.resource.data.envioCop is number
+            && request.resource.data.envioCop >= 0
+            && request.resource.data.envioCop < 1000000000))
+        && (!('descuentoCop' in request.resource.data)
+          || (request.resource.data.descuentoCop is number
+            && request.resource.data.descuentoCop >= 0
+            && request.resource.data.descuentoCop < 1000000000))
+        && (!('cuponCodigo' in request.resource.data)
+          || request.resource.data.cuponCodigo is string)
+        && (!('envioCiudad' in request.resource.data) || request.resource.data.envioCiudad is string)
+        && (!('envioDireccion' in request.resource.data) || request.resource.data.envioDireccion is string)
+        && (!('envioReferencia' in request.resource.data) || request.resource.data.envioReferencia is string)
+        && (!('envioDepartamento' in request.resource.data)
+          || request.resource.data.envioDepartamento is string);
       allow read: if mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin());
       allow update: if mcSignedIn()
         && mcBelongsToTenant(tid)
@@ -338,7 +427,13 @@ service cloud.firestore {
         && request.resource.data.updatedAt is int
         && request.resource.data.updatedAt >= resource.data.updatedAt
         && request.resource.data.estado in [
-          'pagado', 'en_preparacion', 'listo_envio', 'enviado', 'entregado', 'cancelado'
+          'esperando_pago',
+          'pagado',
+          'en_preparacion',
+          'listo_envio',
+          'enviado',
+          'entregado',
+          'cancelado'
         ]
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['estado', 'updatedAt', 'trackingNumber', 'trackingImageUrl']);

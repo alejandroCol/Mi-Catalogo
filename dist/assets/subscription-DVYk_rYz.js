@@ -1,0 +1,1 @@
+function e(){return Date.now()+10080*60*1e3}function t(e){return e>Date.now()}function n(e,t){return Math.max(e,Date.now())+t}function r(e){return Date.now()+e}var i=1440*60*1e3*7,a=720*60*60*1e3,o=365*24*60*60*1e3;export{t as a,n as i,i as n,r as o,o as r,e as s,a as t};

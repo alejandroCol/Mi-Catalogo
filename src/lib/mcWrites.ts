@@ -25,3 +25,11 @@ export async function mcToggleProductoActivo(tenantId: string, p: McProducto & {
 export async function mcDeleteProductoDoc(tenantId: string, productId: string) {
   await deleteDoc(doc(getDb(), mcProductosCollection(tenantId), productId))
 }
+
+export async function mcToggleProductoNovedad(tenantId: string, p: McProducto & { id: string }) {
+  const db = getDb()
+  await updateDoc(doc(db, mcProductosCollection(tenantId), p.id), {
+    marcarNovedad: !p.marcarNovedad,
+    updatedAt: Date.now(),
+  })
+}

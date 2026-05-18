@@ -1,84 +1,219 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
-import { FullscreenImageOverlay } from '@/catalog-local/FullscreenImageOverlay'
+import clsx from 'clsx'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
+import { isProductNovedad, NOVEDAD_DIAS_RECENTE } from '@/lib/catalogNovedad'
+import {
+  applyCatalogListFilters,
+  catalogListHasActiveFilters,
+  getDefaultCatalogListFilter,
+  priceRangeFromRows,
+} from '@/lib/catalogListFilter'
 import { resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
 import type { McCatalogThemePreset } from '@/types/mc'
 import type { McProducto } from '@/types/mc'
+import { CatalogListToolbar } from '@/public/CatalogListToolbar'
 import { usePublicTenant } from '@/public/usePublicTenant'
-
-const INTRO =
-  'Entrá a cada artículo, descargá fotos y sumá unidades o docenas al carrito. Pedido por WhatsApp.'
+import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 
 function CatalogIntro({ preset }: { preset: McCatalogThemePreset }) {
   if (preset === 'minimal') {
     return (
-      <div className="border-l-4 border-[var(--cat-accent)] pl-4">
-        <h1 className="mc-pc-display text-left text-2xl font-semibold tracking-tight mc-pc-text sm:text-3xl">Catálogo</h1>
-        <p className="mt-2 max-w-xl text-pretty text-sm leading-relaxed mc-pc-muted sm:text-base">{INTRO}</p>
+      <div className="mx-auto max-w-3xl sm:mx-0">
+        <h1 className="mc-pc-display text-left text-3xl font-semibold tracking-tight text-[var(--cat-text)] sm:text-4xl">
+          Colección
+        </h1>
       </div>
     )
   }
   if (preset === 'bold') {
     return (
       <div className="text-center">
-        <h1 className="mc-pc-display text-3xl font-black tracking-tight mc-pc-text sm:text-4xl">Catálogo</h1>
-        <p className="mx-auto mt-3 max-w-lg text-pretty text-sm leading-relaxed mc-pc-muted sm:text-base">{INTRO}</p>
+        <h1 className="mc-pc-display text-3xl font-bold tracking-tight text-[var(--cat-text)] sm:text-4xl">
+          ¡Mirá el catálogo!
+        </h1>
       </div>
     )
   }
   if (preset === 'boutique') {
     return (
-      <div className="text-center">
-        <h1 className="mc-pc-display text-2xl font-semibold italic mc-pc-text sm:text-3xl">Catálogo</h1>
-        <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-relaxed mc-pc-muted sm:text-base">{INTRO}</p>
+      <div className="text-center sm:text-left">
+        <h1 className="mc-pc-display text-2xl font-semibold tracking-tight text-[var(--cat-text)] sm:text-3xl">
+          Novedades
+        </h1>
       </div>
     )
   }
+  if (preset === 'ios') {
+    return (
+      <div className="mx-auto max-w-3xl sm:mx-0 sm:max-w-3xl">
+        <h1 className="mc-pc-display text-center text-2xl font-semibold tracking-tight text-[var(--cat-text)] sm:text-left sm:text-3xl">
+          Catálogo · moda
+        </h1>
+      </div>
+    )
+  }
+  return null
+}
+
+function NovedadBadge({ className, floating }: { className?: string; floating?: boolean }) {
   return (
-    <div className="mx-auto max-w-xl text-center">
-      <h1 className="mc-pc-display text-2xl font-semibold tracking-tight mc-pc-text sm:text-3xl">Catálogo</h1>
-      <p className="mt-3 text-pretty text-sm leading-relaxed mc-pc-muted sm:text-base">{INTRO}</p>
-    </div>
+    <span
+      className={clsx(
+        'inline-flex shrink-0 items-center rounded-sm border border-[color-mix(in_srgb,var(--cat-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--cat-accent)_14%,var(--cat-surface)_86%)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--cat-accent)] sm:text-[10px]',
+        floating && 'shadow-sm',
+        className,
+      )}
+    >
+      Nuevo
+    </span>
   )
 }
 
-function Thumb({
-  img,
-  alt,
-  onZoom,
-  className,
+function ReyProductCard({
+  p,
+  slug,
+  showNovedadBadge,
+  layout,
 }: {
-  img?: string
-  alt: string
-  onZoom: () => void
-  className?: string
+  p: McProducto & { id: string }
+  slug: string
+  showNovedadBadge: boolean
+  layout: { density: 'comfortable' | 'compact'; aspect: '4/5' | '3/4' }
 }) {
-  if (img) {
-    return (
-      <button
-        type="button"
-        className={`relative cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-inset mc-pc-ring-focus ${className ?? ''}`}
-        onClick={onZoom}
-        aria-label={`Ver foto de ${alt} en pantalla completa`}
-      >
-        <img src={img} alt="" className="pointer-events-none h-full w-full object-cover" loading="lazy" />
-      </button>
-    )
-  }
+  const img = p.imageUrl
+  const { density, aspect } = layout
+  const pad = density === 'compact' ? 'p-2.5 sm:p-3' : 'p-3.5 sm:p-4'
+  const ar = aspect === '3/4' ? 'aspect-[3/4]' : 'aspect-[4/5]'
+
   return (
-    <div className={`flex items-center justify-center text-xs mc-pc-muted ${className ?? ''}`}>Sin foto</div>
+    <article
+      className={clsx(
+        'group mc-pc-rey-card flex h-full flex-col',
+        density === 'compact' && 'rounded-2xl shadow-sm',
+      )}
+    >
+      <div className={clsx('relative w-full overflow-hidden mc-pc-image-placeholder', ar)}>
+        {showNovedadBadge && (
+          <span className="absolute left-2.5 top-2.5 z-10 sm:left-3 sm:top-3">
+            <NovedadBadge floating />
+          </span>
+        )}
+        {img ? (
+          <Link
+            to={`/c/${slug}/p/${p.id}`}
+            className="relative block h-full w-full focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
+            aria-label={`Ver ${p.nombre}`}
+          >
+            <img
+              src={img}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover transition duration-500 will-change-transform group-hover:scale-[1.03]"
+            />
+          </Link>
+        ) : (
+          <Link
+            to={`/c/${slug}/p/${p.id}`}
+            className="flex h-full items-center justify-center text-xs mc-pc-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
+            aria-label={`Ver ${p.nombre}`}
+          >
+            Sin foto
+          </Link>
+        )}
+      </div>
+      <Link
+        to={`/c/${slug}/p/${p.id}`}
+        className={clsx('flex flex-1 flex-col', pad)}
+      >
+        <h3
+          className={clsx(
+            'line-clamp-2 font-semibold leading-snug text-[var(--cat-text)]',
+            density === 'compact' ? 'text-[13px] sm:text-sm' : 'text-[14px] sm:text-base',
+          )}
+        >
+          {p.nombre}
+        </h3>
+        <p className="mt-1.5 text-sm font-semibold tabular-nums text-[var(--cat-text)] sm:text-[15px]">
+          {formatCop(p.precioCop)}
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed mc-pc-muted sm:text-[11px]">
+          {p.stock > 0 ? `${p.stock} en stock` : 'Stock a consultar'}
+        </p>
+      </Link>
+    </article>
   )
+}
+
+function ReyProductCardBold({
+  p,
+  slug,
+  showNovedadBadge,
+}: {
+  p: McProducto & { id: string }
+  slug: string
+  showNovedadBadge: boolean
+}) {
+  const img = p.imageUrl
+  return (
+    <article className="group mc-pc-rey-card overflow-hidden rounded-2xl">
+      <div className="relative aspect-[5/3] w-full min-h-[200px] sm:aspect-[2/1] sm:min-h-0">
+        {showNovedadBadge && (
+          <span className="absolute left-4 top-4 z-10">
+            <NovedadBadge floating />
+          </span>
+        )}
+        {img ? (
+          <Link
+            to={`/c/${slug}/p/${p.id}`}
+            className="relative block h-full w-full focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
+            aria-label={`Ver ${p.nombre}`}
+          >
+            <img
+              src={img}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
+            />
+          </Link>
+        ) : (
+          <Link
+            to={`/c/${slug}/p/${p.id}`}
+            className="flex h-full items-center justify-center text-sm mc-pc-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
+            aria-label={`Ver ${p.nombre}`}
+          >
+            Sin foto
+          </Link>
+        )}
+      </div>
+      <Link to={`/c/${slug}/p/${p.id}`} className="block px-5 py-6 text-center sm:px-8 sm:py-8">
+        <h3 className="mc-pc-display text-[1.35rem] font-semibold leading-tight text-[var(--cat-text)] sm:text-2xl">
+          {p.nombre}
+        </h3>
+        <p className="mt-2 text-lg font-semibold tabular-nums text-[var(--cat-text)] sm:text-xl">
+          {formatCop(p.precioCop)}
+        </p>
+        <p className="mt-2 text-sm mc-pc-muted">{p.stock > 0 ? `Stock ${p.stock}` : 'Consultar stock'}</p>
+      </Link>
+    </article>
+  )
+}
+
+function sectionHeading(preset: McCatalogThemePreset, key: 'novedades' | 'resto'): string | null {
+  if (key === 'novedades') return 'Novedades'
+  if (preset === 'bold') return 'Todo el catálogo'
+  if (preset === 'boutique') return 'Colección'
+  return null
 }
 
 export function PublicCatalogListPage() {
   const { slug } = useParams<{ slug: string }>()
   const { tenantId, tenant, loading, error } = usePublicTenant(slug)
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
-  const [previewImg, setPreviewImg] = useState<{ src: string; alt: string } | null>(null)
+  const [filter, setFilter] = useState(getDefaultCatalogListFilter)
+  const [novedadNow] = useState(() => Date.now())
 
   const preset = tenant ? resolvePublicCatalogTheme(tenant).preset : 'morning'
 
@@ -96,7 +231,22 @@ export function PublicCatalogListPage() {
     })
   }, [tenantId])
 
-  const ordenadas = useMemo(() => rows, [rows])
+  const { novedades, resto } = useMemo(() => {
+    const n: (McProducto & { id: string })[] = []
+    const r: (McProducto & { id: string })[] = []
+    for (const p of rows) {
+      if (isProductNovedad(p, novedadNow)) n.push(p)
+      else r.push(p)
+    }
+    return { novedades: n, resto: r }
+  }, [rows, novedadNow])
+
+  const hasActiveFilters = useMemo(() => catalogListHasActiveFilters(filter), [filter])
+  const catalogPriceRange = useMemo(() => priceRangeFromRows(rows), [rows])
+  const filteredRows = useMemo(
+    () => applyCatalogListFilters(rows, filter, novedadNow),
+    [rows, filter, novedadNow],
+  )
 
   if (!firebaseConfigured) {
     return (
@@ -112,166 +262,150 @@ export function PublicCatalogListPage() {
     return <p className="text-center text-sm text-red-600">{error ?? 'No disponible'}</p>
   }
 
-  function cardRowIosMorning(p: McProducto & { id: string }) {
-    const img = p.imageUrl
-    return (
-      <div
-        key={p.id}
-        className="group mc-pc-card flex overflow-hidden border mc-pc-border mc-pc-surface shadow-sm transition hover:shadow-md"
-      >
-        <div className="relative h-28 w-28 shrink-0 mc-pc-image-placeholder sm:h-32 sm:w-32">
-          <Thumb
-            img={img}
-            alt={p.nombre}
-            onZoom={() => setPreviewImg({ src: img!, alt: p.nombre })}
-            className="h-full w-full"
-          />
-        </div>
-        <Link
-          to={`/c/${slug}/p/${p.id}`}
-          className="flex min-w-0 flex-1 flex-col justify-center p-3 text-left transition hover:opacity-90"
-        >
-          <p className="mc-pc-display font-semibold mc-pc-text">{p.nombre}</p>
-          <p className="mt-1 text-sm font-medium tabular-nums mc-pc-text">{formatCop(p.precioCop)}</p>
-          <p className="text-xs mc-pc-muted">{p.stock > 0 ? `Stock ${p.stock}` : 'Consultar stock'}</p>
-        </Link>
-      </div>
-    )
-  }
+  const catalogSlug = slug
 
-  function cardMinimal(p: McProducto & { id: string }) {
-    const img = p.imageUrl
-    return (
-      <div key={p.id} className="flex gap-3 py-4 first:pt-0 sm:gap-4">
-        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[10px] mc-pc-image-placeholder sm:h-[4.5rem] sm:w-[4.5rem]">
-          {img ? (
-            <Thumb
-              img={img}
-              alt={p.nombre}
-              onZoom={() => setPreviewImg({ src: img, alt: p.nombre })}
-              className="h-full w-full"
+  function listFor(
+    items: (McProducto & { id: string })[],
+    novedadFor: (p: McProducto & { id: string }) => boolean,
+  ): ReactNode {
+    if (items.length === 0) return null
+    if (preset === 'bold') {
+      return (
+        <div className="space-y-6 sm:space-y-8">
+          {items.map((p) => (
+            <ReyProductCardBold
+              key={p.id}
+              p={p}
+              slug={catalogSlug}
+              showNovedadBadge={novedadFor(p)}
             />
-          ) : (
-            <div className="flex h-full items-center justify-center text-[10px] mc-pc-muted">—</div>
-          )}
+          ))}
         </div>
-        <Link to={`/c/${slug}/p/${p.id}`} className="min-w-0 flex-1 py-0.5 transition hover:opacity-90">
-          <p className="mc-pc-display text-[15px] font-semibold leading-snug mc-pc-text sm:text-base">{p.nombre}</p>
-          <p className="mt-1 text-sm font-medium tabular-nums mc-pc-text">{formatCop(p.precioCop)}</p>
-          <p className="mt-0.5 text-xs mc-pc-muted">{p.stock > 0 ? `Stock ${p.stock}` : 'Consultar stock'}</p>
-        </Link>
-      </div>
-    )
-  }
-
-  function cardBold(p: McProducto & { id: string }) {
-    const img = p.imageUrl
+      )
+    }
+    if (preset === 'boutique') {
+      return (
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:gap-5">
+          {items.map((p) => (
+            <ReyProductCard
+              key={p.id}
+              p={p}
+              slug={catalogSlug}
+              showNovedadBadge={novedadFor(p)}
+              layout={{ density: 'compact', aspect: '3/4' }}
+            />
+          ))}
+        </div>
+      )
+    }
+    if (preset === 'minimal') {
+      return (
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 md:gap-4">
+          {items.map((p) => (
+            <ReyProductCard
+              key={p.id}
+              p={p}
+              slug={catalogSlug}
+              showNovedadBadge={novedadFor(p)}
+              layout={{ density: 'compact', aspect: '3/4' }}
+            />
+          ))}
+        </div>
+      )
+    }
     return (
-      <div
-        key={p.id}
-        className="overflow-hidden rounded-2xl border mc-pc-border bg-[var(--cat-surface)] shadow-sm transition hover:shadow-lg"
-      >
-        <div className="relative aspect-[4/3] w-full mc-pc-image-placeholder">
-          {img ? (
-            <button
-              type="button"
-              className="relative h-full w-full cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-inset mc-pc-ring-focus"
-              onClick={() => setPreviewImg({ src: img, alt: p.nombre })}
-              aria-label={`Ver foto de ${p.nombre}`}
-            >
-              <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
-            </button>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm mc-pc-muted">Sin foto</div>
-          )}
-        </div>
-        <Link to={`/c/${slug}/p/${p.id}`} className="block px-4 py-5 text-center sm:px-6 sm:py-6">
-          <p className="mc-pc-display text-xl font-bold leading-tight mc-pc-text sm:text-2xl">{p.nombre}</p>
-          <p className="mt-2 text-lg font-semibold tabular-nums mc-pc-text sm:text-xl">{formatCop(p.precioCop)}</p>
-          <p className="mt-2 text-sm mc-pc-muted">{p.stock > 0 ? `Stock ${p.stock}` : 'Consultar stock'}</p>
-        </Link>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 md:gap-6">
+        {items.map((p) => (
+          <ReyProductCard
+            key={p.id}
+            p={p}
+            slug={catalogSlug}
+            showNovedadBadge={novedadFor(p)}
+            layout={{ density: 'comfortable', aspect: '4/5' }}
+          />
+        ))}
       </div>
     )
   }
 
-  function cardBoutique(p: McProducto & { id: string }) {
-    const img = p.imageUrl
-    return (
-      <div
-        key={p.id}
-        className="mc-pc-card flex flex-col overflow-hidden border mc-pc-border mc-pc-surface shadow-sm transition hover:shadow-md"
-      >
-        <div className="relative aspect-[3/4] w-full mc-pc-image-placeholder">
-          {img ? (
-            <button
-              type="button"
-              className="relative h-full w-full cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-inset mc-pc-ring-focus"
-              onClick={() => setPreviewImg({ src: img, alt: p.nombre })}
-              aria-label={`Ver foto de ${p.nombre}`}
-            >
-              <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
-            </button>
-          ) : (
-            <div className="flex h-full items-center justify-center text-xs mc-pc-muted">Sin foto</div>
-          )}
-        </div>
-        <Link
-          to={`/c/${slug}/p/${p.id}`}
-          className="flex flex-1 flex-col justify-center px-2 pb-3 pt-2 text-center sm:px-3"
-        >
-          <p className="mc-pc-display line-clamp-2 text-[13px] font-semibold leading-snug mc-pc-text sm:text-sm">
-            {p.nombre}
-          </p>
-          <p className="mt-1.5 text-[12px] font-semibold tabular-nums mc-pc-text sm:text-[13px]">
-            {formatCop(p.precioCop)}
-          </p>
-          <p className="mt-1 text-[10px] mc-pc-muted sm:text-[11px]">
-            {p.stock > 0 ? `${p.stock} disp.` : 'Stock'}
-          </p>
-        </Link>
-      </div>
-    )
-  }
-
-  let listBody: ReactNode
-  if (preset === 'minimal') {
-    listBody = (
-      <div className="divide-y mc-pc-border">
-        {ordenadas.map((p) => cardMinimal(p))}
-      </div>
-    )
-  } else if (preset === 'bold') {
-    listBody = <div className="space-y-8 sm:space-y-10">{ordenadas.map((p) => cardBold(p))}</div>
-  } else if (preset === 'boutique') {
-    listBody = (
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4">{ordenadas.map((p) => cardBoutique(p))}</div>
-    )
-  } else {
-    listBody = (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{ordenadas.map((p) => cardRowIosMorning(p))}</div>
-    )
-  }
+  const showNovedadesBlock = novedades.length > 0
+  const novedadesHint = `Alta reciente o destacado por la tienda (últimos ${NOVEDAD_DIAS_RECENTE} días).`
+  const novedadBadgeFor = (p: McProducto & { id: string }) => isProductNovedad(p, novedadNow)
+  const restoSectionTitle = sectionHeading(preset, 'resto')
+  const noHeroBeforeSearch = preset === 'morning'
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      <CatalogIntro preset={preset} />
+      <div className={clsx(noHeroBeforeSearch ? 'space-y-0' : 'space-y-3 sm:space-y-4')}>
+        <CatalogIntro preset={preset} />
+        <div id="mc-catalogo-busqueda" className="scroll-mt-20">
+          <CatalogListToolbar
+            value={filter}
+            onChange={setFilter}
+            onReset={() => setFilter(getDefaultCatalogListFilter())}
+            resultCount={filteredRows.length}
+            totalInCatalog={rows.length}
+            hasActiveFilters={hasActiveFilters}
+            catalogPriceMin={catalogPriceRange.min}
+            catalogPriceMax={catalogPriceRange.max}
+          />
+        </div>
+      </div>
 
-      <section className="scroll-mt-4">
-        {preset !== 'minimal' && (
-          <h2 className="mc-pc-display mb-4 text-lg font-semibold mc-pc-text sm:text-xl">
-            {preset === 'bold' ? 'Todo el catálogo' : preset === 'boutique' ? 'Colección' : 'Productos'}
+      {hasActiveFilters ? (
+        <section className="scroll-mt-4" aria-label="Resultados de búsqueda y filtros">
+          <h2 className="mc-pc-display mb-4 text-lg font-semibold tracking-tight text-[var(--cat-text)] sm:mb-5 sm:text-xl">
+            Resultados
           </h2>
-        )}
-        {listBody}
-        {ordenadas.length === 0 && <p className="text-sm mc-pc-muted">Aún no hay artículos en el catálogo.</p>}
-      </section>
+          {filteredRows.length === 0 ? (
+            <div className="mc-pc-rey-card flex flex-col items-center rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--cat-muted)_28%,var(--cat-surface)_72%)] bg-[color-mix(in_srgb,var(--cat-bg)_45%,var(--cat-surface)_55%)] px-6 py-12 text-center sm:py-14">
+              <p className="text-base font-medium text-[var(--cat-text)]">No encontramos productos con estos criterios</p>
+              <p className="mt-2 max-w-sm text-sm leading-relaxed text-[var(--cat-muted)]">
+                Probá otras palabras, ampliá el rango de precio o quitá un filtro.
+              </p>
+              <button
+                type="button"
+                onClick={() => setFilter(getDefaultCatalogListFilter())}
+                className="mt-5 rounded-full bg-[var(--cat-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--cat-accent-text)] transition hover:opacity-90"
+              >
+                Quitar todos los filtros
+              </button>
+            </div>
+          ) : (
+            listFor(filteredRows, novedadBadgeFor)
+          )}
+        </section>
+      ) : (
+        <>
+          {showNovedadesBlock && (
+            <section className="scroll-mt-4">
+              <h2 className="mc-pc-display mb-2 text-lg font-medium tracking-tight mc-pc-text sm:text-xl">
+                {sectionHeading(preset, 'novedades')}
+              </h2>
+              <p className="mb-6 max-w-xl text-[13px] leading-relaxed mc-pc-muted sm:text-sm">{novedadesHint}</p>
+              {listFor(novedades, () => true)}
+            </section>
+          )}
 
-      <FullscreenImageOverlay
-        src={previewImg?.src ?? null}
-        alt={previewImg?.alt ?? ''}
-        open={previewImg != null}
-        onClose={() => setPreviewImg(null)}
-      />
+          <section className="scroll-mt-4">
+            {restoSectionTitle != null && preset !== 'minimal' && (
+              <h2 className="mc-pc-display mb-6 text-lg font-medium tracking-tight mc-pc-text sm:text-xl">
+                {restoSectionTitle}
+              </h2>
+            )}
+            {restoSectionTitle != null && showNovedadesBlock && preset === 'minimal' && (
+              <h2 className="mc-pc-display mb-4 text-left text-base font-medium tracking-tight mc-pc-text sm:text-lg">
+                {restoSectionTitle}
+              </h2>
+            )}
+            {listFor(showNovedadesBlock ? resto : rows, () => false)}
+            {rows.length === 0 && <p className="text-sm mc-pc-muted">Aún no hay artículos en el catálogo.</p>}
+            {showNovedadesBlock && resto.length === 0 && rows.length > 0 && (
+              <p className="text-sm mc-pc-muted">Todo el catálogo está en Novedades por ahora.</p>
+            )}
+          </section>
+        </>
+      )}
     </div>
   )
 }

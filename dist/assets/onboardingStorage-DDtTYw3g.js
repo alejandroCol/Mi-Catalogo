@@ -1,0 +1,1 @@
+var e=`mc_pending_onboarding_tid`;function t(t){try{localStorage.setItem(e,t)}catch{}}function n(){try{localStorage.removeItem(e)}catch{}}function r(t){if(!t)return!1;try{return localStorage.getItem(e)===t}catch{return!1}}export{t as n,r,n as t};

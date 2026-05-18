@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
+import { mapFirestoreDataToMcUser } from '@/lib/mcUserFromFirestore'
 import type { McTenant, McUser } from '@/types/mc'
 
 type McAuthState = {
@@ -56,8 +57,7 @@ export function McAuthProvider({ children }: { children: ReactNode }) {
       if (!snap.exists()) {
         setProfile(null)
       } else {
-        const p = snap.data() as Omit<McUser, 'uid'>
-        setProfile({ uid: snap.id, ...p })
+        setProfile(mapFirestoreDataToMcUser(snap.id, snap.data()))
       }
       setProfileReady(true)
     })

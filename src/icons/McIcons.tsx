@@ -8,7 +8,7 @@ export type McIconProps = {
   className?: string
 }
 
-const stroke = 1.75
+const stroke = 1.5
 
 function Svg({ size, className, children }: McIconProps & { children: ReactNode }) {
   return (
@@ -97,7 +97,7 @@ export function IconClipboard({ size, className }: McIconProps) {
   )
 }
 
-/** Cuenta / ajustes */
+/** Engranaje (genérico) */
 export function IconGear({ size, className }: McIconProps) {
   return (
     <Svg size={size} className={className}>
@@ -108,6 +108,18 @@ export function IconGear({ size, className }: McIconProps) {
         strokeWidth={stroke}
         strokeLinecap="round"
       />
+    </Svg>
+  )
+}
+
+/** Configuración / ajustes */
+export function IconSliders({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path d="M4 7.5h16M4 12h16M4 16.5h16" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <circle cx="15" cy="7.5" r="2" stroke="currentColor" strokeWidth={stroke} />
+      <circle cx="9" cy="12" r="2" stroke="currentColor" strokeWidth={stroke} />
+      <circle cx="14" cy="16.5" r="2" stroke="currentColor" strokeWidth={stroke} />
     </Svg>
   )
 }
@@ -133,6 +145,30 @@ export function IconPlusCircle({ size, className }: McIconProps) {
     <Svg size={size} className={className}>
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={stroke} />
       <path d="M12 8.5v7M8.5 12h7" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+    </Svg>
+  )
+}
+
+/** Tarjeta / pasarela de pagos */
+export function IconBankCard({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <rect
+        x="3.25"
+        y="5.5"
+        width="17.5"
+        height="13"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth={stroke}
+      />
+      <path d="M3.25 10.25h17.5" stroke="currentColor" strokeWidth={stroke} />
+      <path
+        d="M7 15.75h4.5M14.75 15.75h2.25"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+      />
     </Svg>
   )
 }

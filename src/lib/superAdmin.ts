@@ -1,4 +1,7 @@
-/** Lista en env (coma separada). Solo UI gate; Firestore valida isSuperAdmin en el documento. */
+/**
+ * @deprecated La app ya no filtra /superadmin por email; usá `isSuperAdmin` en Firestore (`mc_users`).
+ * Estas funciones quedan por si algún script externo las reutiliza.
+ */
 export function superAdminEmails(): Set<string> {
   const raw = import.meta.env.VITE_MC_SUPERADMIN_EMAILS ?? ''
   return new Set(
@@ -14,7 +17,7 @@ export function isEnvSuperAdminEmail(email: string | null | undefined): boolean 
   return superAdminEmails().has(email.toLowerCase())
 }
 
-/** Si hay al menos un email en VITE_MC_SUPERADMIN_EMAILS, la UI exige coincidencia. Si la variable está vacía, basta con isSuperAdmin en Firestore. */
+/** Indica si hay emails listados en env (legado; la app no bloquea la UI con esto). */
 export function superAdminEnvGateEnabled(): boolean {
   return superAdminEmails().size > 0
 }

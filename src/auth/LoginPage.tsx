@@ -40,12 +40,12 @@ export function LoginPage() {
   return (
     <div className="mc-page flex min-h-svh flex-col justify-center px-4 py-10">
       <div className="mx-auto w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-[14px] bg-ios-blue/12 text-ios-blue">
-            <IconPhotoStack size={32} />
+        <div className="mb-10 flex flex-col items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center border border-neutral-200/60 text-mc-900">
+            <IconPhotoStack size={28} />
           </div>
-          <h1 className="ios-large-title text-center">Mi Catálogo</h1>
-          <p className="ios-subhead text-center">Ingresá a tu tienda</p>
+          <h1 className="ios-large-title text-center tracking-tighter">Mi Catálogo</h1>
+          <p className="ios-subhead max-w-xs text-center leading-relaxed">Ingresá a tu tienda</p>
         </div>
         <form onSubmit={onSubmit} className="mc-card space-y-5">
           <div>
@@ -70,14 +70,17 @@ export function LoginPage() {
               required
             />
           </div>
-          {err && <p className="text-[15px] text-ios-red">{err}</p>}
+          {err && <p className="text-[15px] leading-relaxed text-red-800">{err}</p>}
           <button type="submit" disabled={busy} className="mc-btn-primary w-full">
             {busy ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
         <p className="mt-8 text-center ios-subhead">
           ¿No tenés cuenta?{' '}
-          <Link to="/registro" className="font-semibold text-ios-blue">
+          <Link
+            to="/registro"
+            className="font-medium text-mc-900 underline decoration-neutral-300 underline-offset-4 transition duration-200 ease-in-out hover:opacity-70"
+          >
             Crear tienda
           </Link>
         </p>

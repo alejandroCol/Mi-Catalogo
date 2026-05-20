@@ -10,7 +10,7 @@ import { markPendingSellerOnboarding } from '@/lib/onboardingStorage'
 import { resolveAvailablePublicSlug, slugifyStoreName } from '@/lib/publicSlug'
 import { combineWaDigits, DEFAULT_WA_PREFIX, WA_COUNTRY_PREFIXES } from '@/lib/waPhonePrefixes'
 import { callMcSendAuthVerificationEmail } from '@/lib/mcSendAuthVerificationEmail'
-import { IconPhotoStack } from '@/icons/McIcons'
+import { AuthBrandHeader } from '@/brand/AuthBrandHeader'
 
 const VERIFY_EMAIL_COOLDOWN_MS = 60_000
 
@@ -220,15 +220,11 @@ export function RegisterPage() {
   return (
     <div className="mc-page relative min-h-svh overflow-x-hidden px-4 py-8 pb-16">
       <div className="mx-auto max-w-md">
-        <div className="mb-8 flex flex-col items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center border border-neutral-200/60 text-mc-900">
-            <IconPhotoStack size={28} />
-          </div>
-          <h1 className="ios-large-title text-center tracking-tighter">Crear tienda</h1>
-          <p className="ios-subhead max-w-sm px-2 text-center leading-relaxed">
-            {MC_TRIAL_DAYS} días gratis. Unos pasos y listo.
-          </p>
-        </div>
+        <AuthBrandHeader
+          className="mb-8"
+          title="Crear tienda"
+          subtitle={`${MC_TRIAL_DAYS} días gratis. Unos pasos y listo.`}
+        />
 
         <div className="mb-6 flex justify-center gap-2">
           {STEPS.map((_, i) => (

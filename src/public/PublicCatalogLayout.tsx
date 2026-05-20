@@ -15,6 +15,8 @@ import {
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 import { usePublicTenant } from '@/public/usePublicTenant'
 import { McCatalogModal } from '@/public/McCatalogModal'
+import { SeasonBannerSplash } from '@/public/SeasonBannerSplash'
+import { isSeasonBannerActive } from '@/lib/seasonBanner'
 
 function CartChrome() {
   const { slug } = useParams<{ slug: string }>()
@@ -28,6 +30,7 @@ function CartChrome() {
   const pathBase = slug ? `/c/${slug}` : '/'
   const enCheckout = slug ? pathname.startsWith(`${pathBase}/checkout`) : false
   const isCatalogListHome = Boolean(slug && pathname === pathBase)
+  const showSeasonBanner = Boolean(tenant && slug && isCatalogListHome && isSeasonBannerActive(tenant))
 
   const navLink = (active: boolean) =>
     clsx(
@@ -46,13 +49,25 @@ function CartChrome() {
 
   return (
     <>
+      {showSeasonBanner && tenant && slug ? (
+        <SeasonBannerSplash tenant={tenant} slug={slug} />
+      ) : null}
       <header className="mc-pc-elev-header sticky top-0 z-30">
         <div className="mc-public-catalog-inset flex h-[3.25rem] items-center justify-between gap-2 sm:h-[3.75rem] sm:gap-4">
           <Link
             to={pathBase}
-            className="mc-pc-display min-w-0 truncate text-[15px] font-semibold tracking-tight text-[var(--cat-text)] transition hover:opacity-80 sm:text-base"
+            className="flex min-w-0 items-center gap-2.5 transition hover:opacity-80 sm:gap-3"
           >
-            {tenant?.nombreTienda ?? 'Catálogo'}
+            {tenant?.storeLogoUrl ? (
+              <img
+                src={tenant.storeLogoUrl}
+                alt=""
+                className="h-8 w-8 shrink-0 rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] object-cover shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:h-9 sm:w-9"
+              />
+            ) : null}
+            <span className="mc-pc-display min-w-0 truncate text-[15px] font-semibold tracking-tight text-[var(--cat-text)] sm:text-base">
+              {tenant?.nombreTienda ?? 'Catálogo'}
+            </span>
           </Link>
 
           <nav

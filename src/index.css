@@ -28,6 +28,9 @@
 
   --color-mc-accent-500: #171717;
   --color-mc-accent-600: #0a0a0a;
+
+  --color-mc-brand-gray: #3f3d45;
+  --color-mc-brand-gold: #c5a367;
 }
 
 @layer base {
@@ -442,5 +445,205 @@
   }
   .mc-checkout-panel[open] .mc-checkout-chevron {
     transform: rotate(-180deg);
+  }
+
+  /** Banner temporada fullscreen — editorial REY / boutique 2026 */
+  .mc-season-splash {
+    @apply fixed inset-0 z-[80] flex items-stretch justify-center p-0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .mc-season-splash--in {
+    pointer-events: auto;
+    opacity: 1;
+  }
+  .mc-season-splash--preview {
+    @apply relative inset-auto z-0 min-h-[min(92dvh,640px)] rounded-2xl;
+    pointer-events: auto;
+    opacity: 1;
+  }
+  .mc-season-splash__backdrop {
+    @apply absolute inset-0 border-0 p-0;
+    background: color-mix(in srgb, var(--cat-text) 42%, transparent);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  .mc-season-splash--in .mc-season-splash__backdrop {
+    opacity: 1;
+  }
+  .mc-season-splash--preview .mc-season-splash__backdrop {
+    @apply hidden;
+  }
+  .mc-season-splash__frame {
+    @apply relative flex w-full max-w-none flex-col overflow-hidden;
+    min-height: 100dvh;
+    background: var(--cat-bg);
+    transform: translateY(1.25rem) scale(0.985);
+    opacity: 0;
+    transition:
+      transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.45s ease;
+  }
+  .mc-season-splash--in .mc-season-splash__frame {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  .mc-season-splash--preview .mc-season-splash__frame {
+    @apply min-h-[min(92dvh,640px)] rounded-2xl border shadow-[0_24px_80px_-24px_rgba(0,0,0,0.35)];
+    border-color: color-mix(in srgb, var(--cat-muted) 22%, transparent);
+    transform: none;
+    opacity: 1;
+  }
+  .mc-season-splash__media {
+    @apply relative flex-1 overflow-hidden;
+    min-height: 52dvh;
+  }
+  @media (min-width: 640px) {
+    .mc-season-splash__media {
+      min-height: 58dvh;
+    }
+  }
+  @media (min-width: 1024px) {
+    .mc-season-splash__frame {
+      @apply mx-auto max-w-5xl;
+      min-height: min(100dvh, 920px);
+      margin-top: max(0px, calc((100dvh - min(100dvh, 920px)) / 2));
+      border-radius: 1.25rem;
+      box-shadow:
+        0 32px 80px -24px color-mix(in srgb, var(--cat-text) 28%, transparent),
+        0 0 0 1px color-mix(in srgb, var(--cat-muted) 14%, transparent);
+    }
+    .mc-season-splash--preview .mc-season-splash__frame {
+      @apply mx-0 mt-0 max-w-none;
+    }
+  }
+  .mc-season-splash__img,
+  .mc-season-splash__img-placeholder {
+    @apply absolute inset-0 h-full w-full object-cover;
+    transform: scale(1.06);
+    transition: transform 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .mc-season-splash--in .mc-season-splash__img,
+  .mc-season-splash--in .mc-season-splash__img-placeholder {
+    transform: scale(1);
+  }
+  .mc-season-splash__img-placeholder {
+    background:
+      linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--cat-bg) 30%, var(--cat-surface) 70%) 0%,
+        color-mix(in srgb, var(--cat-muted) 18%, var(--cat-bg) 82%) 100%
+      );
+  }
+  .mc-season-splash__scrim {
+    @apply pointer-events-none absolute inset-0;
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--cat-text) 8%, transparent) 0%,
+        color-mix(in srgb, var(--cat-text) 52%, transparent) 72%,
+        color-mix(in srgb, var(--cat-text) 78%, transparent) 100%
+      );
+  }
+  .mc-season-splash__grain {
+    @apply pointer-events-none absolute inset-0 opacity-[0.14] mix-blend-soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  }
+  .mc-season-splash__content {
+    @apply absolute inset-x-0 bottom-0 z-10 flex flex-col px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-16 text-left sm:px-10 sm:pb-10;
+    max-width: 42rem;
+  }
+  @media (min-width: 640px) {
+    .mc-season-splash__content {
+      @apply pb-12;
+    }
+  }
+  .mc-season-splash__eyebrow {
+    @apply mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-[color-mix(in_srgb,var(--cat-accent-text)_88%,transparent)];
+    text-shadow: 0 1px 12px color-mix(in srgb, var(--cat-text) 35%, transparent);
+  }
+  .mc-season-splash__headline {
+    font-family: var(--font-luxury-display);
+    @apply text-[clamp(2rem,7vw,3.25rem)] font-medium leading-[1.05] tracking-tight text-[var(--cat-accent-text)];
+    text-wrap: balance;
+    text-shadow: 0 2px 24px color-mix(in srgb, var(--cat-text) 40%, transparent);
+  }
+  .mc-public-catalog-page.mc-pub-preset-morning .mc-season-splash__headline,
+  .mc-public-catalog-page.mc-pub-preset-ios .mc-season-splash__headline {
+    font-family: var(--font-morning);
+    @apply font-semibold tracking-[-0.03em];
+  }
+  .mc-season-splash__sub {
+    @apply mt-3 max-w-md text-[15px] leading-relaxed text-[color-mix(in_srgb,var(--cat-accent-text)_82%,transparent)] sm:text-base;
+    text-shadow: 0 1px 10px color-mix(in srgb, var(--cat-text) 30%, transparent);
+  }
+  .mc-season-splash__store {
+    @apply mt-4 text-[11px] font-medium uppercase tracking-[0.2em] text-[color-mix(in_srgb,var(--cat-accent-text)_65%,transparent)];
+  }
+  .mc-season-splash__footer {
+    @apply relative z-10 flex flex-col gap-2 border-t px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-10;
+    border-color: color-mix(in srgb, var(--cat-muted) 16%, transparent);
+    background: color-mix(in srgb, var(--cat-surface) 94%, transparent);
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  }
+  @supports (backdrop-filter: blur(10px)) {
+    .mc-season-splash__footer {
+      @apply backdrop-blur-xl;
+      background: color-mix(in srgb, var(--cat-surface) 78%, transparent);
+    }
+  }
+  .mc-season-splash__cta {
+    @apply inline-flex w-full items-center justify-center rounded-full px-6 py-3.5 text-[15px] font-semibold transition duration-300 sm:w-auto sm:min-w-[12rem];
+    background: var(--cat-accent);
+    color: var(--cat-accent-text);
+    box-shadow: 0 8px 28px -8px color-mix(in srgb, var(--cat-accent) 55%, transparent);
+  }
+  .mc-season-splash__cta:hover {
+    @apply opacity-95;
+    transform: translateY(-1px);
+  }
+  .mc-season-splash__skip {
+    @apply w-full py-2 text-center text-[13px] font-medium transition sm:w-auto;
+    color: var(--cat-muted);
+  }
+  .mc-season-splash__skip:hover {
+    color: var(--cat-text);
+  }
+  .mc-season-splash__close {
+    @apply absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border text-xl leading-none transition sm:right-6 sm:top-6;
+    border-color: color-mix(in srgb, var(--cat-accent-text) 28%, transparent);
+    background: color-mix(in srgb, var(--cat-text) 22%, transparent);
+    color: var(--cat-accent-text);
+    backdrop-filter: blur(8px);
+  }
+  .mc-season-splash__close:hover {
+    background: color-mix(in srgb, var(--cat-text) 36%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mc-season-splash,
+    .mc-season-splash__frame,
+    .mc-season-splash__backdrop,
+    .mc-season-splash__img,
+    .mc-season-splash__img-placeholder,
+    .mc-season-splash__cta {
+      transition: none;
+    }
+    .mc-season-splash__img,
+    .mc-season-splash__img-placeholder {
+      transform: none;
+    }
+  }
+
+  /** OnePay FTCaptures — contenedor iframe tarjeta (suscripción V2) */
+  .op-sdk-field {
+    @apply overflow-hidden rounded-xl border border-neutral-200 bg-white;
+  }
+  .op-sdk-field iframe {
+    display: block;
+    width: 100% !important;
+    min-height: 48px;
+    border: 0;
   }
 }

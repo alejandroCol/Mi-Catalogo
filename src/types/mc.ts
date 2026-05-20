@@ -18,6 +18,20 @@ export interface McCatalogTheme {
   colors?: McCatalogThemeColors
 }
 
+/** Anuncio editorial fullscreen en el catálogo público (plan Expert). */
+export interface McSeasonBanner {
+  enabled: boolean
+  /** Etiqueta superior, ej. «Nueva temporada». */
+  eyebrow?: string
+  headline?: string
+  subheadline?: string
+  /** Texto del botón principal al cerrar el splash. */
+  ctaLabel?: string
+  imageUrl?: string
+  /** Cambia al guardar; invalida cierre en sessionStorage del visitante. */
+  updatedAt?: number
+}
+
 export interface McUser {
   uid: string
   email: string
@@ -53,8 +67,28 @@ export interface McTenant {
   billingPlan?: McBillingPlan
   /** Tema del catálogo (preset + colores; colores solo relevantes en expert). */
   catalogTheme?: McCatalogTheme
+  /** Logo de tienda (solo plan Expert). URL pública en Storage. */
+  storeLogoUrl?: string
+  /** Banner fullscreen opcional al entrar al catálogo (solo Expert). */
+  seasonBanner?: McSeasonBanner
+  /** Contador de productos en inventario; se mantiene al crear/eliminar. */
+  productCount?: number
   /** Etiqueta comercial del plan (solo súper admin; no afecta reglas de negocio). */
   subscriptionPlan?: 'trial' | 'monthly' | 'yearly' | 'custom'
+  /** Suscripción Expert vía OnePay plataforma (subscription_v2). */
+  billingSubStatus?: 'none' | 'active' | 'past_due' | 'canceled'
+  /** Si el cobro falló: mantiene Expert hasta esta fecha (gracia 7 días). */
+  billingGraceUntilMs?: number
+  billingPastDueSinceMs?: number
+  billingOnePayCustomerId?: string
+  billingPinnedCardId?: string
+  billingPinnedAccountId?: string
+  billingDebitMethod?: 'card' | 'nequi'
+  billingPayerFirstName?: string
+  billingPayerLastName?: string
+  billingPayerDocumentType?: string
+  billingPayerDocumentNumber?: string
+  billingPayerPhone?: string
   /**
    * Indica cómo se calcula el segundo total en el inicio (suma de `totalCop` en pedidos).
    * `week` = lun–dom local; `fortnight` = quincena de calendario (1–15 o 16–fin de mes).
@@ -126,6 +160,45 @@ export interface McCuponTienda {
   /** Porcentaje 0–100 o monto fijo en COP según `tipo`. */
   valor: number
   activo: boolean
+  /** Cupón generado para recuperar un carrito abandonado (función Expert). */
+  esRecuperacion?: boolean
+  /** Vincula el cupón al carrito iniciado que se intenta recuperar. */
+  carritoIniciadoId?: string
+}
+
+/** Línea persistida de un carrito iniciado (checkout sin completar). */
+export interface McCarritoIniciadoLinea {
+  productId: string
+  varianteId?: string
+  titulo: string
+  subtitulo?: string
+  precioUnitarioCop?: number
+  cantidad: number
+}
+
+export type McCarritoIniciadoEstado = 'activo' | 'comprado' | 'recuperado'
+
+/** Carrito guardado al iniciar checkout (recuperación Expert). */
+export interface McCarritoIniciado {
+  createdAt: number
+  updatedAt: number
+  estado: McCarritoIniciadoEstado
+  lineas: McCarritoIniciadoLinea[]
+  subtotalCop: number
+  /** Token anónimo del navegador; permite actualizar sin auth. */
+  sessionToken: string
+  clienteNombre?: string
+  clienteTelefono?: string
+  clienteEmail?: string
+  envioCiudad?: string
+  envioDepartamento?: string
+  envioDireccion?: string
+  /** Código de cupón enviado en recordatorio (si aplica). */
+  cuponCodigo?: string
+  descuentoPorcentaje?: number
+  recordatorioEnviadoAt?: number
+  ordenId?: string
+  recuperadoAt?: number
 }
 
 /** Variante (ej. color). Precio e imagen opcionales; si no van, usan los del producto base. */
@@ -223,6 +296,8 @@ export interface McOrdenCatalogo {
   envioCop?: number
   descuentoCop?: number
   cuponCodigo?: string
+  /** Carrito abandonado vinculado (recuperación Expert). */
+  carritoIniciadoId?: string
   envioCiudad?: string
   envioDireccion?: string
   envioReferencia?: string
@@ -244,6 +319,36 @@ export interface McPlatformSettings {
   envioMicatalogoPorCiudad?: McEnvioCiudadPrecio[]
   /** Millis UTC de la última actualización de tarifas plataforma. */
   envioMicatalogoUpdatedAt?: number
+  /** Máximo de productos en inventario para plan Free (default 20). */
+  planFreeMaxProductos?: number
+  /** Máximo de productos en inventario para plan Expert. */
+  planExpertMaxProductos?: number
+  /** Precio mensual del plan Expert en COP (checkout simulado). */
+  planExpertPrecioMensualCop?: number
+  /** Precio anual del plan Expert en COP (checkout simulado). */
+  planExpertPrecioAnualCop?: number
+  /** Nombre comercial del plan Expert (UI «Eres …»). */
+  planExpertDisplayName?: string
+  /** Ruta FTCaptures / OnePay Elements para tarjetas in-app. */
+  onepayCaptureRouteId?: string
+}
+
+/** Código de descuento SaaS (`mc_billing_discount_codes`). */
+export interface McBillingDiscountCode {
+  id?: string
+  code: string
+  codeNormalized: string
+  active: boolean
+  /** Precio final COP (0 = activación gratis por `freeTrialDays`). */
+  priceCop: number
+  billingPeriod?: 'monthly' | 'yearly'
+  freeTrialDays?: number
+  maxRedemptions?: number
+  redemptionCount?: number
+  validFromMs?: number
+  validUntilMs?: number
+  label?: string
+  updatedAt?: number
 }
 
 export interface McSlugDoc {

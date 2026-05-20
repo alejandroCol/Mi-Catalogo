@@ -1,1 +1,0 @@
-var e={users:`mc_users`,tenants:`mc_tenants`,slugs:`mc_slugs`,mcPlatform:`mc_platform`,mcPlatformSettingsDoc:`settings`};function t(e){return`mc_tenants/${e}/productos`}function n(e){return`mc_tenants/${e}/pedidos`}function r(e){return`mc_tenants/${e}/ordenes_catalogo`}export{t as i,r as n,n as r,e as t};

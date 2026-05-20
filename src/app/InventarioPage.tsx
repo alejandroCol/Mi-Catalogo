@@ -1,17 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore'
+import { collection, doc, getDoc, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { deleteObject, ref } from 'firebase/storage'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
-import { mcProductosCollection } from '@/lib/mcCollections'
+import { mcProductosCollection, MC } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
-import type { McProducto } from '@/types/mc'
+import type { McPlatformSettings, McProducto } from '@/types/mc'
 import { BulkAddProductsModal } from '@/app/BulkAddProductsModal'
 import { EditProductModal } from '@/app/EditProductModal'
 import { QuickAddProductModal } from '@/app/QuickAddProductModal'
 import { billingPlanOf } from '@/lib/catalogTheme'
+import { ExpertStar } from '@/components/billing/ExpertStar'
+import { hasExpertFeatureAccess } from '@/lib/billingAccess'
+import {
+  maxProductosForTenant,
+  productLimitMessage,
+  resolvePlanConfig,
+} from '@/lib/billingPlans'
 import {
   mcDeleteProductoDoc,
+  mcSyncProductCount,
   mcToggleProductoActivo,
   mcToggleProductoCatalogo,
   mcToggleProductoNovedad,
@@ -21,11 +30,32 @@ import { IconPlus } from '@/icons/McIcons'
 
 export function InventarioPage() {
   const { profile, tenant } = useMcAuth()
+  const nav = useNavigate()
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
+  const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<(McProducto & { id: string }) | null>(null)
+  const [limitHint, setLimitHint] = useState<string | null>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
+  const syncRef = useRef(false)
+
+  useEffect(() => {
+    if (!firebaseConfigured) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const ps = await getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc))
+        if (cancelled) return
+        setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
+      } catch {
+        if (!cancelled) setPlatformSettings({})
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!firebaseConfigured || !profile?.tenantId) return
@@ -35,6 +65,16 @@ export function InventarioPage() {
       setRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<McProducto, 'id'>) })))
     })
   }, [profile?.tenantId])
+
+  useEffect(() => {
+    if (!profile?.tenantId || !tenant || syncRef.current) return
+    if (typeof tenant.productCount === 'number') return
+    if (rows.length === 0) return
+    syncRef.current = true
+    void mcSyncProductCount(profile.tenantId, rows.length).finally(() => {
+      syncRef.current = false
+    })
+  }, [profile?.tenantId, tenant, tenant?.productCount, rows.length])
 
   async function toggleCatalogo(p: McProducto & { id: string }) {
     if (!profile?.tenantId) return
@@ -66,36 +106,74 @@ export function InventarioPage() {
   }
 
   const expert = tenant ? billingPlanOf(tenant) === 'expert' : false
+  const expertAccess = hasExpertFeatureAccess(tenant)
+  const planConfig = resolvePlanConfig(platformSettings)
+  const productMax = tenant ? maxProductosForTenant(tenant, planConfig) : planConfig.freeMaxProductos
+  const atLimit = rows.length >= productMax
+  const limitMsg = tenant ? productLimitMessage(tenant, planConfig, rows.length) : null
+
+  function openAddModal() {
+    if (atLimit && limitMsg) {
+      setLimitHint(limitMsg)
+      return
+    }
+    setLimitHint(null)
+    setModalOpen(true)
+  }
+
+  function openBulkModal() {
+    if (atLimit && limitMsg) {
+      setLimitHint(limitMsg)
+      return
+    }
+    setLimitHint(null)
+    setBulkOpen(true)
+  }
 
   return (
     <div className="mc-shell">
       <h1 className="ios-large-title">Inventario</h1>
       <p className="ios-subhead mt-2 max-w-2xl leading-relaxed">
-        Tocá el botón <strong className="font-medium text-[var(--cat-text)]">+</strong> para agregar un artículo con foto, nombre, precio y stock.
-        {expert && (
-          <>
-            {' '}
-            Con <strong className="font-semibold text-[var(--cat-text)]">Expert</strong> podés usar{' '}
-            <button
-              type="button"
-              className="font-semibold text-[var(--cat-accent)] underline decoration-transparent underline-offset-2 hover:decoration-current"
-              onClick={() => setBulkOpen(true)}
-            >
-              carga masiva desde la galería
-            </button>
-            .
-          </>
-        )}
+        {rows.length} de {productMax} productos
+        {expert ? ' · plan Expert' : ' · plan Free'}.
       </p>
-      {expert && (
+      {atLimit && limitMsg && (
+        <div className="mt-4 border border-amber-200/80 bg-amber-50/60 px-4 py-3 text-[13px] leading-relaxed text-amber-950">
+          {limitMsg}
+          {!expert && (
+            <>
+              {' '}
+              <Link to="/app/plan" className="font-semibold underline underline-offset-2">
+                Ver plan Expert
+              </Link>
+            </>
+          )}
+        </div>
+      )}
+      {limitHint && !atLimit && (
+        <p className="mt-3 text-[13px] text-[var(--cat-muted)]">{limitHint}</p>
+      )}
+      <p className="ios-subhead mt-2 max-w-2xl leading-relaxed">
+        Tocá el botón <strong className="font-medium text-[var(--cat-text)]">+</strong> para agregar un artículo con foto, nombre, precio y stock.
+        {' '}
+        Con <ExpertStar className="mx-0.5 inline" /> podés usar{' '}
         <button
           type="button"
-          className="mc-btn-secondary mt-4 w-full px-5 py-3 text-[15px] sm:w-auto"
-          onClick={() => setBulkOpen(true)}
+          className="font-semibold text-[var(--cat-accent)] underline decoration-transparent underline-offset-2 hover:decoration-current"
+          onClick={() => (expertAccess ? openBulkModal() : nav('/app/plan'))}
         >
-          Carga masiva (varias fotos)
+          carga masiva desde la galería
         </button>
-      )}
+        .
+      </p>
+      <button
+        type="button"
+        className="mc-btn-secondary mt-4 inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-[15px] sm:w-auto"
+        onClick={() => (expertAccess ? setBulkOpen(true) : nav('/app/plan'))}
+      >
+        <ExpertStar />
+        Carga masiva (varias fotos)
+      </button>
 
       <ul className="mt-8 space-y-4">
         {rows.map((p) => (
@@ -168,14 +246,17 @@ export function InventarioPage() {
         type="button"
         className="mc-fab"
         aria-label="Agregar artículo"
-        onClick={() => setModalOpen(true)}
+        onClick={() => openAddModal()}
       >
         <IconPlus size={24} className="text-[var(--cat-accent-text)]" />
       </button>
 
-      {modalOpen && profile?.tenantId && (
+      {modalOpen && profile?.tenantId && tenant && (
         <QuickAddProductModal
           tenantId={profile.tenantId}
+          tenant={tenant}
+          platformSettings={platformSettings}
+          currentCount={rows.length}
           onClose={() => setModalOpen(false)}
           nextOrden={rows.length}
         />
@@ -189,9 +270,12 @@ export function InventarioPage() {
         />
       )}
 
-      {bulkOpen && profile?.tenantId && expert && (
+      {bulkOpen && profile?.tenantId && expertAccess && tenant && (
         <BulkAddProductsModal
           tenantId={profile.tenantId}
+          tenant={tenant}
+          platformSettings={platformSettings}
+          currentCount={rows.length}
           onClose={() => setBulkOpen(false)}
           nextOrden={rows.length}
         />

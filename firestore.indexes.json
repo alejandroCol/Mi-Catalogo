@@ -41,6 +41,22 @@
         { "fieldPath": "enCatalogo", "order": "ASCENDING" },
         { "fieldPath": "orden", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "billingSubscription",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "nextDebitDueAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mc_tenants",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "billingSubStatus", "order": "ASCENDING" },
+        { "fieldPath": "billingGraceUntilMs", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

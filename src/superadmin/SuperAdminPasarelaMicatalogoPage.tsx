@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, getDb, getFirebaseFunctions } from '@/lib/firebase'
@@ -34,13 +34,16 @@ export function SuperAdminPasarelaMicatalogoPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [hookKHint, setHookKHint] = useState<string | null>(null)
   const [webhookUrlCopied, setWebhookUrlCopied] = useState(false)
+  const [captureRouteId, setCaptureRouteId] = useState('ggMoeO2K3G')
 
   const load = useCallback(async () => {
     if (!firebaseConfigured) return
     setLoading(true)
     try {
       const snap = await getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc))
-      setSettings(snap.exists() ? (snap.data() as McPlatformSettings) : {})
+      const data = snap.exists() ? (snap.data() as McPlatformSettings) : {}
+      setSettings(data)
+      setCaptureRouteId(data.onepayCaptureRouteId?.trim() || 'ggMoeO2K3G')
     } finally {
       setLoading(false)
     }
@@ -159,6 +162,30 @@ export function SuperAdminPasarelaMicatalogoPage() {
     }
   }
 
+  async function guardarCaptureRoute() {
+    if (!firebaseConfigured) return
+    const id = captureRouteId.trim()
+    if (!id) {
+      setMsg('Ingresá el ID de ruta FTCaptures.')
+      return
+    }
+    setBusy(true)
+    setMsg(null)
+    try {
+      await setDoc(
+        doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc),
+        { onepayCaptureRouteId: id, updatedAt: Date.now() },
+        { merge: true },
+      )
+      setMsg('Ruta de captura guardada.')
+      await load()
+    } catch (e) {
+      setMsg(callableErrorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function copiarWebhookUrl() {
     if (!webhookUrlFull || !navigator.clipboard?.writeText) return
     try {
@@ -247,6 +274,28 @@ export function SuperAdminPasarelaMicatalogoPage() {
             <p className="mt-1 break-all font-mono text-[11px] leading-relaxed text-mc-800">{webhookUrlFull}</p>
           </div>
         ) : null}
+
+        <div className="space-y-2 border-t border-neutral-200/60 pt-4">
+          <p className="text-[12px] font-medium text-mc-700">Suscripciones in-app (FTCaptures)</p>
+          <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">
+            ID de ruta OnePay Elements
+          </label>
+          <input
+            className="mc-input mt-1 font-mono text-[14px]"
+            value={captureRouteId}
+            disabled={busy}
+            onChange={(e) => setCaptureRouteId(e.target.value)}
+            placeholder="ggMoeO2K3G"
+          />
+          <button
+            type="button"
+            className="mc-btn-secondary mt-2 w-full py-2.5 text-[14px]"
+            disabled={busy}
+            onClick={() => void guardarCaptureRoute()}
+          >
+            Guardar ruta de captura
+          </button>
+        </div>
 
         {activa ? (
           <div className="space-y-3">

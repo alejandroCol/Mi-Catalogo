@@ -36,6 +36,15 @@ const CuentaCuponesPage = lazy(() =>
 const CuentaEstiloPage = lazy(() =>
   import('@/app/CuentaEstiloPage').then((m) => ({ default: m.CuentaEstiloPage })),
 )
+const CuentaLogoPage = lazy(() =>
+  import('@/app/CuentaLogoPage').then((m) => ({ default: m.CuentaLogoPage })),
+)
+const CuentaBannerTemporadaPage = lazy(() =>
+  import('@/app/CuentaBannerTemporadaPage').then((m) => ({ default: m.CuentaBannerTemporadaPage })),
+)
+const CarritosAbandonadosPage = lazy(() =>
+  import('@/app/CarritosAbandonadosPage').then((m) => ({ default: m.CarritosAbandonadosPage })),
+)
 const PagosPasarelaPage = lazy(() =>
   import('@/app/PagosPasarelaPage').then((m) => ({ default: m.PagosPasarelaPage })),
 )
@@ -58,6 +67,16 @@ const SuperAdminPasarelaMicatalogoPage = lazy(() =>
 const SuperAdminEnviosMicatalogoPage = lazy(() =>
   import('@/superadmin/SuperAdminEnviosMicatalogoPage').then((m) => ({
     default: m.SuperAdminEnviosMicatalogoPage,
+  })),
+)
+const SuperAdminPlanesPage = lazy(() =>
+  import('@/superadmin/SuperAdminPlanesPage').then((m) => ({
+    default: m.SuperAdminPlanesPage,
+  })),
+)
+const SuperAdminDescuentosPage = lazy(() =>
+  import('@/superadmin/SuperAdminDescuentosPage').then((m) => ({
+    default: m.SuperAdminDescuentosPage,
   })),
 )
 const SuperAdminTenantOnepayPage = lazy(() =>
@@ -138,6 +157,9 @@ export function App() {
             <Route path="cuenta/envio" element={<CuentaEnvioPage />} />
             <Route path="cuenta/cupones" element={<CuentaCuponesPage />} />
             <Route path="cuenta/estilo" element={<CuentaEstiloPage />} />
+            <Route path="cuenta/logo" element={<CuentaLogoPage />} />
+            <Route path="cuenta/banner-temporada" element={<CuentaBannerTemporadaPage />} />
+            <Route path="cuenta/carritos-abandonados" element={<CarritosAbandonadosPage />} />
             <Route path="pagos-pasarela" element={<PagosPasarelaPage />} />
             <Route path="pagos-pasarela/onepay" element={<OnepayPasarelaResumenPage />} />
           </Route>
@@ -162,6 +184,22 @@ export function App() {
             element={
               <RequireMcAuth>
                 <SuperAdminEnviosMicatalogoPage />
+              </RequireMcAuth>
+            }
+          />
+          <Route
+            path="/superadmin/planes"
+            element={
+              <RequireMcAuth>
+                <SuperAdminPlanesPage />
+              </RequireMcAuth>
+            }
+          />
+          <Route
+            path="/superadmin/descuentos"
+            element={
+              <RequireMcAuth>
+                <SuperAdminDescuentosPage />
               </RequireMcAuth>
             }
           />

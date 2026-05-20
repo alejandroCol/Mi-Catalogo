@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { addDoc, collection, updateDoc } from 'firebase/firestore'
+import { doc, updateDoc } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { getDb, getStorageApp, firebaseStorageConfigured } from '@/lib/firebase'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
 import { formatIntegerEsCo } from '@/lib/formatCop'
 import { mcProductosCollection } from '@/lib/mcCollections'
-import type { McProductoVariante } from '@/types/mc'
+import { mcCreateProducto, ProductLimitError } from '@/lib/mcWrites'
+import type { McPlatformSettings, McProductoVariante, McTenant } from '@/types/mc'
 
 type VarianteDraft = {
   id: string
@@ -23,10 +24,14 @@ function parsePrecioOpcional(raw: string): number | undefined {
 
 export function QuickAddProductModal({
   tenantId,
+  platformSettings,
   nextOrden,
   onClose,
 }: {
   tenantId: string
+  tenant: McTenant
+  platformSettings: McPlatformSettings | null
+  currentCount: number
   nextOrden: number
   onClose: () => void
 }) {
@@ -110,9 +115,6 @@ export function QuickAddProductModal({
 
     setBusy(true)
     try {
-      const db = getDb()
-      const col = collection(db, mcProductosCollection(tenantId))
-
       const builtVar: McProductoVariante[] = varianteRows.map((v) => {
         const pc = parsePrecioOpcional(v.precio)
         const item: McProductoVariante = {
@@ -124,32 +126,39 @@ export function QuickAddProductModal({
         return item
       })
 
-      const docRef = await addDoc(col, {
-        nombre: nombre.trim(),
-        precioCop: precioNum,
-        stock: Number.isFinite(stockNum) ? stockNum : 0,
-        activo: true,
-        enCatalogo: true,
-        orden: nextOrden,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        ...(marcarNovedad ? { marcarNovedad: true } : {}),
-        ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
-      })
+      const { id: productId } = await mcCreateProducto(
+        tenantId,
+        {
+          nombre: nombre.trim(),
+          precioCop: precioNum,
+          stock: Number.isFinite(stockNum) ? stockNum : 0,
+          activo: true,
+          enCatalogo: true,
+          orden: nextOrden,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          ...(marcarNovedad ? { marcarNovedad: true } : {}),
+          ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
+        },
+        platformSettings,
+      )
 
-      let imageUrl: string | undefined
       if (file && firebaseStorageConfigured) {
         const storage = getStorageApp()
-        const pathRef = ref(storage, `mc_tenants/${tenantId}/productos/${docRef.id}.jpg`)
+        const pathRef = ref(storage, `mc_tenants/${tenantId}/productos/${productId}.jpg`)
         const optimized = await compressImageForUpload(file)
         await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
-        imageUrl = await getDownloadURL(pathRef)
-        await updateDoc(docRef, { imageUrl })
+        const imageUrl = await getDownloadURL(pathRef)
+        await updateDoc(doc(getDb(), mcProductosCollection(tenantId), productId), { imageUrl })
       }
 
       onClose()
-    } catch {
-      setErr('No se pudo guardar. Revisá conexión y reglas de Firebase.')
+    } catch (e) {
+      if (e instanceof ProductLimitError) {
+        setErr(e.message)
+      } else {
+        setErr('No se pudo guardar. Revisá conexión y reglas de Firebase.')
+      }
     } finally {
       setBusy(false)
     }

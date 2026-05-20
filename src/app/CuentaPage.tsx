@@ -6,6 +6,9 @@ import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 import { billingPlanOf } from '@/lib/catalogTheme'
+import { BillingPastDueBanner } from '@/components/billing/BillingPastDueBanner'
+import { PlanEleganceBadge } from '@/components/billing/PlanEleganceBadge'
+import { hasExpertFeatureAccess, planExpertDisplayName } from '@/lib/billingAccess'
 import { isSubscriptionActive } from '@/lib/subscription'
 import {
   catalogoVendedorGate,
@@ -197,6 +200,12 @@ export function CuentaPage() {
         </p>
       )}
 
+      {tenant && <BillingPastDueBanner tenant={tenant} />}
+
+      {tenant && hasExpertFeatureAccess(tenant) && (
+        <PlanEleganceBadge tenant={tenant} settings={platformSettings} />
+      )}
+
       {tenant && (
         <>
           {plan === 'free' ? (
@@ -209,8 +218,8 @@ export function CuentaPage() {
                 Free
               </span>
               <span className="w-full ios-footnote leading-relaxed text-[var(--cat-muted)]">
-                Tocá para ver <strong className="font-medium text-[var(--cat-text)]">Expert</strong> (mensual o anual,
-                pago simulado por ahora). Con Expert elegís plantillas y colores del catálogo.
+                Tocá para ver <strong className="font-medium text-[var(--cat-text)]">{planExpertDisplayName(platformSettings)}</strong>{' '}
+                (mensual o anual). Plantillas, colores y logo de tienda.
               </span>
             </Link>
           ) : (
@@ -285,15 +294,35 @@ export function CuentaPage() {
             <div className="border-t border-neutral-200/50 pt-5">
               <p className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">Portal de venta · estilo</p>
               <p className="ios-footnote mt-1 leading-relaxed text-[var(--cat-muted)]">
-                Plantilla y colores del catálogo público. Con Expert los editás en una pantalla dedicada.
+                Plantilla y colores del catálogo público. Con Expert también podés subir el logo de tu tienda.
               </p>
-              {plan === 'expert' ? (
-                <Link
-                  to="/app/cuenta/estilo"
-                  className="mc-btn-primary mt-3 inline-flex w-full items-center justify-center py-3 text-[15px] no-underline"
-                >
-                  Configurar estilo
-                </Link>
+              {hasExpertFeatureAccess(tenant) ? (
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <Link
+                    to="/app/cuenta/estilo"
+                    className="mc-btn-primary inline-flex flex-1 items-center justify-center py-3 text-[15px] no-underline"
+                  >
+                    Configurar estilo
+                  </Link>
+                  <Link
+                    to="/app/cuenta/logo"
+                    className="mc-btn-secondary inline-flex flex-1 items-center justify-center py-3 text-[15px] no-underline"
+                  >
+                    Logo de tienda
+                  </Link>
+                  <Link
+                    to="/app/cuenta/banner-temporada"
+                    className="mc-btn-secondary inline-flex flex-1 items-center justify-center py-3 text-[15px] no-underline sm:flex-[1_1_100%]"
+                  >
+                    Banner de temporada
+                  </Link>
+                  <Link
+                    to="/app/cuenta/carritos-abandonados"
+                    className="mc-btn-secondary inline-flex flex-1 items-center justify-center py-3 text-[15px] no-underline sm:flex-[1_1_100%]"
+                  >
+                    Carritos abandonados
+                  </Link>
+                </div>
               ) : (
                 <Link
                   to="/app/plan"

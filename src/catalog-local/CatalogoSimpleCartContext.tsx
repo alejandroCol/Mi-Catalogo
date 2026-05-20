@@ -26,6 +26,8 @@ type Ctx = {
   cartBumpGeneration: number
   add: (line: LineaCarritoSimple) => void
   updateQty: (productId: string, cantidad: number, varianteId?: string) => void
+  /** Reemplaza el carrito (p. ej. recuperación de carrito abandonado). */
+  restoreLines: (lines: LineaCarritoSimple[]) => void
   clear: () => void
 }
 
@@ -78,6 +80,14 @@ export function CatalogoSimpleCartProvider({
     [storageKey],
   )
 
+  const restoreLines = useCallback(
+    (nextLines: LineaCarritoSimple[]) => {
+      saveSimpleCart(storageKey, nextLines)
+      setLines(nextLines)
+    },
+    [storageKey],
+  )
+
   const clear = useCallback(() => {
     clearSimpleCart(storageKey)
     setLines([])
@@ -93,9 +103,10 @@ export function CatalogoSimpleCartProvider({
       cartBumpGeneration,
       add,
       updateQty,
+      restoreLines,
       clear,
     }),
-    [lines, totalPiezas, highlightProductId, cartBumpGeneration, add, updateQty, clear],
+    [lines, totalPiezas, highlightProductId, cartBumpGeneration, add, updateQty, restoreLines, clear],
   )
 
   return <CatalogoSimpleCartContext.Provider value={value}>{children}</CatalogoSimpleCartContext.Provider>

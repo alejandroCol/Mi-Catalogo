@@ -192,6 +192,37 @@ service cloud.firestore {
     function mcTenantIsExpert(data) {
       return 'billingPlan' in data && data.billingPlan == 'expert';
     }
+    function mcPlanFreeMaxProductos() {
+      return exists(/databases/$(database)/documents/mc_platform/settings)
+        && get(/databases/$(database)/documents/mc_platform/settings).data.planFreeMaxProductos is int
+        ? get(/databases/$(database)/documents/mc_platform/settings).data.planFreeMaxProductos
+        : 20;
+    }
+    function mcPlanExpertMaxProductos() {
+      return exists(/databases/$(database)/documents/mc_platform/settings)
+        && get(/databases/$(database)/documents/mc_platform/settings).data.planExpertMaxProductos is int
+        ? get(/databases/$(database)/documents/mc_platform/settings).data.planExpertMaxProductos
+        : 500;
+    }
+    function mcTenantProductCount(data) {
+      return 'productCount' in data && data.productCount is int ? data.productCount : 0;
+    }
+    function mcProductCreateAllowed(tid) {
+      let tenant = get(/databases/$(database)/documents/mc_tenants/$(tid)).data;
+      let count = mcTenantProductCount(tenant);
+      return mcTenantIsExpert(tenant)
+        ? count < mcPlanExpertMaxProductos()
+        : count < mcPlanFreeMaxProductos();
+    }
+    function mcTenantProductCountPatchOk() {
+      return request.resource.data.productCount is int
+        && request.resource.data.productCount >= 0
+        && (
+          !('productCount' in resource.data)
+          || request.resource.data.productCount == resource.data.productCount + 1
+          || request.resource.data.productCount == resource.data.productCount - 1
+        );
+    }
     /** Campos que el dueño puede actualizar desde Cuenta (plan Free). */
     function mcTenantOwnerPatchKeysFree() {
       return [
@@ -217,6 +248,8 @@ service cloud.firestore {
         'mensajeIntro',
         'salesSummaryPeriod',
         'catalogTheme',
+        'storeLogoUrl',
+        'seasonBanner',
         'envioEstimadoCop',
         'envioEstimadoEtiqueta',
         'envioPorCiudad',
@@ -315,6 +348,13 @@ service cloud.firestore {
                 )
               )
             )
+            /** Contador de productos (+1 / −1 o inicialización). */
+            || (
+              resource.data.billingPlan == request.resource.data.billingPlan
+              && resource.data.subscriptionEndsAt == request.resource.data.subscriptionEndsAt
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['productCount'])
+              && mcTenantProductCountPatchOk()
+            )
           )
         );
       allow delete: if false;
@@ -365,13 +405,31 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /mc_billing_discount_codes/{codeId} {
+      allow read: if mcIsSuperAdmin();
+      allow write: if mcIsSuperAdmin();
+    }
+
+    match /mc_billing_checkouts/{checkoutId} {
+      allow read, write: if false;
+    }
+
+    match /mc_tenants/{tid}/billingSubscription/{docId} {
+      allow read: if mcSignedIn() && mcBelongsToTenant(tid);
+      allow write: if false;
+    }
+
     match /mc_tenants/{tid}/productos/{pid} {
       allow read: if mcIsSuperAdmin()
         || (resource.data.activo == true
           && resource.data.enCatalogo == true
           && mcTenantSubActive(tid))
         || (mcSignedIn() && mcBelongsToTenant(tid));
-      allow create, update: if mcSignedIn()
+      allow create: if mcSignedIn()
+        && mcBelongsToTenant(tid)
+        && (mcTenantSubActive(tid) || mcIsSuperAdmin())
+        && (mcIsSuperAdmin() || mcProductCreateAllowed(tid));
+      allow update: if mcSignedIn()
         && mcBelongsToTenant(tid)
         && (mcTenantSubActive(tid) || mcIsSuperAdmin());
       allow delete: if mcSignedIn()
@@ -385,6 +443,46 @@ service cloud.firestore {
     }
 
     /** Ventas desde el catálogo público (checkout mock). */
+    /** Carritos iniciados en checkout (recuperación Expert). */
+    match /mc_tenants/{tid}/carritos_iniciados/{cid} {
+      allow get: if mcTenantSubActive(tid);
+      allow list: if mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin());
+      allow create: if mcTenantSubActive(tid)
+        && request.resource.data.keys().hasAll([
+          'createdAt', 'updatedAt', 'estado', 'lineas', 'subtotalCop', 'sessionToken'
+        ])
+        && request.resource.data.estado == 'activo'
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int
+        && request.resource.data.subtotalCop is number
+        && request.resource.data.subtotalCop >= 0
+        && request.resource.data.lineas is list
+        && request.resource.data.lineas.size() > 0
+        && request.resource.data.lineas.size() <= 100
+        && request.resource.data.sessionToken is string
+        && request.resource.data.sessionToken.size() >= 16;
+      allow update: if mcTenantSubActive(tid)
+        && (
+          (
+            resource.data.estado == 'activo'
+            && request.resource.data.sessionToken == resource.data.sessionToken
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.estado in ['activo', 'comprado', 'recuperado']
+            && request.resource.data.updatedAt is int
+            && request.resource.data.updatedAt >= resource.data.updatedAt
+            && request.resource.data.lineas is list
+            && request.resource.data.subtotalCop is number
+          )
+          || (
+            mcSignedIn()
+            && mcBelongsToTenant(tid)
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.sessionToken == resource.data.sessionToken
+          )
+        );
+      allow delete: if false;
+    }
+
     match /mc_tenants/{tid}/ordenes_catalogo/{oid} {
       allow create: if mcTenantSubActive(tid)
         && request.resource.data.keys().hasAll([
@@ -414,6 +512,8 @@ service cloud.firestore {
             && request.resource.data.descuentoCop < 1000000000))
         && (!('cuponCodigo' in request.resource.data)
           || request.resource.data.cuponCodigo is string)
+        && (!('carritoIniciadoId' in request.resource.data)
+          || request.resource.data.carritoIniciadoId is string)
         && (!('envioCiudad' in request.resource.data) || request.resource.data.envioCiudad is string)
         && (!('envioDireccion' in request.resource.data) || request.resource.data.envioDireccion is string)
         && (!('envioReferencia' in request.resource.data) || request.resource.data.envioReferencia is string)

@@ -23,6 +23,8 @@ import { MunicipioCombobox } from '@/public/MunicipioCombobox'
 import { COLOMBIA_DEPARTAMENTOS, formatoDepartamentoEtiqueta, MC_CHECKOUT_DOCUMENTO_TIPOS } from '@/lib/colombiaGeo'
 import { buildCheckoutWhatsappText, whatsappUrlFromNumber } from '@/catalog-local/buildWhatsappUrl'
 import { buildNumeroReferencia, publicCatalogSuccessPath } from '@/lib/catalogOrderTracking'
+import { markCarritoIniciadoOnOrderComplete } from '@/lib/markCarritoIniciadoOnOrder'
+import { useCarritoIniciadoCheckoutSync } from '@/hooks/useCarritoIniciadoCheckoutSync'
 import {
   MC_ONEPAY_DONE_MSG,
   MC_ONEPAY_POPUP_NAME,
@@ -105,7 +107,7 @@ export function PublicCheckoutPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { tenantId, tenant, platformSettings, loading, error } = usePublicTenant(slug)
-  const { lines, totalPiezas, clear } = useCatalogoSimpleCart()
+  const { lines, totalPiezas, clear, restoreLines } = useCatalogoSimpleCart()
 
   const [nombre, setNombre] = useState('')
   const [telefono, setTelefono] = useState('')
@@ -196,6 +198,30 @@ export function PublicCheckoutPage() {
   )
 
   const checkoutVentasModoExplicit = useMemo(() => explicitCheckoutVentasModo(tenant), [tenant])
+
+  const carritoContacto = useMemo(
+    () => ({
+      nombre,
+      telefono,
+      email,
+      envioCiudad,
+      envioDepartamento,
+      envioDireccion,
+    }),
+    [nombre, telefono, email, envioCiudad, envioDepartamento, envioDireccion],
+  )
+
+  const { carritoIniciadoId } = useCarritoIniciadoCheckoutSync({
+    slug,
+    tenantId,
+    tenant: tenant ?? undefined,
+    lines,
+    contacto: carritoContacto,
+    restoreLines,
+    setCuponAplicado,
+    setCuponInput,
+    searchParams,
+  })
 
   const pasarelaMicatalogoOk = platformSettings?.pasarelaMicatalogoActiva === true
 
@@ -312,8 +338,16 @@ export function PublicCheckoutPage() {
       if (envioDireccion.trim()) base.envioDireccion = envioDireccion.trim()
       if (envioReferencia.trim()) base.envioReferencia = envioReferencia.trim()
       if (cuponVigente) base.cuponCodigo = normalizeCuponCodigo(cuponVigente.codigo)
+      if (carritoIniciadoId) base.carritoIniciadoId = carritoIniciadoId
 
       await setDoc(orderRef, base)
+      await markCarritoIniciadoOnOrderComplete({
+        tenantId,
+        slug,
+        carritoIniciadoId,
+        orderId: orderRef.id,
+        cuponCodigo: cuponVigente ? cuponVigente.codigo : undefined,
+      })
       clear()
       navigate(publicCatalogSuccessPath(slug, orderRef.id), { replace: true })
     } catch {
@@ -498,6 +532,7 @@ export function PublicCheckoutPage() {
           typeof crypto !== 'undefined' && 'randomUUID' in crypto
             ? crypto.randomUUID()
             : `mc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        carritoIniciadoId: carritoIniciadoId ?? undefined,
       })
       const data = res.data as { paymentLink?: string }
       if (!data.paymentLink) {

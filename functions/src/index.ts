@@ -6,6 +6,7 @@ import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { setGlobalOptions } from 'firebase-functions/v2'
 import { defineSecret, defineString } from 'firebase-functions/params'
 import express from 'express'
+import { markCarritoIniciadoAfterOrderPaid } from './carritoIniciado.js'
 import { mergeTenantPlatformEnvio, resolveEnvioCopForCheckout } from './checkoutShipping.js'
 import {
   resolveEmailCatalogThemeColors,
@@ -23,6 +24,20 @@ import {
   onepayMetadataForApi,
   onepayPickExternalId,
 } from './onepayCatalogHelpers.js'
+import { mcBillingTryFinalizeFromChargeWebhook } from './billingSubscription/service.js'
+import { onepayGetCharge } from './billingSubscription/onepayBillingApi.js'
+import {
+  mcBillingAddCard,
+  mcBillingAddNequi,
+  mcBillingCompleteActivation,
+  mcBillingCron,
+  mcBillingEnsureCustomer,
+  mcBillingGetSdkContext,
+  mcBillingListNequiBanks,
+  mcBillingPaymentMethods,
+  mcBillingValidateDiscountCode,
+  mcBillingValidateNequi,
+} from './billingSubscription/handlers.js'
 
 const REGION = process.env.MC_FUNCTIONS_REGION || 'us-central1'
 
@@ -1396,6 +1411,7 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
     clienteDocumentoNumero?: string
     redirectOrigin?: string
     idempotencyKey?: string
+    carritoIniciadoId?: string
   }
 
   const slug = typeof data.slug === 'string' ? data.slug.trim().toLowerCase() : ''
@@ -1660,6 +1676,9 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
   const eref = typeof data.envioReferencia === 'string' ? data.envioReferencia.trim() : ''
   if (eref) orderDoc.envioReferencia = eref.slice(0, 300)
   if (cuponV) orderDoc.cuponCodigo = normalizeCuponCodigo(cuponV.codigo)
+  const carritoIniciadoId =
+    typeof data.carritoIniciadoId === 'string' ? data.carritoIniciadoId.trim().slice(0, 128) : ''
+  if (carritoIniciadoId) orderDoc.carritoIniciadoId = carritoIniciadoId
 
   await orderRef.set(orderDoc)
 
@@ -2030,6 +2049,26 @@ webhookApp.post(
       eventName === 'charge.refunded'
 
     if (wantsApprove || wantsReject) {
+      if (isPlatform && eventName.startsWith('charge.')) {
+        const charge = await onepayGetCharge(payId, secretKey)
+        if (charge && wantsApprove) {
+          const handled = await mcBillingTryFinalizeFromChargeWebhook({
+            db,
+            chargeId: payId,
+            platformSk: secretKey,
+            chargeMeta: charge.metadata,
+          })
+          if (handled) {
+            await procRef.set({ at: Date.now(), event: eventName, billingCharge: true })
+            res.status(200).send('ok')
+            return
+          }
+        }
+        await procRef.set({ at: Date.now(), event: eventName })
+        res.status(200).send('ok')
+        return
+      }
+
       const v = await onepayGetPayment(payId, secretKey)
       if (!v?.id) {
         await procRef.set({ at: Date.now(), event: eventName })
@@ -2048,6 +2087,7 @@ webhookApp.post(
         res.status(200).send('ok')
         return
       }
+
       const storeIdFromPayment = mcStoreIdFromOnePayMetadata(v.metadata)
       const storeId = isPlatform ? storeIdFromPayment : routeTenantId
       if (!storeId) {
@@ -2102,6 +2142,22 @@ webhookApp.post(
           updatedAt: paidAt,
           seguimientoCompraAt: paidAt,
         })
+
+        const oCarritoId = (o as { carritoIniciadoId?: string }).carritoIniciadoId
+        const oCupon = (o as { cuponCodigo?: string }).cuponCodigo
+        if (typeof oCarritoId === 'string' && oCarritoId.trim()) {
+          try {
+            await markCarritoIniciadoAfterOrderPaid(
+              db,
+              storeId,
+              oCarritoId.trim(),
+              orderId,
+              typeof oCupon === 'string' ? oCupon : undefined,
+            )
+          } catch {
+            /* no bloquear webhook */
+          }
+        }
 
         const resendKey = readResendApiKey()
         const pendingOwner = typeof o.ventaNotificacionEmailSentAt !== 'number'
@@ -2226,3 +2282,16 @@ export const mcOnepayCatalogWebhook = onRequest(
   { cors: false, invoker: 'public', secrets: [resendApiKey] },
   webhookApp,
 )
+
+export {
+  mcBillingGetSdkContext,
+  mcBillingEnsureCustomer,
+  mcBillingAddCard,
+  mcBillingAddNequi,
+  mcBillingListNequiBanks,
+  mcBillingValidateNequi,
+  mcBillingCompleteActivation,
+  mcBillingPaymentMethods,
+  mcBillingValidateDiscountCode,
+  mcBillingCron,
+}

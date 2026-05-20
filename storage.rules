@@ -22,7 +22,23 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId;
     }
 
-    /** Documentos KYB OnePass (PDF) — URL pública con token para que la API descargue el archivo */
+    /** Logo de tienda (plan Expert) */
+    match /mc_tenants/{tenantId}/logo/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId
+        && request.resource.size < 4 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    /** Banner temporada fullscreen (plan Expert) */
+    match /mc_tenants/{tenantId}/season_banner/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId
+        && request.resource.size < 6 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
     match /mc_tenants/{tenantId}/onepay_kyb/{fileName} {
       allow read: if true;
       allow write: if request.auth != null

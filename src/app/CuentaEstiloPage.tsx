@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
+import { ExpertStar } from '@/components/billing/ExpertStar'
+import { hasExpertFeatureAccess } from '@/lib/billingAccess'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
-import {
-  billingPlanOf,
-  buildCatalogThemeForSave,
-  defaultColorsForPreset,
-} from '@/lib/catalogTheme'
+import { buildCatalogThemeForSave, defaultColorsForPreset } from '@/lib/catalogTheme'
 import { CatalogPresetPickerGrid } from '@/app/CatalogPresetPickerGrid'
 import { PublicCatalogThemePreview } from '@/app/PublicCatalogThemePreview'
 import type { McCatalogThemePreset } from '@/types/mc'
@@ -17,6 +15,8 @@ const HEX = /^#[0-9A-Fa-f]{6}$/
 
 export function CuentaEstiloPage() {
   const { profile, tenant } = useMcAuth()
+  const nav = useNavigate()
+  const expertAccess = hasExpertFeatureAccess(tenant)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -27,8 +27,6 @@ export function CuentaEstiloPage() {
   const [cSurface, setCSurface] = useState('')
   const [cText, setCText] = useState('')
   const [cMuted, setCMuted] = useState('')
-
-  const plan = tenant ? billingPlanOf(tenant) : 'free'
 
   useEffect(() => {
     if (!tenant) return
@@ -44,7 +42,11 @@ export function CuentaEstiloPage() {
   }, [tenant])
 
   async function guardarTema() {
-    if (!profile?.tenantId || !tenant || billingPlanOf(tenant) !== 'expert') return
+    if (!profile?.tenantId || !tenant) return
+    if (!expertAccess) {
+      nav('/app/plan')
+      return
+    }
     setBusy(true)
     setMsg(null)
     try {
@@ -95,23 +97,16 @@ export function CuentaEstiloPage() {
 
       {!tenant ? (
         <p className="text-[15px] text-[var(--cat-muted)]">Cargando tienda…</p>
-      ) : plan !== 'expert' ? (
-        <div className="mc-card space-y-4">
-          <p className="ios-subhead leading-relaxed text-[var(--cat-text)]">
-            La personalización de plantillas y colores está incluida en el plan{' '}
-            <strong className="font-medium">Expert</strong>.
-          </p>
-          <Link
-            to="/app/plan"
-            className="mc-btn-primary inline-flex w-full items-center justify-center py-3 text-[15px] no-underline"
-          >
-            Ver planes y pasar a Expert
-          </Link>
-        </div>
       ) : (
         <div className="mc-card space-y-6">
+          {!expertAccess && (
+            <p className="ios-footnote border border-neutral-200/60 bg-neutral-50/50 px-3 py-2">
+              <ExpertStar className="mr-1 inline" /> Función Expert —{' '}
+              <Link to="/app/plan" className="font-medium underline">activá tu plan</Link> para guardar.
+            </p>
+          )}
           <div>
-            <p className="ios-headline">Tema · Expert</p>
+            <p className="ios-headline inline-flex items-center gap-1.5"><ExpertStar />Tema del catálogo</p>
             <p className="ios-subhead mt-2 leading-relaxed">
               Elegí <strong className="font-medium text-[var(--cat-text)]">cómo se ve el catálogo</strong>: cada plantilla
               tiene un layout distinto (lista, cuadrícula, vidriera, fotos grandes…). Los colores del panel siguen el tema.

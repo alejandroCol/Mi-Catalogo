@@ -5,7 +5,7 @@ import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, getAuthApp } from '@/lib/firebase'
 import { callMcSendAuthVerificationEmail } from '@/lib/mcSendAuthVerificationEmail'
 import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
-import { IconPhotoStack } from '@/icons/McIcons'
+import { AuthBrandHeader } from '@/brand/AuthBrandHeader'
 
 const RESEND_COOLDOWN_MS = 60_000
 
@@ -150,15 +150,15 @@ export function VerifyEmailPage() {
   return (
     <div className="mc-page flex min-h-svh flex-col justify-center px-4 py-10">
       <div className="mx-auto w-full max-w-md">
-        <div className="mb-10 flex flex-col items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center border border-neutral-200/60 text-mc-900">
-            <IconPhotoStack size={28} />
-          </div>
-          <h1 className="ios-large-title text-center tracking-tighter">Confirmá tu correo</h1>
-          <p className="ios-subhead max-w-sm text-center leading-relaxed">
-            Te enviamos un mensaje con un <strong className="font-medium text-mc-900">enlace seguro</strong> para validar que el correo es tuyo y activar tu cuenta.
-          </p>
-        </div>
+        <AuthBrandHeader
+          title="Confirmá tu correo"
+          subtitle={
+            <>
+              Te enviamos un mensaje con un <strong className="font-medium text-mc-900">enlace seguro</strong> para
+              validar que el correo es tuyo y activar tu cuenta.
+            </>
+          }
+        />
 
         <div className="mc-card space-y-5">
           {email ? (

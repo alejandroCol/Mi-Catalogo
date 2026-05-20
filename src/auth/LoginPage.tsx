@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { firebaseConfigured, getAuthApp } from '@/lib/firebase'
-import { IconPhotoStack } from '@/icons/McIcons'
+import { AuthBrandHeader } from '@/brand/AuthBrandHeader'
 
 export function LoginPage() {
   const nav = useNavigate()
@@ -41,13 +41,7 @@ export function LoginPage() {
   return (
     <div className="mc-page flex min-h-svh flex-col justify-center px-4 py-10">
       <div className="mx-auto w-full max-w-md">
-        <div className="mb-10 flex flex-col items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center border border-neutral-200/60 text-mc-900">
-            <IconPhotoStack size={28} />
-          </div>
-          <h1 className="ios-large-title text-center tracking-tighter">Mi Catálogo</h1>
-          <p className="ios-subhead max-w-xs text-center leading-relaxed">Ingresá a tu tienda</p>
-        </div>
+        <AuthBrandHeader subtitle="Ingresá a tu tienda" />
         <form onSubmit={onSubmit} className="mc-card space-y-5">
           <div>
             <label className="ios-footnote font-medium text-mc-700">Correo</label>

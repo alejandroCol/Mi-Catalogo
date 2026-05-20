@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { addDoc, collection, updateDoc } from 'firebase/firestore'
+import { doc, updateDoc } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
+import { canAddProductos, maxProductosForTenant, resolvePlanConfig } from '@/lib/billingPlans'
 import { formatIntegerEsCo } from '@/lib/formatCop'
 import { mcProductosCollection } from '@/lib/mcCollections'
+import { mcCreateProducto, ProductLimitError } from '@/lib/mcWrites'
+import type { McPlatformSettings, McTenant } from '@/types/mc'
 
 type DraftRow = {
   key: string
@@ -22,10 +25,16 @@ function humanNameFromFile(file: File, index: number) {
 
 export function BulkAddProductsModal({
   tenantId,
+  tenant,
+  platformSettings,
+  currentCount,
   nextOrden,
   onClose,
 }: {
   tenantId: string
+  tenant: McTenant
+  platformSettings: McPlatformSettings | null
+  currentCount: number
   nextOrden: number
   onClose: () => void
 }) {
@@ -106,10 +115,6 @@ export function BulkAddProductsModal({
       setErr('Elegí al menos una foto desde la galería.')
       return
     }
-    if (!firebaseStorageConfigured) {
-      setErr('Firebase Storage no está configurado: sin eso no podemos guardar las fotos.')
-      return
-    }
     for (const r of rows) {
       if (!r.nombre.trim()) {
         setErr('Completá el nombre en todas las filas.')
@@ -121,11 +126,23 @@ export function BulkAddProductsModal({
         return
       }
     }
+    if (!firebaseStorageConfigured) {
+      setErr('Firebase Storage no está configurado: sin eso no podemos guardar las fotos.')
+      return
+    }
+    const config = resolvePlanConfig(platformSettings)
+    const maxAdd = maxProductosForTenant(tenant, config) - currentCount
+    if (!canAddProductos(tenant, config, currentCount, rows.length)) {
+      setErr(
+        maxAdd <= 0
+          ? 'Alcanzaste el límite de productos de tu plan.'
+          : `Solo podés agregar ${maxAdd} producto(s) más con tu plan actual.`,
+      )
+      return
+    }
 
     setBusy(true)
     try {
-      const db = getDb()
-      const col = collection(db, mcProductosCollection(tenantId))
       const storage = getStorageApp()
       const now = Date.now()
 
@@ -134,27 +151,35 @@ export function BulkAddProductsModal({
         setProgress(`Guardando ${i + 1} de ${rows.length}…`)
         const precioNum = Number(r.precio.replace(/\D/g, ''))
         const stockNum = Number(r.stock.replace(/\D/g, ''))
-        const docRef = await addDoc(col, {
-          nombre: r.nombre.trim(),
-          precioCop: precioNum,
-          stock: Number.isFinite(stockNum) ? stockNum : 0,
-          activo: true,
-          enCatalogo: true,
-          orden: nextOrden + i,
-          createdAt: now,
-          updatedAt: now,
-          marcarNovedad: false,
-        })
-        const pathRef = ref(storage, `mc_tenants/${tenantId}/productos/${docRef.id}.jpg`)
+        const { id: productId } = await mcCreateProducto(
+          tenantId,
+          {
+            nombre: r.nombre.trim(),
+            precioCop: precioNum,
+            stock: Number.isFinite(stockNum) ? stockNum : 0,
+            activo: true,
+            enCatalogo: true,
+            orden: nextOrden + i,
+            createdAt: now,
+            updatedAt: now,
+            marcarNovedad: false,
+          },
+          platformSettings,
+        )
+        const pathRef = ref(storage, `mc_tenants/${tenantId}/productos/${productId}.jpg`)
         const optimized = await compressImageForUpload(r.file)
         await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
         const imageUrl = await getDownloadURL(pathRef)
-        await updateDoc(docRef, { imageUrl })
+        await updateDoc(doc(getDb(), mcProductosCollection(tenantId), productId), { imageUrl })
       }
 
       onClose()
-    } catch {
-      setErr('No se pudo completar la carga. Revisá conexión y reglas de Storage/Firestore.')
+    } catch (e) {
+      if (e instanceof ProductLimitError) {
+        setErr(e.message)
+      } else {
+        setErr('No se pudo completar la carga. Revisá conexión y reglas de Storage/Firestore.')
+      }
       setProgress(null)
     } finally {
       setBusy(false)

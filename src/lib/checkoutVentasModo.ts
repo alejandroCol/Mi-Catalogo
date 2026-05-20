@@ -45,6 +45,16 @@ export function isCheckoutVentasConfigured(
   return false
 }
 
+/** Cobro activo distinto de WhatsApp (OnePay o pasarela Mi Catálogo). */
+export function hasNonWhatsappCheckoutVentasEnabled(
+  tenant: TenantVentasPick | null | undefined,
+  platformSettings: Pick<McPlatformSettings, 'pasarelaMicatalogoActiva'> | null | undefined,
+): boolean {
+  const modo = explicitCheckoutVentasModo(tenant)
+  if (modo === null || modo === 'whatsapp') return false
+  return isCheckoutVentasConfigured(tenant, platformSettings)
+}
+
 /** Catálogo público listo para el vendedor: método de cobro y tarifas de envío definidos. */
 export function isCatalogoVendedorListo(
   tenant: TenantVentasPick | null | undefined,

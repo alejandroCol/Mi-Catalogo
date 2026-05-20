@@ -19,8 +19,10 @@ export function seasonBannerStoragePath(tenantId: string): string {
   return `mc_tenants/${tenantId}/season_banner/hero.jpg`
 }
 
-export function seasonBannerDismissStorageKey(slug: string, revision: number): string {
-  return `mc_season_banner_${slug}_${revision}`
+export const MC_CATALOGO_PRODUCTOS_ID = 'mc-catalogo-productos'
+
+export function scrollToCatalogProducts(behavior: ScrollBehavior = 'smooth'): void {
+  document.getElementById(MC_CATALOGO_PRODUCTOS_ID)?.scrollIntoView({ behavior, block: 'start' })
 }
 
 function trimTo(s: string | undefined, max: number): string {

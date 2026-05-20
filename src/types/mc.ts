@@ -84,6 +84,8 @@ export interface McTenant {
   billingPinnedCardId?: string
   billingPinnedAccountId?: string
   billingDebitMethod?: 'card' | 'nequi'
+  /** false = no renovar al vencer; el plan sigue hasta subscriptionEndsAt. */
+  billingAutoRenewEnabled?: boolean
   billingPayerFirstName?: string
   billingPayerLastName?: string
   billingPayerDocumentType?: string
@@ -150,6 +152,17 @@ export interface McTenant {
   onepayKybSubmittedAt?: number
   onepayKybTermsAcceptedAt?: number
   onepayKybTermsVersion?: string
+  /**
+   * Periodicidad deseada de llegada de fondos (solo registro interno / súper admin; no se envía a OnePay).
+   */
+  onepayFundWithdrawalPeriod?: 'daily' | 'weekly' | 'biweekly' | 'monthly'
+  /** Cliente OnePay (plataforma) para retiros con pasarela sin registro. */
+  onepayPayoutCustomerId?: string
+  /** Cuenta bancaria OnePay vinculada al cliente para dispersión. */
+  onepayPayoutAccountId?: string
+  /** Últimos dígitos de la cuenta (solo visualización). */
+  onepayPayoutAccountHint?: string
+  onepayPayoutSetupAt?: number
 }
 
 /** Cupón configurable desde Cuenta · checkout catálogo. */

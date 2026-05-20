@@ -15,7 +15,9 @@ import { formatCop } from '@/lib/formatCop'
 import type { McCatalogThemePreset } from '@/types/mc'
 import type { McProducto } from '@/types/mc'
 import { CatalogListToolbar } from '@/public/CatalogListToolbar'
+import { SeasonBannerHero } from '@/public/SeasonBannerHero'
 import { usePublicTenant } from '@/public/usePublicTenant'
+import { isSeasonBannerActive, MC_CATALOGO_PRODUCTOS_ID } from '@/lib/seasonBanner'
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 
 function CatalogIntro({ preset }: { preset: McCatalogThemePreset }) {
@@ -333,11 +335,21 @@ export function PublicCatalogListPage() {
   const novedadBadgeFor = (p: McProducto & { id: string }) => isProductNovedad(p, novedadNow)
   const restoSectionTitle = sectionHeading(preset, 'resto')
   const noHeroBeforeSearch = preset === 'morning'
+  const showSeasonHero = isSeasonBannerActive(tenant)
 
   return (
-    <div className="space-y-8 sm:space-y-10">
-      <div className={clsx(noHeroBeforeSearch ? 'space-y-0' : 'space-y-3 sm:space-y-4')}>
-        <CatalogIntro preset={preset} />
+    <div className={clsx(showSeasonHero && 'mc-catalog-list--season')}>
+      {showSeasonHero ? <SeasonBannerHero tenant={tenant} /> : null}
+
+      <div
+        id={MC_CATALOGO_PRODUCTOS_ID}
+        className={clsx(
+          'space-y-8 scroll-mt-[calc(3.25rem+0.5rem)] sm:space-y-10 sm:scroll-mt-[calc(3.75rem+0.75rem)]',
+          showSeasonHero && 'pt-6 sm:pt-8',
+        )}
+      >
+      <div className={clsx(!showSeasonHero && (noHeroBeforeSearch ? 'space-y-0' : 'space-y-3 sm:space-y-4'))}>
+        {!showSeasonHero ? <CatalogIntro preset={preset} /> : null}
         <div id="mc-catalogo-busqueda" className="scroll-mt-20">
           <CatalogListToolbar
             value={filter}
@@ -406,6 +418,7 @@ export function PublicCatalogListPage() {
           </section>
         </>
       )}
+      </div>
     </div>
   )
 }

@@ -2,12 +2,14 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore'
 import {
   MC_BILLING_GRACE_MS,
   MC_BILLING_METADATA_KEYS,
+  MC_BILLING_PAYMENTS_COLLECTION,
   MC_BILLING_PURPOSE,
   MC_BILLING_SUB_COLLECTION,
   MC_BILLING_SUB_DOC,
   type McBillingDebitMethod,
 } from './constants.js'
 import { resolveBillingDiscountCode } from './discountCodes.js'
+import { billingPhoneE164Co } from './phone.js'
 import {
   billingMetadataForApi,
   chargeStatusFailed,
@@ -41,15 +43,46 @@ export type McBillingSubFirestore = {
   billingPeriod: McBillingPeriod
   currentPeriodStartMs: number
   currentPeriodEndMs: number
-  nextDebitDueAtMs: number
+  nextDebitDueAtMs?: number
   amountCop: number
   discountCodeId?: string
   debitMethodKind?: 'card' | 'account'
+  autoRenewEnabled?: boolean
   lastChargeId?: string
   pendingChargeId?: string
   lastProcessedChargeId?: string
   failureStreak?: number
   updatedAt?: unknown
+}
+
+function paymentsRef(db: Firestore, tenantId: string, chargeId: string) {
+  return db.doc(
+    `mc_tenants/${tenantId}/${MC_BILLING_PAYMENTS_COLLECTION}/${chargeId}`,
+  )
+}
+
+async function mcBillingRecordPayment(
+  db: Firestore,
+  tenantId: string,
+  params: {
+    chargeId: string
+    amountCop: number
+    period: McBillingPeriod
+    kind: 'activation' | 'renewal'
+    status?: string
+  },
+): Promise<void> {
+  await paymentsRef(db, tenantId, params.chargeId).set(
+    {
+      chargeId: params.chargeId,
+      amountCop: params.amountCop,
+      period: params.period,
+      kind: params.kind,
+      status: params.status ?? 'paid',
+      createdAt: Date.now(),
+    },
+    { merge: true },
+  )
 }
 
 function subRef(db: Firestore, tenantId: string) {
@@ -96,7 +129,7 @@ export async function mcBillingEnsureCustomerV2(
       first_name: payer.firstName,
       last_name: payer.lastName,
       email: payer.email,
-      phone: payer.phone.replace(/\D/g, '').slice(0, 15) || '3000000000',
+      phone: billingPhoneE164Co(payer.phone),
       document_type: payer.documentType,
       document_number: payer.documentNumber,
     },
@@ -206,25 +239,42 @@ export async function mcBillingApplyPaidPeriod(params: {
     currentPeriodEndMs: periodEnd,
     nextDebitDueAtMs: nextDebit,
     amountCop,
+    autoRenewEnabled: true,
     ...(discountCodeId ? { discountCodeId } : {}),
-    ...(chargeId ? { lastChargeId: chargeId, pendingChargeId: undefined } : {}),
+    ...(chargeId ? { lastChargeId: chargeId } : {}),
     failureStreak: 0,
     updatedAt: FieldValue.serverTimestamp(),
   }
 
-  await subRef(db, tenantId).set(subPayload, { merge: true })
+  await subRef(db, tenantId).set(
+    {
+      ...subPayload,
+      ...(chargeId ? { pendingChargeId: FieldValue.delete() } : {}),
+    },
+    { merge: true },
+  )
   await tenantRef.set(
     {
       billingPlan: 'expert',
       subscriptionEndsAt,
       subscriptionPlan: period === 'yearly' ? 'yearly' : 'monthly',
       billingSubStatus: 'active',
+      billingAutoRenewEnabled: true,
       billingGraceUntilMs: FieldValue.delete(),
       billingPastDueSinceMs: FieldValue.delete(),
       updatedAt: now,
     },
     { merge: true },
   )
+
+  if (chargeId && amountCop > 0) {
+    await mcBillingRecordPayment(db, tenantId, {
+      chargeId,
+      amountCop,
+      period,
+      kind: isRenewal ? 'renewal' : 'activation',
+    })
+  }
 
   if (discountCodeId) {
     await db.doc(`mc_billing_discount_codes/${discountCodeId}`).set(
@@ -350,12 +400,20 @@ export async function mcBillingActivateWithCharge(params: {
     nextDebitDueAtMs: nextDebitDueFromPeriodEnd(periodEnd, 0),
     amountCop: pricing.finalPriceCop,
     discountCodeId: pricing.discountCodeId,
+    autoRenewEnabled: true,
     lastChargeId: ch.id,
-    pendingChargeId: chargeStatusPaid(ch.status) ? undefined : ch.id,
     debitMethodKind: params.method === 'nequi' ? 'account' : 'card',
     updatedAt: FieldValue.serverTimestamp(),
   }
-  await subRef(params.db, params.tenantId).set(subInit, { merge: true })
+  await subRef(params.db, params.tenantId).set(
+    {
+      ...subInit,
+      ...(chargeStatusPaid(ch.status)
+        ? { pendingChargeId: FieldValue.delete() }
+        : { pendingChargeId: ch.id }),
+    },
+    { merge: true },
+  )
 
   if (chargeStatusPaid(ch.status)) {
     await mcBillingApplyPaidPeriod({
@@ -445,6 +503,7 @@ export async function mcBillingRunDueRenewals(
     if (!tenantId) continue
     const sub = doc.data() as McBillingSubFirestore
     if (sub.pendingChargeId) continue
+    if (sub.autoRenewEnabled === false) continue
 
     const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
     if (!tenantSnap.exists) continue
@@ -543,6 +602,76 @@ export async function mcBillingActivateFreeWithCode(params: {
     amountCop: 0,
     discountCodeId: pricing.discountCodeId,
     freeTrialDays: pricing.freeTrialDays ?? (params.period === 'yearly' ? 365 : 30),
+  })
+}
+
+/** Detiene renovaciones automáticas; el plan sigue vigente hasta subscriptionEndsAt. */
+export async function mcBillingCancelAutoRenew(db: Firestore, tenantId: string): Promise<void> {
+  const tenantRef = db.doc(`mc_tenants/${tenantId}`)
+  const tenantSnap = await tenantRef.get()
+  if (!tenantSnap.exists) throw new Error('Tienda no encontrada.')
+
+  const tenant = tenantSnap.data() as { subscriptionEndsAt?: number }
+  if (typeof tenant.subscriptionEndsAt !== 'number' || tenant.subscriptionEndsAt <= Date.now()) {
+    throw new Error('No hay un plan vigente para modificar.')
+  }
+
+  await subRef(db, tenantId).set(
+    {
+      autoRenewEnabled: false,
+      nextDebitDueAtMs: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  )
+  await tenantRef.set(
+    {
+      billingAutoRenewEnabled: false,
+      billingPinnedCardId: FieldValue.delete(),
+      billingPinnedAccountId: FieldValue.delete(),
+      billingDebitMethod: FieldValue.delete(),
+      updatedAt: Date.now(),
+    },
+    { merge: true },
+  )
+}
+
+export async function mcBillingListPaymentHistory(
+  db: Firestore,
+  tenantId: string,
+  limit = 24,
+): Promise<
+  {
+    chargeId: string
+    amountCop: number
+    period: McBillingPeriod
+    kind: 'activation' | 'renewal'
+    status: string
+    createdAt: number
+  }[]
+> {
+  const snap = await db
+    .collection(`mc_tenants/${tenantId}/${MC_BILLING_PAYMENTS_COLLECTION}`)
+    .orderBy('createdAt', 'desc')
+    .limit(limit)
+    .get()
+  return snap.docs.map((d) => {
+    const row = d.data() as {
+      chargeId?: string
+      amountCop?: number
+      period?: McBillingPeriod
+      kind?: 'activation' | 'renewal'
+      status?: string
+      createdAt?: number
+    }
+    return {
+      chargeId: row.chargeId ?? d.id,
+      amountCop: Math.max(0, Math.round(Number(row.amountCop ?? 0))),
+      period: row.period === 'yearly' ? 'yearly' : 'monthly',
+      kind: row.kind === 'renewal' ? 'renewal' : 'activation',
+      status: row.status ?? 'paid',
+      createdAt: typeof row.createdAt === 'number' ? row.createdAt : 0,
+    }
   })
 }
 

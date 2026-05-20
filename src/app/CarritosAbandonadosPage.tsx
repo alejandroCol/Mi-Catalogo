@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ExpertStar } from '@/components/billing/ExpertStar'
@@ -191,12 +192,7 @@ export function CarritosAbandonadosPage() {
   return (
     <div className="mc-shell space-y-6">
       <div>
-        <Link
-          to="/app/cuenta"
-          className="text-[13px] font-medium text-[var(--cat-muted)] transition hover:opacity-70"
-        >
-          ← Volver a Cuenta
-        </Link>
+        <ConfiguracionesBackLink />
         <h1 className="ios-large-title mt-3 flex flex-wrap items-center gap-2">
           Carritos abandonados
           <ExpertStar />

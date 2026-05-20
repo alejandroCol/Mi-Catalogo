@@ -1,48 +1,54 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    /** exists() antes de get(): doc inexistente tumba toda la condición. */
+    function mcUserBelongsToTenant(tenantId) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/mc_users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId;
+    }
+
+    function mcUserCanWriteImage(tenantId, maxBytes) {
+      return mcUserBelongsToTenant(tenantId)
+        && request.resource.size < maxBytes
+        && request.resource.contentType.matches('image/.*');
+    }
+
     /** Imágenes del catálogo (públicas para /catalogo). Escritura solo administrador. */
     match /catalogo/{allPaths=**} {
       allow read: if true;
       allow write: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/usuarios/$(request.auth.uid))
         && firestore.get(/databases/(default)/documents/usuarios/$(request.auth.uid)).data.role == 'administrador';
     }
 
     /** Mi Catálogo — fotos de productos por tienda */
     match /mc_tenants/{tenantId}/productos/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null
-        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId;
+      allow write: if mcUserBelongsToTenant(tenantId);
     }
 
     /** Guías de rastreo (imagen comprimida) — lectura pública opcional */
     match /mc_tenants/{tenantId}/ordenes_catalogo/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null
-        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId;
+      allow write: if mcUserCanWriteImage(tenantId, 4 * 1024 * 1024);
     }
 
     /** Logo de tienda (plan Expert) */
     match /mc_tenants/{tenantId}/logo/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null
-        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId
-        && request.resource.size < 4 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+      allow write: if mcUserCanWriteImage(tenantId, 4 * 1024 * 1024);
     }
 
     /** Banner temporada fullscreen (plan Expert) */
     match /mc_tenants/{tenantId}/season_banner/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null
-        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId
-        && request.resource.size < 6 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+      allow write: if mcUserCanWriteImage(tenantId, 6 * 1024 * 1024);
     }
+
     match /mc_tenants/{tenantId}/onepay_kyb/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null
-        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId
+      allow write: if mcUserBelongsToTenant(tenantId)
         && request.resource.size < 16 * 1024 * 1024
         && request.resource.contentType == 'application/pdf';
     }

@@ -595,6 +595,21 @@ export function SuperAdminPage() {
                           <span className="font-mono text-[12px]">{selected.tenant.onepayCompanyId}</span>
                         </>
                       ) : null}
+                      {selected.tenant.onepayFundWithdrawalPeriod ? (
+                        <>
+                          {' '}
+                          · llegada de fondos:{' '}
+                          <strong className="text-mc-900">
+                            {selected.tenant.onepayFundWithdrawalPeriod === 'daily'
+                              ? 'Diariamente'
+                              : selected.tenant.onepayFundWithdrawalPeriod === 'weekly'
+                                ? 'Semanalmente'
+                                : selected.tenant.onepayFundWithdrawalPeriod === 'biweekly'
+                                  ? 'Quincenalmente'
+                                  : 'Mensualmente'}
+                          </strong>
+                        </>
+                      ) : null}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <button

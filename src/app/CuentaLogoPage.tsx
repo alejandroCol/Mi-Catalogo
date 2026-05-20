@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { deleteField, doc, updateDoc } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
@@ -39,8 +40,14 @@ export function CuentaLogoPage() {
       await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), { storeLogoUrl: url })
       setPreviewUrl(url)
       setMsg('Logo actualizado. Ya se ve en tu catálogo público.')
-    } catch {
-      setMsg('No se pudo subir el logo. Revisá conexión y reglas de Storage.')
+    } catch (err: unknown) {
+      const code =
+        err && typeof err === 'object' && 'code' in err ? String((err as { code: string }).code) : ''
+      if (code === 'storage/unauthorized') {
+        setMsg('Permiso denegado en Storage. Reintentá en unos segundos o volvé a iniciar sesión.')
+      } else {
+        setMsg('No se pudo subir el logo. Revisá conexión e intentá de nuevo.')
+      }
     } finally {
       setBusy(false)
     }
@@ -69,14 +76,9 @@ export function CuentaLogoPage() {
   }
 
   return (
-    <div className="mc-shell space-y-6">
+    <div className="mc-shell mc-config-subpage">
       <div>
-        <Link
-          to="/app/cuenta"
-          className="ios-footnote font-medium text-mc-700 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-80"
-        >
-          ← Volver a Cuenta
-        </Link>
+        <ConfiguracionesBackLink />
         <h1 className="ios-large-title mt-3">Logo de tienda</h1>
         <p className="ios-subhead mt-2 max-w-xl leading-relaxed text-[var(--cat-muted)]">
           Un detalle sobrio en la cabecera de tu catálogo. Solo disponible en plan Expert.

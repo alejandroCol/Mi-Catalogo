@@ -9,6 +9,8 @@ import { MC } from '@/lib/mcCollections'
 import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 import type { McTenant } from '@/types/mc'
 import { IconChevronLeft, IconClipboard } from '@/icons/McIcons'
+import { OnepayCredentialsForm } from '@/superadmin/onepay/OnepayCredentialsForm'
+import type { OnepayCredentialsPayload } from '@/superadmin/onepay/onepayCredentialsPayload'
 
 function callableErrorMessage(e: unknown): string {
   if (
@@ -27,10 +29,6 @@ export function SuperAdminTenantOnepayPage() {
   const { profile } = useMcAuth()
   const [tenant, setTenant] = useState<(McTenant & { id: string }) | null>(null)
   const [loading, setLoading] = useState(true)
-  const [onePaySk, setOnePaySk] = useState('')
-  const [onePayWebhookSecret, setOnePayWebhookSecret] = useState('')
-  const [onePayWebhookToken, setOnePayWebhookToken] = useState('')
-  const [onePayPublicKey, setOnePayPublicKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [hookKHint, setHookKHint] = useState<string | null>(null)
@@ -61,6 +59,16 @@ export function SuperAdminTenantOnepayPage() {
     [kShown],
   )
 
+  const credentialHints = useMemo(
+    () => ({
+      keyHint: tenant?.onepayKeyHint,
+      webhookHint: tenant?.onepayWebhookHint,
+      webhookTokenHint: tenant?.onepayWebhookTokenHint,
+      publicKeyHint: tenant?.onepayPublicKeyHint,
+    }),
+    [tenant],
+  )
+
   if (!isMcSuperAdminUser(profile)) {
     return <Navigate to="/app" replace />
   }
@@ -68,82 +76,28 @@ export function SuperAdminTenantOnepayPage() {
     return <Navigate to="/superadmin" replace />
   }
 
-  async function vincularOnepay() {
+  async function guardarCredenciales(payload: OnepayCredentialsPayload) {
     if (!firebaseConfigured || !tenantId) return
-    const k = onePaySk.trim()
-    const wh = onePayWebhookSecret.trim()
-    const wt = onePayWebhookToken.trim()
-    const pk = onePayPublicKey.trim()
-    if (!k.startsWith('sk_test_') && !k.startsWith('sk_live_')) {
-      setMsg('La clave debe ser la API secret de OnePay (sk_test_… o sk_live_…).')
-      return
-    }
     setBusy(true)
     setMsg(null)
     setHookKHint(null)
     try {
       const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepayLinkMerchant')
-      const res = (await fn(
-        wh.length >= 8
-          ? {
-              secretKey: k,
-              webhookSecret: wh,
-              ...(wt.length >= 8 ? { webhookToken: wt } : {}),
-              ...(pk.length >= 8 ? { publicKey: pk } : {}),
-              targetTenantId: tenantId,
-            }
-          : {
-              secretKey: k,
-              ...(wt.length >= 8 ? { webhookToken: wt } : {}),
-              ...(pk.length >= 8 ? { publicKey: pk } : {}),
-              targetTenantId: tenantId,
-            },
-      )) as { data: { onpayWebHookK?: string; needWebhookSecret?: boolean } }
-      setOnePaySk('')
+      const res = (await fn({ ...payload, targetTenantId: tenantId })) as {
+        data: { onpayWebHookK?: string; needWebhookSecret?: boolean }
+      }
       if (res.data?.onpayWebHookK) {
         setHookKHint(res.data.onpayWebHookK)
       }
       if (res.data?.needWebhookSecret) {
         setMsg(
-          'Paso 1: clave API guardada. Copiá la URL de abajo, creá en OnePay un webhook a esa URL y pegá el Secreto del webhook.',
+          'Clave API guardada. Copiá la URL de abajo, creá en OnePay un webhook a esa URL y pegá el secreto del webhook.',
         )
+      } else if (tenant?.onepayPaymentsEnabled) {
+        setMsg('Credenciales actualizadas.')
       } else {
-        setOnePayWebhookSecret('')
-        setOnePayWebhookToken('')
-        setOnePayPublicKey('')
         setMsg('OnePay activo para esta tienda.')
       }
-      await load()
-    } catch (e) {
-      setMsg(callableErrorMessage(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function completarWebhookOnepay() {
-    if (!firebaseConfigured || !tenantId) return
-    const wh = onePayWebhookSecret.trim()
-    const wt = onePayWebhookToken.trim()
-    const pk = onePayPublicKey.trim()
-    if (wh.length < 8) {
-      setMsg('Pegá el Secreto del webhook (whsec_…).')
-      return
-    }
-    setBusy(true)
-    setMsg(null)
-    try {
-      const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepaySetWebhookSecret')
-      await fn({
-        webhookSecret: wh,
-        ...(wt.length >= 8 ? { webhookToken: wt } : {}),
-        ...(pk.length >= 8 ? { publicKey: pk } : {}),
-        targetTenantId: tenantId,
-      })
-      setOnePayWebhookSecret('')
-      setOnePayWebhookToken('')
-      setOnePayPublicKey('')
-      setMsg('Webhook guardado y pasarela activada.')
       await load()
     } catch (e) {
       setMsg(callableErrorMessage(e))
@@ -179,6 +133,8 @@ export function SuperAdminTenantOnepayPage() {
       setMsg('No se pudo copiar. Copiá la URL manualmente.')
     }
   }
+
+  const isConfigured = Boolean(tenant?.onepayKeyHint)
 
   return (
     <div className="mc-shell space-y-6 pb-32">
@@ -264,6 +220,21 @@ export function SuperAdminTenantOnepayPage() {
             .
           </p>
 
+          {tenant.onepayPaymentsEnabled ? (
+            <p className="ios-subhead text-[13px] leading-relaxed text-emerald-800">
+              Pasarela activa
+              {tenant.onepayKeyHint ? <> · API ···{tenant.onepayKeyHint}</> : null}
+              {tenant.onepayWebhookHint ? <> · whsec ···{tenant.onepayWebhookHint}</> : null}
+              {tenant.onepayWebhookTokenHint ? <> · wh_hdr ···{tenant.onepayWebhookTokenHint}</> : null}
+              {tenant.onepayPublicKeyHint ? <> · pk ···{tenant.onepayPublicKeyHint}</> : null}
+            </p>
+          ) : isConfigured ? (
+            <p className="ios-subhead text-[13px] leading-relaxed text-amber-900">
+              Pendiente de webhook
+              {tenant.onepayKeyHint ? <> · API ···{tenant.onepayKeyHint}</> : null}
+            </p>
+          ) : null}
+
           {kShown ? (
             <div className="rounded-md border border-neutral-200/60 bg-mc-50/40 px-3 py-2.5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
@@ -283,105 +254,24 @@ export function SuperAdminTenantOnepayPage() {
             </div>
           ) : null}
 
+          <OnepayCredentialsForm
+            hints={credentialHints}
+            isConfigured={isConfigured}
+            busy={busy}
+            onValidationError={setMsg}
+            onSubmit={guardarCredenciales}
+          />
+
           {tenant.onepayPaymentsEnabled ? (
-            <div className="space-y-3">
-              <p className="ios-subhead text-[13px] leading-relaxed text-emerald-800">
-                Pasarela activa
-                {tenant.onepayKeyHint ? <> · API ···{tenant.onepayKeyHint}</> : null}
-                {tenant.onepayWebhookHint ? <> · whsec ···{tenant.onepayWebhookHint}</> : null}
-                {tenant.onepayWebhookTokenHint ? <> · wh_hdr ···{tenant.onepayWebhookTokenHint}</> : null}
-                {tenant.onepayPublicKeyHint ? <> · pk ···{tenant.onepayPublicKeyHint}</> : null}
-              </p>
-              <button
-                type="button"
-                className="mc-btn-secondary w-full py-2.5 text-[14px]"
-                disabled={busy}
-                onClick={() => void desvincularOnepay()}
-              >
-                {busy ? 'Quitando…' : 'Desvincular OnePay'}
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <p className="text-[12px] font-medium text-mc-700">Paso 1 · Clave API</p>
-                <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">sk_test_… o sk_live_…</label>
-                <input
-                  type="password"
-                  className="mc-input mt-1 py-2.5 font-mono text-[14px]"
-                  autoComplete="off"
-                  placeholder="sk_test_…"
-                  value={onePaySk}
-                  disabled={busy}
-                  onChange={(e) => setOnePaySk(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="mc-btn-primary mt-2 w-full py-2.5 text-[14px]"
-                  disabled={busy || !onePaySk.trim()}
-                  onClick={() => void vincularOnepay()}
-                >
-                  {busy ? 'Guardando…' : 'Guardar clave API'}
-                </button>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-mc-500">
-                  Podés enviar también el secreto del webhook junto con la clave (rellená el paso 2).
-                </p>
-              </div>
-              <div>
-                <p className="text-[12px] font-medium text-mc-700">Paso 2 · Webhook OnePay</p>
-                <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">
-                  Secreto HMAC (<span className="font-mono">whsec_…</span>, al crear el webhook)
-                </label>
-                <input
-                  type="password"
-                  className="mc-input mt-1 py-2.5 font-mono text-[14px]"
-                  autoComplete="off"
-                  placeholder="whsec_…"
-                  value={onePayWebhookSecret}
-                  disabled={busy}
-                  onChange={(e) => setOnePayWebhookSecret(e.target.value)}
-                />
-                <label className="ios-footnote mt-3 block font-medium text-[var(--cat-text)] opacity-80">
-                  Header / token (<span className="font-mono">wh_hdr_…</span> → cabecera{' '}
-                  <span className="font-mono">x-webhook-token</span>)
-                </label>
-                <input
-                  type="password"
-                  className="mc-input mt-1 py-2.5 font-mono text-[14px]"
-                  autoComplete="off"
-                  placeholder="wh_hdr_…"
-                  value={onePayWebhookToken}
-                  disabled={busy}
-                  onChange={(e) => setOnePayWebhookToken(e.target.value)}
-                />
-                <label className="ios-footnote mt-3 block font-medium text-[var(--cat-text)] opacity-80">
-                  Clave pública opcional (<span className="font-mono">pk_test_…</span> /{' '}
-                  <span className="font-mono">pk_live_…</span>)
-                </label>
-                <input
-                  type="password"
-                  className="mc-input mt-1 py-2.5 font-mono text-[14px]"
-                  autoComplete="off"
-                  placeholder="pk_test_…"
-                  value={onePayPublicKey}
-                  disabled={busy}
-                  onChange={(e) => setOnePayPublicKey(e.target.value)}
-                />
-                {(tenant.onepayKeyHint || hookKHint) &&
-                !tenant.onepayPaymentsEnabled &&
-                (tenant.onpayWebHookK || hookKHint) ? (
-                  <button
-                    type="button"
-                    className="mc-btn-secondary mt-2 w-full border-mc-300 py-2.5 text-[14px]"
-                    disabled={busy || onePayWebhookSecret.trim().length < 8}
-                    onClick={() => void completarWebhookOnepay()}
-                  >
-                    {busy ? 'Activando…' : 'Activar con este secreto'}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          )}
+            <button
+              type="button"
+              className="mc-btn-secondary w-full py-2.5 text-[14px]"
+              disabled={busy}
+              onClick={() => void desvincularOnepay()}
+            >
+              {busy ? 'Quitando…' : 'Desvincular OnePay'}
+            </button>
+          ) : null}
 
           <p className="ios-footnote text-[var(--cat-muted)]">
             Cloud Function <code className="rounded bg-mc-100 px-1 text-[12px]">mcOnepayCatalogWebhook</code> · región{' '}

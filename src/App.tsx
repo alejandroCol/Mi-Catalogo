@@ -45,11 +45,35 @@ const CuentaBannerTemporadaPage = lazy(() =>
 const CarritosAbandonadosPage = lazy(() =>
   import('@/app/CarritosAbandonadosPage').then((m) => ({ default: m.CarritosAbandonadosPage })),
 )
+const CuentaPerfilPage = lazy(() =>
+  import('@/app/CuentaPerfilPage').then((m) => ({ default: m.CuentaPerfilPage })),
+)
+const CuentaTiendaPage = lazy(() =>
+  import('@/app/CuentaTiendaPage').then((m) => ({ default: m.CuentaTiendaPage })),
+)
+const CuentaWhatsAppPage = lazy(() =>
+  import('@/app/CuentaWhatsAppPage').then((m) => ({ default: m.CuentaWhatsAppPage })),
+)
+const CuentaCheckoutVentasPage = lazy(() =>
+  import('@/app/CuentaCheckoutVentasPage').then((m) => ({ default: m.CuentaCheckoutVentasPage })),
+)
+const CuentaPoliticasPage = lazy(() =>
+  import('@/app/CuentaPoliticasPage').then((m) => ({ default: m.CuentaPoliticasPage })),
+)
+const CuentaResumenVentasPage = lazy(() =>
+  import('@/app/CuentaResumenVentasPage').then((m) => ({ default: m.CuentaResumenVentasPage })),
+)
 const PagosPasarelaPage = lazy(() =>
   import('@/app/PagosPasarelaPage').then((m) => ({ default: m.PagosPasarelaPage })),
 )
 const OnepayPasarelaResumenPage = lazy(() =>
   import('@/app/OnepayPasarelaResumenPage').then((m) => ({ default: m.OnepayPasarelaResumenPage })),
+)
+const VentasSaldoPage = lazy(() =>
+  import('@/app/VentasSaldoPage').then((m) => ({ default: m.VentasSaldoPage })),
+)
+const OnepayRetiroFondosPage = lazy(() =>
+  import('@/app/OnepayRetiroFondosPage').then((m) => ({ default: m.OnepayRetiroFondosPage })),
 )
 const PlanUpgradePage = lazy(() =>
   import('@/app/PlanUpgradePage').then((m) => ({ default: m.PlanUpgradePage })),
@@ -154,6 +178,12 @@ export function App() {
             <Route path="pedidos" element={<PedidosPage />} />
             <Route path="plan" element={<PlanUpgradePage />} />
             <Route path="cuenta" element={<CuentaPage />} />
+            <Route path="cuenta/perfil" element={<CuentaPerfilPage />} />
+            <Route path="cuenta/tienda" element={<CuentaTiendaPage />} />
+            <Route path="cuenta/whatsapp" element={<CuentaWhatsAppPage />} />
+            <Route path="cuenta/checkout-ventas" element={<CuentaCheckoutVentasPage />} />
+            <Route path="cuenta/politicas" element={<CuentaPoliticasPage />} />
+            <Route path="cuenta/resumen-ventas" element={<CuentaResumenVentasPage />} />
             <Route path="cuenta/envio" element={<CuentaEnvioPage />} />
             <Route path="cuenta/cupones" element={<CuentaCuponesPage />} />
             <Route path="cuenta/estilo" element={<CuentaEstiloPage />} />
@@ -162,6 +192,8 @@ export function App() {
             <Route path="cuenta/carritos-abandonados" element={<CarritosAbandonadosPage />} />
             <Route path="pagos-pasarela" element={<PagosPasarelaPage />} />
             <Route path="pagos-pasarela/onepay" element={<OnepayPasarelaResumenPage />} />
+            <Route path="mi-saldo" element={<VentasSaldoPage />} />
+            <Route path="mi-saldo/retirar" element={<OnepayRetiroFondosPage />} />
           </Route>
           <Route
             path="/superadmin"

@@ -16,7 +16,6 @@ type Props = {
   tone?: McBrandTone
   size?: MiCatalogoLogoSize
   className?: string
-  /** Etiqueta accesible; si se omite en variant icon decorativo, usar aria-hidden en el padre. */
   title?: string
 }
 

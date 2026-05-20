@@ -2,6 +2,7 @@
 
 export const MC_BILLING_SUB_DOC = 'default'
 export const MC_BILLING_SUB_COLLECTION = 'billingSubscription'
+export const MC_BILLING_PAYMENTS_COLLECTION = 'billingPayments'
 export const MC_BILLING_GRACE_DAYS = 7
 export const MC_BILLING_GRACE_MS = MC_BILLING_GRACE_DAYS * 24 * 60 * 60 * 1000
 

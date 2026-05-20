@@ -15,6 +15,11 @@ import {
   type OnePayKybBankAccountType,
 } from '@/lib/onepayKyb'
 import {
+  ONEPAY_FUND_WITHDRAWAL_PERIODS,
+  onepayFundWithdrawalPeriodLabel,
+  type OnepayFundWithdrawalPeriod,
+} from '@/lib/onepayFundWithdrawalPeriod'
+import {
   divipolaCodMpioToSuggestedCityId,
   searchDivipolaMunicipios,
   type DivipolaMunicipio,
@@ -160,6 +165,7 @@ export function PagosPasarelaPage() {
   const [ownerDni, setOwnerDni] = useState('')
 
   const [termsAccepted, setTermsAccepted] = useState(false)
+  const [fundWithdrawalPeriod, setFundWithdrawalPeriod] = useState<OnepayFundWithdrawalPeriod>('weekly')
   const [phoneTouched, setPhoneTouched] = useState(false)
 
   const publicCatalogUrl = useMemo(() => {
@@ -543,6 +549,7 @@ export function PagosPasarelaPage() {
         account_type: companyType === 'individual' ? accountType : undefined,
         account_number: companyType === 'individual' ? accountNumber.trim() : undefined,
         account_terms: companyType === 'individual' ? accountTermsAccepted : undefined,
+        fundWithdrawalPeriod,
       })) as { data: { companyId?: string } }
       const id = res.data?.companyId
       if (id) setDoneId(id)
@@ -1311,6 +1318,26 @@ export function PagosPasarelaPage() {
                   Revisión en OnePay: tu empresa quedará en estado <strong className="text-[var(--cat-text)]">pendiente</strong> hasta
                   aprobación. La pasarela en el catálogo se activa cuando el súper admin cargue tu clave API tras el OK.
                 </p>
+                <label className="block space-y-1.5">
+                  <span className="text-[12px] font-medium text-[var(--cat-muted)]">
+                    ¿Cuándo querés que lleguen los fondos a tu cuenta?
+                  </span>
+                  <span className="text-[11px] leading-relaxed text-[var(--cat-muted)]">
+                    Solo para registro interno del equipo Mi Catálogo; no se envía a OnePay.
+                  </span>
+                  <select
+                    className="mc-input w-full max-w-md"
+                    value={fundWithdrawalPeriod}
+                    onChange={(e) => setFundWithdrawalPeriod(e.target.value as OnepayFundWithdrawalPeriod)}
+                    disabled={busy || !subActive}
+                  >
+                    {ONEPAY_FUND_WITHDRAWAL_PERIODS.map((p) => (
+                      <option key={p} value={p}>
+                        {onepayFundWithdrawalPeriodLabel(p)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="flex cursor-pointer items-start gap-3 border border-neutral-200/55 p-4 text-[14px] leading-relaxed">
                   <input
                     type="checkbox"

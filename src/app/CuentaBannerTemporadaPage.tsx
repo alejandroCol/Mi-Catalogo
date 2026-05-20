@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { deleteField, doc, updateDoc } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
@@ -15,7 +16,7 @@ import {
   sanitizeSeasonBannerFields,
   seasonBannerStoragePath,
 } from '@/lib/seasonBanner'
-import { SeasonBannerSplash } from '@/public/SeasonBannerSplash'
+import { SeasonBannerHero } from '@/public/SeasonBannerHero'
 import type { McSeasonBanner, McTenant } from '@/types/mc'
 
 function previewTenant(
@@ -142,21 +143,15 @@ export function CuentaBannerTemporadaPage() {
   }
 
   return (
-    <div className="mc-shell space-y-6">
+    <div className="mc-shell mc-config-subpage">
       <div>
-        <Link
-          to="/app/cuenta"
-          className="ios-footnote font-medium text-mc-700 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-80"
-        >
-          ← Volver a Cuenta
-        </Link>
+        <ConfiguracionesBackLink />
         <h1 className="ios-large-title mt-3 inline-flex items-center gap-2">
           <ExpertStar />
           Banner de temporada
         </h1>
         <p className="ios-subhead mt-2 max-w-2xl leading-relaxed text-[var(--cat-muted)]">
-          Pantalla completa al entrar al catálogo, estilo editorial boutique (plantilla El clásico · rey). Tus
-          clientes lo ven una vez por visita; podés cambiar imagen y textos cuando quieras.
+          Pantalla completa al entrar al catálogo.
         </p>
       </div>
 
@@ -256,12 +251,7 @@ export function CuentaBannerTemporadaPage() {
             <div className="space-y-3">
               <p className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">Vista previa</p>
               <div className="overflow-hidden rounded-2xl border border-neutral-200/60 bg-neutral-100/50">
-                <SeasonBannerSplash
-                  key={previewKey}
-                  tenant={previewTenantData}
-                  slug={tenant.slug}
-                  preview
-                />
+                <SeasonBannerHero key={previewKey} tenant={previewTenantData} preview />
               </div>
             </div>
           )}

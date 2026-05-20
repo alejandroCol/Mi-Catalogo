@@ -1,0 +1,6 @@
+export { ConfigTileGrid } from '@/app/configuraciones/ConfigTileGrid'
+export { ConfiguracionesBackLink } from '@/app/configuraciones/ConfiguracionesBackLink'
+export { ConfiguracionesSubpageLayout } from '@/app/configuraciones/ConfiguracionesSubpageLayout'
+export { buildConfigMenuItems } from '@/app/configuraciones/configMenuItems'
+export { resolveConfigTileHref } from '@/app/configuraciones/resolveConfigTileHref'
+export type { ConfigMenuItem, ConfigTileSize } from '@/app/configuraciones/types'

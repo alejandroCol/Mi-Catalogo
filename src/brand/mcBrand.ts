@@ -3,7 +3,6 @@ export const MC_BRAND = {
   wordmark: 'mi catálogo',
   gray: '#3F3D45',
   gold: '#C5A367',
-  /** Gris más claro para fondos oscuros (mejor contraste WCAG). */
   grayOnDark: '#E8E6EB',
 } as const
 

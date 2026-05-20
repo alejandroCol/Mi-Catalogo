@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import { initializeApp, getApps } from 'firebase-admin/app'
+import { db } from './firebaseAdmin.js'
 import { getAuth } from 'firebase-admin/auth'
-import { FieldValue, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore'
+import { FieldValue, type DocumentSnapshot } from 'firebase-admin/firestore'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { setGlobalOptions } from 'firebase-functions/v2'
 import { defineSecret, defineString } from 'firebase-functions/params'
@@ -29,12 +29,16 @@ import { onepayGetCharge } from './billingSubscription/onepayBillingApi.js'
 import {
   mcBillingAddCard,
   mcBillingAddNequi,
+  mcBillingCancelAutoRenewCallable,
   mcBillingCompleteActivation,
   mcBillingCron,
   mcBillingEnsureCustomer,
   mcBillingGetSdkContext,
+  mcBillingGetSubscriptionState,
   mcBillingListNequiBanks,
+  mcBillingListPaymentHistoryCallable,
   mcBillingPaymentMethods,
+  mcBillingSetDefaultPaymentMethod,
   mcBillingValidateDiscountCode,
   mcBillingValidateNequi,
 } from './billingSubscription/handlers.js'
@@ -42,12 +46,6 @@ import {
 const REGION = process.env.MC_FUNCTIONS_REGION || 'us-central1'
 
 setGlobalOptions({ region: REGION })
-
-if (getApps().length === 0) {
-  initializeApp()
-}
-
-const db = getFirestore()
 
 /** Resolver tienda para callables OnePay: dueño de su tienda o súper admin con `targetTenantId`. */
 async function resolveOnepayTenantId(
@@ -119,7 +117,12 @@ const PLATFORM_ONEPAY_CRED_REF = db.doc('mc_platform/credentials_onepay')
 
 const ONEPAY_API = 'https://api.onepay.la/v1/payments'
 const ONEPAY_BALANCE_URLS = ['https://api.onepay.la/v1/balances', 'https://api.onepay.la/v1/balance']
+const ONEPAY_BALANCE_CASHOUT_URL = 'https://api.onepay.la/v1/balances'
 const ONEPAY_COMPANIES_API = 'https://api.onepay.la/v1/companies'
+const ONEPAY_CUSTOMERS_API = 'https://api.onepay.la/v1/customers'
+const ONEPAY_ACCOUNTS_API = 'https://api.onepay.la/v1/accounts'
+const ONEPAY_CASHOUTS_API = 'https://api.onepay.la/v1/cashouts'
+const ONEPAY_FUND_WITHDRAWAL_PERIODS = new Set(['daily', 'weekly', 'biweekly', 'monthly'])
 /** Docs: https://docs.onepay.la/client/accounts/list-banks — primario `GET /v1/accounts/banks`; fallback `GET /v1/banks` (como G-PRO `onepayListBanks`). */
 const ONEPAY_ACCOUNTS_BANKS_API = 'https://api.onepay.la/v1/accounts/banks'
 const ONEPAY_BANKS_LEGACY_API = 'https://api.onepay.la/v1/banks'
@@ -226,6 +229,50 @@ function assertSk(key: unknown): string {
     )
   }
   return k
+}
+
+function optionalSk(key: unknown): string | null {
+  if (typeof key !== 'string' || !key.trim()) return null
+  return assertSk(key)
+}
+
+function resolveSecretKeyForLink(dataIn: { secretKey?: unknown }, prev: OnepayCredStored | undefined): string {
+  const fromInput = optionalSk(dataIn?.secretKey)
+  if (fromInput) return fromInput
+  const prevSk = typeof prev?.secretKey === 'string' ? prev.secretKey.trim() : ''
+  if (prevSk) return prevSk
+  throw new HttpsError('invalid-argument', 'Clave inválida.')
+}
+
+function hasOnepayCredentialInput(dataIn: {
+  secretKey?: unknown
+  webhookSecret?: unknown
+  webhookToken?: unknown
+  publicKey?: unknown
+}): boolean {
+  return (
+    (typeof dataIn?.secretKey === 'string' && dataIn.secretKey.trim().length >= 8) ||
+    (typeof dataIn?.webhookSecret === 'string' && dataIn.webhookSecret.trim().length >= 8) ||
+    (typeof dataIn?.webhookToken === 'string' && dataIn.webhookToken.trim().length >= 8) ||
+    (typeof dataIn?.publicKey === 'string' && dataIn.publicKey.trim().length >= 8)
+  )
+}
+
+function assertAtLeastOneCredentialField(
+  dataIn: {
+    secretKey?: unknown
+    webhookSecret?: unknown
+    webhookToken?: unknown
+    publicKey?: unknown
+  },
+  isUpdate: boolean,
+): void {
+  if (isUpdate && !hasOnepayCredentialInput(dataIn)) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Completá al menos un campo para actualizar las credenciales.',
+    )
+  }
 }
 
 function assertWebhookSecret(s: unknown): string {
@@ -639,6 +686,407 @@ export const mcOnepayMerchantPayments = onCall({ invoker: 'public' }, async (req
   return onepayListPaymentsPage(secretKey, page)
 })
 
+async function readPlatformOnePaySecretKey(): Promise<string> {
+  const pc = await PLATFORM_ONEPAY_CRED_REF.get()
+  const sk = (pc.data() as { secretKey?: string } | undefined)?.secretKey
+  if (!sk || typeof sk !== 'string' || sk.trim().length < 8) {
+    throw new HttpsError('failed-precondition', 'La pasarela Mi Catálogo no está configurada.')
+  }
+  return sk.trim()
+}
+
+async function assertSellerSaldoAccess(
+  request: { auth?: { uid?: string } },
+): Promise<{
+  tenantId: string
+  tenant: {
+    checkoutVentasModo?: string
+    onepayPaymentsEnabled?: boolean
+    onepayPayoutCustomerId?: string
+    onepayPayoutAccountId?: string
+    onepayPayoutAccountHint?: string
+    onepayFundWithdrawalPeriod?: string
+    subscriptionEndsAt?: number
+  }
+}> {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Iniciá sesión.')
+  }
+  const userSnap = await db.doc(`mc_users/${request.auth.uid}`).get()
+  const tenantId = (userSnap.data() as { tenantId?: string } | undefined)?.tenantId
+  if (!tenantId) {
+    throw new HttpsError('failed-precondition', 'Sin tienda asociada.')
+  }
+  const tenantRef = db.doc(`mc_tenants/${tenantId}`)
+  const tenantSnap = await tenantRef.get()
+  if (!tenantSnap.exists) {
+    throw new HttpsError('not-found', 'Tienda no encontrada.')
+  }
+  const tenant = tenantSnap.data() as {
+    ownerUid?: string
+    subscriptionEndsAt?: number
+    checkoutVentasModo?: string
+    onepayPaymentsEnabled?: boolean
+    onepayPayoutCustomerId?: string
+    onepayPayoutAccountId?: string
+    onepayPayoutAccountHint?: string
+    onepayFundWithdrawalPeriod?: string
+  }
+  if (tenant.ownerUid !== request.auth.uid) {
+    throw new HttpsError('permission-denied', 'Solo el dueño de la tienda.')
+  }
+  if (typeof tenant.subscriptionEndsAt !== 'number' || tenant.subscriptionEndsAt <= Date.now()) {
+    throw new HttpsError('failed-precondition', 'Membresía inactiva.')
+  }
+  const modo = tenant.checkoutVentasModo
+  if (modo !== 'pasarela' && modo !== 'pasarela_micatalogo') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Tu método de pago no usa pasarela. Configuralo en Cuenta.',
+    )
+  }
+  if (modo === 'pasarela' && tenant.onepayPaymentsEnabled !== true) {
+    throw new HttpsError('failed-precondition', 'La pasarela OnePay no está activa para tu tienda.')
+  }
+  if (modo === 'pasarela_micatalogo') {
+    const ps = await PLATFORM_SETTINGS_REF.get()
+    const pasarelaOk =
+      (ps.data() as { pasarelaMicatalogoActiva?: boolean } | undefined)?.pasarelaMicatalogoActiva ===
+      true
+    if (!pasarelaOk) {
+      throw new HttpsError('failed-precondition', 'La pasarela Mi Catálogo no está activa.')
+    }
+  }
+  return { tenantId, tenant }
+}
+
+function mapPasarelaPaymentRow(o: {
+  id: string
+  createdAt?: number
+  totalCop?: number
+  numeroReferencia?: string
+  clienteNombre?: string
+  onepayPaymentId?: string | null
+}) {
+  const gross = Math.max(0, Math.round(Number(o.totalCop) || 0))
+  return {
+    orderId: o.id,
+    createdAt: typeof o.createdAt === 'number' ? o.createdAt : 0,
+    numeroReferencia: o.numeroReferencia ?? null,
+    clienteNombre: o.clienteNombre ?? null,
+    onepayPaymentId: o.onepayPaymentId ?? null,
+    grossCop: gross,
+  }
+}
+
+export const mcOnepaySellerSaldoSummary = onCall({ invoker: 'public' }, async (request) => {
+  const { tenantId, tenant } = await assertSellerSaldoAccess(request)
+  const modo = tenant.checkoutVentasModo === 'pasarela_micatalogo' ? 'pasarela_micatalogo' : 'pasarela'
+
+  const ordersSnap = await db
+    .collection(`mc_tenants/${tenantId}/ordenes_catalogo`)
+    .orderBy('createdAt', 'desc')
+    .limit(120)
+    .get()
+
+  const payments = ordersSnap.docs
+    .map((docSnap) => {
+      const data = docSnap.data() as {
+        pagoOnePay?: boolean
+        onepayViaMicatalogo?: boolean
+        createdAt?: number
+        totalCop?: number
+        numeroReferencia?: string
+        clienteNombre?: string
+        onepayPaymentId?: string | null
+        estado?: string
+      }
+      if (data.pagoOnePay !== true) return null
+      if (data.estado === 'cancelado') return null
+      const viaMc = data.onepayViaMicatalogo === true
+      if (modo === 'pasarela_micatalogo' && !viaMc) return null
+      if (modo === 'pasarela' && viaMc) return null
+      return mapPasarelaPaymentRow({ id: docSnap.id, ...data })
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+
+  const grossTotalCop = payments.reduce((s, p) => s + p.grossCop, 0)
+
+  let balance: { balance?: number; balance_label?: string } | null = null
+  try {
+    if (modo === 'pasarela_micatalogo') {
+      const sk = await readPlatformOnePaySecretKey()
+      const r = await onepayGetMerchantBalance(sk)
+      if (!('error' in r)) {
+        balance = { balance: r.balance, balance_label: r.balance_label }
+      }
+    } else {
+      const { secretKey } = await assertOnepayOwnerMerchantReady(request, request.data)
+      const r = await onepayGetMerchantBalance(secretKey)
+      if (!('error' in r)) {
+        balance = { balance: r.balance, balance_label: r.balance_label }
+      }
+    }
+  } catch {
+    balance = null
+  }
+
+  return {
+    modo,
+    balance,
+    grossTotalCop,
+    payments,
+    payoutConfigured: Boolean(tenant.onepayPayoutCustomerId && tenant.onepayPayoutAccountId),
+    payoutAccountHint: tenant.onepayPayoutAccountHint ?? null,
+    fundWithdrawalPeriod: tenant.onepayFundWithdrawalPeriod ?? null,
+  }
+})
+
+function kybAccountSubtypeToOnepay(subtype: string): string {
+  const s = subtype.trim().toLowerCase()
+  if (s === 'checking') return 'CHECKING'
+  if (s === 'electronic_deposit') return 'ELECTRONIC_DEPOSIT'
+  return 'SAVINGS'
+}
+
+export const mcOnepayMicatalogoSetupPayout = onCall(
+  { invoker: 'public', secrets: [onePayPlatformSk] },
+  async (request) => {
+    const { tenantId, tenant } = await assertSellerSaldoAccess(request)
+    if (tenant.checkoutVentasModo !== 'pasarela_micatalogo') {
+      throw new HttpsError(
+        'failed-precondition',
+        'El retiro manual solo aplica con pasarela sin registro OnePay.',
+      )
+    }
+
+    const d = request.data as Record<string, unknown>
+    const firstName = typeof d.first_name === 'string' ? d.first_name.trim() : ''
+    const lastName = typeof d.last_name === 'string' ? d.last_name.trim() : ''
+    const email = typeof d.email === 'string' ? d.email.trim().toLowerCase() : ''
+    const phone = phoneE164Co(typeof d.phone === 'string' ? d.phone : '')
+    const documentType =
+      typeof d.document_type === 'string' ? d.document_type.trim().toUpperCase() : 'CC'
+    const documentNumber =
+      typeof d.document_number === 'string' ? d.document_number.trim().replace(/\s+/g, '') : ''
+    const bankId = typeof d.bank_id === 'string' ? d.bank_id.trim() : ''
+    const accountSubtype =
+      typeof d.account_subtype === 'string' ? d.account_subtype.trim().toLowerCase() : 'savings'
+    const accountNumber =
+      typeof d.account_number === 'string' ? d.account_number.trim().replace(/\s+/g, '') : ''
+    const idemNonce = typeof d.idempotencyNonce === 'string' ? d.idempotencyNonce.trim() : ''
+
+    if (firstName.length < 2 || lastName.length < 2) {
+      throw new HttpsError('invalid-argument', 'Nombre y apellido son obligatorios.')
+    }
+    if (!email.includes('@')) {
+      throw new HttpsError('invalid-argument', 'Correo no válido.')
+    }
+    if (documentNumber.length < 5) {
+      throw new HttpsError('invalid-argument', 'Número de documento inválido.')
+    }
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bankId)
+    ) {
+      throw new HttpsError('invalid-argument', 'Elegí un banco de la lista.')
+    }
+    if (accountNumber.length < 5) {
+      throw new HttpsError('invalid-argument', 'Número de cuenta inválido.')
+    }
+    if (idemNonce.length < 8) {
+      throw new HttpsError('invalid-argument', 'Recargá la página e intentá de nuevo.')
+    }
+
+    const platformSk = onePayPlatformSk.value().trim() || (await readPlatformOnePaySecretKey())
+    const tenantRef = db.doc(`mc_tenants/${tenantId}`)
+
+    let customerId = tenant.onepayPayoutCustomerId
+    if (!customerId) {
+      const custRes = await fetch(ONEPAY_CUSTOMERS_API, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${platformSk}`,
+          'Content-Type': 'application/json',
+          'x-idempotency': `mc-payout-cust-${tenantId}-${idemNonce}`.slice(0, 120),
+        },
+        body: JSON.stringify({
+          user_type: 'natural',
+          first_name: firstName.slice(0, 80),
+          last_name: lastName.slice(0, 80),
+          email: email.slice(0, 120),
+          phone,
+          document_type: documentType,
+          document_number: documentNumber.slice(0, 30),
+          enable_notifications: false,
+        }),
+      })
+      const custText = await custRes.text()
+      let custJson: { id?: string; message?: string }
+      try {
+        custJson = JSON.parse(custText) as { id?: string; message?: string }
+      } catch {
+        throw new HttpsError('internal', `OnePay respondió ${custRes.status} al crear cliente.`)
+      }
+      if (!custRes.ok || !custJson.id) {
+        throw new HttpsError('invalid-argument', custJson.message || 'No se pudo crear el cliente en OnePay.')
+      }
+      customerId = custJson.id
+    }
+
+    const accRes = await fetch(ONEPAY_ACCOUNTS_API, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${platformSk}`,
+        'Content-Type': 'application/json',
+        'x-idempotency': `mc-payout-acc-${tenantId}-${idemNonce}`.slice(0, 120),
+      },
+      body: JSON.stringify({
+        subtype: kybAccountSubtypeToOnepay(accountSubtype),
+        authorization: true,
+        're-enrollment': false,
+        account_number: accountNumber,
+        customer_id: customerId,
+        bank_id: bankId,
+      }),
+    })
+    const accText = await accRes.text()
+    let accJson: { id?: string; message?: string }
+    try {
+      accJson = JSON.parse(accText) as { id?: string; message?: string }
+    } catch {
+      throw new HttpsError('internal', `OnePay respondió ${accRes.status} al crear cuenta.`)
+    }
+    if (!accRes.ok || !accJson.id) {
+      throw new HttpsError('invalid-argument', accJson.message || 'No se pudo registrar la cuenta bancaria.')
+    }
+
+    const hint =
+      accountNumber.length >= 4 ? `···${accountNumber.slice(-4)}` : '···'
+    const now = Date.now()
+    await tenantRef.update({
+      onepayPayoutCustomerId: customerId,
+      onepayPayoutAccountId: accJson.id,
+      onepayPayoutAccountHint: hint,
+      onepayPayoutSetupAt: now,
+    })
+
+    return {
+      ok: true as const,
+      customerId,
+      accountId: accJson.id,
+      accountHint: hint,
+    }
+  },
+)
+
+export const mcOnepayMicatalogoRequestCashout = onCall(
+  { invoker: 'public', secrets: [onePayPlatformSk] },
+  async (request) => {
+    const { tenantId, tenant } = await assertSellerSaldoAccess(request)
+    if (tenant.checkoutVentasModo !== 'pasarela_micatalogo') {
+      throw new HttpsError(
+        'failed-precondition',
+        'El retiro manual solo aplica con pasarela sin registro OnePay.',
+      )
+    }
+    if (!tenant.onepayPayoutCustomerId || !tenant.onepayPayoutAccountId) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Primero registrá tu cuenta bancaria para retirar fondos.',
+      )
+    }
+
+    const d = request.data as { amount?: unknown; idempotencyNonce?: unknown }
+    const idemNonce =
+      typeof d.idempotencyNonce === 'string' && d.idempotencyNonce.trim().length >= 8
+        ? d.idempotencyNonce.trim()
+        : randomBytes(12).toString('hex')
+
+    const platformSk = onePayPlatformSk.value().trim() || (await readPlatformOnePaySecretKey())
+
+    let amountCop: number | undefined
+    if (d.amount !== undefined && d.amount !== null && d.amount !== '') {
+      const raw = typeof d.amount === 'number' ? d.amount : Number(d.amount)
+      if (!Number.isFinite(raw) || raw < 10_000) {
+        throw new HttpsError('invalid-argument', 'El monto mínimo de retiro es $10.000 COP.')
+      }
+      amountCop = Math.round(raw)
+    }
+
+    const balanceRes = await onepayGetMerchantBalance(platformSk)
+    if ('error' in balanceRes) {
+      throw new HttpsError('failed-precondition', balanceRes.error)
+    }
+    const available = Math.max(0, Math.round(balanceRes.balance))
+    const withdrawAmount = amountCop ?? available
+    if (withdrawAmount < 10_000) {
+      throw new HttpsError('failed-precondition', 'El saldo disponible es menor al mínimo de retiro ($10.000).')
+    }
+    if (withdrawAmount > available) {
+      throw new HttpsError('failed-precondition', 'El monto supera tu saldo disponible en la pasarela.')
+    }
+
+    const body: Record<string, unknown> = {
+      amount: withdrawAmount,
+      account_id: tenant.onepayPayoutAccountId,
+    }
+
+    let cashoutRes = await fetch(ONEPAY_BALANCE_CASHOUT_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${platformSk}`,
+        'Content-Type': 'application/json',
+        'x-idempotency': `mc-bal-out-${tenantId}-${idemNonce}`.slice(0, 120),
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (cashoutRes.status === 422) {
+      cashoutRes = await fetch(ONEPAY_CASHOUTS_API, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${platformSk}`,
+          'Content-Type': 'application/json',
+          'x-idempotency': `mc-cashout-${tenantId}-${idemNonce}`.slice(0, 120),
+        },
+        body: JSON.stringify({
+          amount: withdrawAmount,
+          currency: 'COP',
+          customer_id: tenant.onepayPayoutCustomerId,
+          account_id: tenant.onepayPayoutAccountId,
+          description: `Retiro Mi Catálogo · tienda ${tenantId}`.slice(0, 120),
+          method: 'ACH',
+          external_id: `mc-withdraw-${tenantId}-${Date.now()}`.slice(0, 64),
+        }),
+      })
+    }
+
+    if (cashoutRes.status === 204) {
+      return { ok: true as const, amountCop: withdrawAmount, via: 'balance' as const }
+    }
+
+    const text = await cashoutRes.text()
+    let json: { message?: string; code_name?: string }
+    try {
+      json = JSON.parse(text) as { message?: string; code_name?: string }
+    } catch {
+      throw new HttpsError('internal', `OnePay respondió ${cashoutRes.status}.`)
+    }
+
+    if (!cashoutRes.ok) {
+      const msg = json.message || `No se pudo solicitar el retiro (${cashoutRes.status}).`
+      throw new HttpsError(
+        json.code_name === 'balance_is_empty' || json.code_name === 'insufficient_funds'
+          ? 'failed-precondition'
+          : 'internal',
+        msg,
+      )
+    }
+
+    return { ok: true as const, amountCop: withdrawAmount, via: 'cashout' as const }
+  },
+)
+
 async function onepayGetPayment(
   paymentId: string,
   secretKey: string,
@@ -732,7 +1180,6 @@ export const mcOnepayLinkMerchant = onCall({ invoker: 'public' }, async (request
     targetTenantId?: unknown
   }
   const hasWh = typeof dataIn?.webhookSecret === 'string' && dataIn.webhookSecret.trim().length >= 8
-  const secretKey = assertSk(dataIn?.secretKey)
   const webhookSecret = hasWh ? assertWebhookSecret(dataIn?.webhookSecret) : null
   const webhookToken = optionalWebhookToken(dataIn?.webhookToken)
   const publicKey = optionalPublicKey(dataIn?.publicKey)
@@ -761,6 +1208,9 @@ export const mcOnepayLinkMerchant = onCall({ invoker: 'public' }, async (request
   const credRef = db.doc(`mc_tenants/${tenantId}/private_onepay/credentials`)
   const existingCred = await credRef.get()
   const prev = existingCred.data() as OnepayCredStored | undefined
+  const isUpdate = Boolean(prev?.secretKey)
+  assertAtLeastOneCredentialField(dataIn, isUpdate)
+  const secretKey = resolveSecretKeyForLink(dataIn, prev)
   const whFinal =
     webhookSecret ||
     (typeof prev?.webhookSecret === 'string' && prev.webhookSecret.length >= 8 ? prev.webhookSecret.trim() : null)
@@ -831,7 +1281,6 @@ export const mcOnepayLinkPlatformPasarela = onCall({ invoker: 'public' }, async 
   }
   const hasWh =
     typeof dataIn?.webhookSecret === 'string' && dataIn.webhookSecret.trim().length >= 8
-  const secretKey = assertSk(dataIn?.secretKey)
   const webhookSecret = hasWh ? assertWebhookSecret(dataIn?.webhookSecret) : null
   const webhookToken = optionalWebhookToken(dataIn?.webhookToken)
   const publicKey = optionalPublicKey(dataIn?.publicKey)
@@ -845,6 +1294,9 @@ export const mcOnepayLinkPlatformPasarela = onCall({ invoker: 'public' }, async 
 
   const existingCred = await PLATFORM_ONEPAY_CRED_REF.get()
   const prevCred = existingCred.data() as OnepayCredStored | undefined
+  const isUpdate = Boolean(prevCred?.secretKey)
+  assertAtLeastOneCredentialField(dataIn, isUpdate)
+  const secretKey = resolveSecretKeyForLink(dataIn, prevCred)
   const whFinal =
     webhookSecret ||
     (typeof prevCred?.webhookSecret === 'string' && prevCred.webhookSecret.length >= 8
@@ -1377,6 +1829,18 @@ export const mcOnepaySubmitCompanyKyb = onCall(
       throw new HttpsError('internal', 'OnePay no devolvió el ID de la empresa.')
     }
 
+    const fundPeriodRaw =
+      typeof d.fundWithdrawalPeriod === 'string' ? d.fundWithdrawalPeriod.trim() : ''
+    const fundWithdrawalPeriod = ONEPAY_FUND_WITHDRAWAL_PERIODS.has(fundPeriodRaw)
+      ? fundPeriodRaw
+      : null
+    if (!fundWithdrawalPeriod) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Elegí cada cuánto querés recibir los fondos en tu cuenta.',
+      )
+    }
+
     const now = Date.now()
     await tenantRef.update({
       onepayKybStatus: 'pending',
@@ -1384,6 +1848,7 @@ export const mcOnepaySubmitCompanyKyb = onCall(
       onepayKybSubmittedAt: now,
       onepayKybTermsAcceptedAt: now,
       onepayKybTermsVersion: ONEPAY_KYB_TERMS_VERSION,
+      onepayFundWithdrawalPeriod: fundWithdrawalPeriod,
     })
 
     return { ok: true as const, companyId, status: 'pending' as const }
@@ -2292,6 +2757,10 @@ export {
   mcBillingValidateNequi,
   mcBillingCompleteActivation,
   mcBillingPaymentMethods,
+  mcBillingGetSubscriptionState,
+  mcBillingListPaymentHistoryCallable,
+  mcBillingCancelAutoRenewCallable,
+  mcBillingSetDefaultPaymentMethod,
   mcBillingValidateDiscountCode,
   mcBillingCron,
 }

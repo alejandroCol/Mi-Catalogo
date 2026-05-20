@@ -15,8 +15,6 @@ import {
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 import { usePublicTenant } from '@/public/usePublicTenant'
 import { McCatalogModal } from '@/public/McCatalogModal'
-import { SeasonBannerSplash } from '@/public/SeasonBannerSplash'
-import { isSeasonBannerActive } from '@/lib/seasonBanner'
 
 function CartChrome() {
   const { slug } = useParams<{ slug: string }>()
@@ -30,8 +28,6 @@ function CartChrome() {
   const pathBase = slug ? `/c/${slug}` : '/'
   const enCheckout = slug ? pathname.startsWith(`${pathBase}/checkout`) : false
   const isCatalogListHome = Boolean(slug && pathname === pathBase)
-  const showSeasonBanner = Boolean(tenant && slug && isCatalogListHome && isSeasonBannerActive(tenant))
-
   const navLink = (active: boolean) =>
     clsx(
       'rounded-full px-3 py-1.5 text-[13px] font-medium transition',
@@ -49,9 +45,6 @@ function CartChrome() {
 
   return (
     <>
-      {showSeasonBanner && tenant && slug ? (
-        <SeasonBannerSplash tenant={tenant} slug={slug} />
-      ) : null}
       <header className="mc-pc-elev-header sticky top-0 z-30">
         <div className="mc-public-catalog-inset flex h-[3.25rem] items-center justify-between gap-2 sm:h-[3.75rem] sm:gap-4">
           <Link

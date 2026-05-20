@@ -44,9 +44,6 @@ export function BillingV2Checkout({
 
   const [nequiBankId, setNequiBankId] = useState('')
   const [nequiPhone, setNequiPhone] = useState('')
-  const [nequiAccountId, setNequiAccountId] = useState<string | null>(null)
-  const [nequiWaiting, setNequiWaiting] = useState(false)
-  const [cardId, setCardId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!tenant || !profile) return
@@ -109,13 +106,35 @@ export function BillingV2Checkout({
       await fn({ firstName, lastName, email, phone, documentType, documentNumber })
       setStep('payment')
     } catch (e) {
-      setMsg((e as { message?: string }).message ?? 'No se pudo guardar el perfil.')
+      const err = e as { message?: string; details?: string }
+      setMsg(err.message ?? err.details ?? 'No se pudo guardar el perfil.')
     } finally {
       setBusy(false)
     }
   }
 
-  async function registerCard() {
+  async function completeActivation(params: {
+    method: PayMethod
+    cardId?: string
+    accountId?: string
+  }) {
+    const fn = httpsCallable(getFirebaseFunctions(), 'mcBillingCompleteActivation')
+    const res = await fn({
+      period,
+      method: params.method,
+      cardId: params.method === 'card' ? params.cardId : undefined,
+      accountId: params.method === 'nequi' ? params.accountId : undefined,
+      discountCode: discountCode || undefined,
+    })
+    const d = res.data as { pending?: boolean; message?: string }
+    if (d.pending) {
+      onSuccess(d.message ?? 'Pago en proceso. Recargá en unos segundos cuando se confirme.')
+    } else {
+      onSuccess(`¡Listo! Ya sos ${expertName}.`)
+    }
+  }
+
+  async function activateWithCard() {
     if (!captureRouteId) {
       setMsg('Esperá a que cargue el formulario de tarjeta.')
       return
@@ -125,19 +144,18 @@ export function BillingV2Checkout({
     try {
       const token = await tokenizeCard(captureRouteId)
       const fnAdd = httpsCallable(getFirebaseFunctions(), 'mcBillingAddCard')
-      const res = await fnAdd({ cardToken: token })
-      const id = (res.data as { cardId?: string }).cardId
-      if (!id) throw new Error('Tarjeta no registrada')
-      setCardId(id)
-      setMsg('Tarjeta registrada. Activá tu plan abajo.')
+      const addRes = await fnAdd({ cardToken: token })
+      const cardId = (addRes.data as { cardId?: string }).cardId
+      if (!cardId) throw new Error('Tarjeta no registrada')
+      await completeActivation({ method: 'card', cardId })
     } catch (e) {
-      setMsg((e as { message?: string }).message ?? 'Error al registrar tarjeta.')
+      setMsg((e as { message?: string }).message ?? 'No se pudo activar con tarjeta.')
     } finally {
       setBusy(false)
     }
   }
 
-  async function linkNequi() {
+  async function activateWithNequi() {
     setBusy(true)
     setMsg(null)
     try {
@@ -145,38 +163,23 @@ export function BillingV2Checkout({
       const res = await fn({ phone: nequiPhone, bankId: nequiBankId })
       const d = res.data as { accountId?: string; awaitingApproval?: boolean }
       if (!d.accountId) throw new Error('No se vinculó Nequi')
-      setNequiAccountId(d.accountId)
-      setNequiWaiting(Boolean(d.awaitingApproval))
-      setMsg(
-        d.awaitingApproval
-          ? 'Aprobá la vinculación en tu app Nequi y luego activá el plan.'
-          : 'Nequi vinculado. Activá tu plan abajo.',
-      )
+      if (d.awaitingApproval) {
+        setMsg('Aprobá la vinculación en tu app Nequi y volvé a intentar activar.')
+        return
+      }
+      await completeActivation({ method: 'nequi', accountId: d.accountId })
     } catch (e) {
-      setMsg((e as { message?: string }).message ?? 'Error al vincular Nequi.')
+      setMsg((e as { message?: string }).message ?? 'No se pudo activar con Nequi.')
     } finally {
       setBusy(false)
     }
   }
 
-  async function activate() {
+  async function activateFree() {
     setBusy(true)
     setMsg(null)
     try {
-      const fn = httpsCallable(getFirebaseFunctions(), 'mcBillingCompleteActivation')
-      const res = await fn({
-        period,
-        method,
-        cardId: method === 'card' ? cardId : undefined,
-        accountId: method === 'nequi' ? nequiAccountId : undefined,
-        discountCode: discountCode || undefined,
-      })
-      const d = res.data as { pending?: boolean; message?: string }
-      if (d.pending) {
-        onSuccess(d.message ?? 'Pago en proceso. Recargá en unos segundos cuando se confirme.')
-      } else {
-        onSuccess(`¡Listo! Ya sos ${expertName}.`)
-      }
+      await completeActivation({ method: 'card' })
     } catch (e) {
       setMsg((e as { message?: string }).message ?? 'No se pudo activar el plan.')
     } finally {
@@ -184,35 +187,30 @@ export function BillingV2Checkout({
     }
   }
 
-  const canActivate =
-    method === 'card' ? Boolean(cardId) : Boolean(nequiAccountId) && !nequiWaiting
-
   if (amountCop === 0) {
     return (
-      <div className="space-y-4">
-        <div className="mc-card space-y-4">
-          <p className="ios-subhead">Tu código activa el plan sin cobro hoy.</p>
-          <button type="button" className="mc-btn-primary w-full" disabled={busy} onClick={() => void activate()}>
-            {busy ? 'Activando…' : `Activar ${expertName} gratis`}
-          </button>
-          {msg && <p className="text-[13px]">{msg}</p>}
-        </div>
+      <div className="space-y-4 p-4 sm:p-6">
+        <p className="ios-subhead">Tu código activa el plan sin cobro hoy.</p>
+        <button type="button" className="mc-btn-primary w-full" disabled={busy} onClick={() => void activateFree()}>
+          {busy ? 'Activando…' : `Activar ${expertName} gratis`}
+        </button>
+        {msg && <p className="text-[13px]">{msg}</p>}
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-neutral-200/90 bg-white p-4 shadow-sm sm:p-6">
-        <p className="text-[13px] font-medium text-[var(--cat-muted)]">Pago seguro · débito automático</p>
-        <p className="mt-1 text-[18px] font-medium tracking-tight">
+    <div className="space-y-4 p-4 sm:p-6">
+      <div className="rounded-xl border border-neutral-200/90 bg-neutral-50/50 px-4 py-3">
+        <p className="text-[12px] font-medium text-[var(--cat-muted)]">Pago seguro · débito automático</p>
+        <p className="mt-0.5 text-[17px] font-medium tracking-tight">
           {formatCop(amountCop)}{' '}
-          <span className="text-[14px] text-[var(--cat-muted)]">/ {period === 'yearly' ? 'año' : 'mes'}</span>
+          <span className="text-[13px] text-[var(--cat-muted)]">/ {period === 'yearly' ? 'año' : 'mes'}</span>
         </p>
       </div>
 
       {step === 'profile' ? (
-        <div className="mc-card space-y-4">
+        <div className="space-y-4">
           <p className="ios-headline">Datos de facturación</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <input className="mc-input" placeholder="Nombre" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -249,7 +247,7 @@ export function BillingV2Checkout({
           </button>
         </div>
       ) : (
-        <div className="mc-card space-y-5">
+        <div className="space-y-4">
           <div className="flex gap-2">
             <button
               type="button"
@@ -272,30 +270,29 @@ export function BillingV2Checkout({
           </div>
 
           {method === 'card' ? (
-            <div className="space-y-3">
-              <div id={`op-cc-holder-${fieldSuffix}`} className="op-sdk-field min-h-[48px]" />
-              <div id={`op-cc-number-${fieldSuffix}`} className="op-sdk-field min-h-[48px]" />
-              <div className="grid grid-cols-2 gap-3">
-                <ExpField suffix={fieldSuffix} />
-                <div id={`op-cc-cvv-${fieldSuffix}`} className="op-sdk-field min-h-[48px]" />
+            <div className="space-y-2">
+              <div id={`op-cc-holder-${fieldSuffix}`} className="op-sdk-field" />
+              <div id={`op-cc-number-${fieldSuffix}`} className="op-sdk-field" />
+              <div className="grid grid-cols-2 gap-2">
+                <div id={`op-cc-exp-${fieldSuffix}`} className="op-sdk-field" />
+                <div id={`op-cc-cvv-${fieldSuffix}`} className="op-sdk-field" />
               </div>
-              {!cardId ? (
-                <button
-                  type="button"
-                  className="mc-btn-secondary w-full"
-                  disabled={!sdkReady || busy}
-                  onClick={() => void registerCard()}
-                >
-                  {busy ? 'Registrando…' : 'Registrar tarjeta'}
-                </button>
-              ) : (
-                <p className="ios-footnote text-emerald-800">Tarjeta lista para débito automático.</p>
-              )}
+              <button
+                type="button"
+                className="mc-btn-primary w-full py-3 text-[15px]"
+                disabled={!sdkReady || busy}
+                onClick={() => void activateWithCard()}
+              >
+                {busy ? 'Procesando…' : 'Activar membresía'}
+              </button>
+              <p className="text-[11px] leading-relaxed text-[var(--cat-muted)]">
+                Registramos tu tarjeta y realizamos el primer cobro en un solo paso.
+              </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               <p className="ios-footnote text-[var(--cat-muted)]">
-                Vinculá tu Nequi para renovaciones automáticas (sin cuenta bancaria).
+                Vinculá tu Nequi para renovaciones automáticas.
               </p>
               <input
                 className="mc-input"
@@ -304,34 +301,20 @@ export function BillingV2Checkout({
                 value={nequiPhone}
                 onChange={(e) => setNequiPhone(e.target.value.replace(/\D/g, ''))}
               />
-              {!nequiAccountId ? (
-                <button type="button" className="mc-btn-secondary w-full" disabled={busy} onClick={() => void linkNequi()}>
-                  {busy ? 'Vinculando…' : 'Vincular Nequi'}
-                </button>
-              ) : nequiWaiting ? (
-                <p className="ios-footnote text-amber-900">Esperando aprobación en la app Nequi…</p>
-              ) : (
-                <p className="ios-footnote text-emerald-800">Nequi listo para débito.</p>
-              )}
+              <button
+                type="button"
+                className="mc-btn-primary w-full py-3 text-[15px]"
+                disabled={busy || nequiPhone.length < 10}
+                onClick={() => void activateWithNequi()}
+              >
+                {busy ? 'Procesando…' : 'Activar membresía'}
+              </button>
             </div>
           )}
-
-          <button
-            type="button"
-            className="mc-btn-primary w-full"
-            disabled={busy || !canActivate}
-            onClick={() => void activate()}
-          >
-            {busy ? 'Procesando…' : 'Activar suscripción'}
-          </button>
         </div>
       )}
 
       {msg && <p className="text-[13px] leading-relaxed">{msg}</p>}
     </div>
   )
-}
-
-function ExpField({ suffix }: { suffix: string }) {
-  return <div id={`op-cc-exp-${suffix}`} className="op-sdk-field min-h-[48px]" />
 }

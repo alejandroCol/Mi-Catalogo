@@ -75,9 +75,23 @@ export async function onepayCreateBillingCustomer(
       birthdate: body.birthdate ?? '1990-01-01',
     }),
   })
-  const data = await readOnePayJson<{ id?: string; message?: string }>(res)
+  const data = await readOnePayJson<{
+    id?: string
+    message?: string
+    errors?: Record<string, string[]>
+  }>(res)
   if (!res.ok || !data.id) {
-    throw new Error(data.message || 'No se pudo crear cliente OnePay')
+    const detail = data.errors
+      ? Object.entries(data.errors)
+          .flatMap(([k, v]) => v.map((x) => `${k}: ${x}`))
+          .join('; ')
+      : ''
+    const base = (data.message || '').trim() || `Cliente OnePay ${res.status}`
+    const extra =
+      res.status === 401 || /appkey|api.?key|clave/i.test(base)
+        ? ' Revisá la clave API (sk_) de la pasarela Mi Catálogo en súper admin.'
+        : ''
+    throw new Error([base, detail].filter(Boolean).join(' — ') + extra)
   }
   return data.id
 }

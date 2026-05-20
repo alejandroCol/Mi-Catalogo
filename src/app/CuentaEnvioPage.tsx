@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
@@ -172,14 +172,9 @@ export function CuentaEnvioPage() {
   const cbInputClass = 'mc-input mt-1 py-2.5 text-[15px]'
 
   return (
-    <div className="mc-shell space-y-6">
+    <div className="mc-shell mc-config-subpage">
       <div>
-        <Link
-          to="/app/cuenta"
-          className="ios-footnote font-medium text-mc-700 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-80"
-        >
-          ← Volver a Cuenta
-        </Link>
+        <ConfiguracionesBackLink />
         <h1 className="ios-large-title mt-3">Configurar envío</h1>
         <p className="ios-subhead mt-2 max-w-xl leading-relaxed text-[var(--cat-muted)]">
           Por cada ubicación definí{' '}

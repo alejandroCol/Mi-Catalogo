@@ -7,16 +7,19 @@ import type { McCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 import { CheckoutVentasModoOptions } from '@/app/CheckoutVentasModoOptions'
 
-/** Ancla en `CuentaPage` para «Checkout · cómo cerrás ventas». */
+/** @deprecated Usar `CONFIG_CHECKOUT_VENTAS_PATH`. */
 export const MC_CHECKOUT_VENTAS_ANCHOR = 'mc-checkout-ventas'
 
-/** Ancla en `CuentaPage` para el número de WhatsApp de pedidos. */
+/** @deprecated Usar `CONFIG_WHATSAPP_PATH`. */
 export const MC_CHECKOUT_WHATSAPP_ANCHOR = 'mc-checkout-whatsapp'
+
+export const CONFIG_CHECKOUT_VENTAS_PATH = '/app/cuenta/checkout-ventas'
+export const CONFIG_WHATSAPP_PATH = '/app/cuenta/whatsapp'
 
 export function CheckoutVentasRequiredModal({
   open,
   onClose,
-  context,
+  context: _context,
   tenant,
   tenantId,
   platformSettings,
@@ -28,7 +31,6 @@ export function CheckoutVentasRequiredModal({
   tenant: Pick<McTenant, 'onepayPaymentsEnabled' | 'checkoutVentasModo'> | null
   tenantId?: string
   platformSettings: McPlatformSettings | null
-  /** Solo en contexto cuenta: actualizar estado local al elegir modo. */
   onModoSelected?: (modo: McCheckoutVentasModo) => void
 }) {
   const navigate = useNavigate()
@@ -48,22 +50,12 @@ export function CheckoutVentasRequiredModal({
   const pasarelaLista = tenant?.onepayPaymentsEnabled === true
   const pasarelaMicatalogoOk = platformSettings?.pasarelaMicatalogoActiva === true
 
-  function scrollToCheckoutVentasSection() {
-    requestAnimationFrame(() => {
-      document.getElementById(MC_CHECKOUT_VENTAS_ANCHOR)?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      })
-    })
+  function irACheckoutVentas() {
+    navigate(CONFIG_CHECKOUT_VENTAS_PATH)
   }
 
-  function scrollToWhatsappSection() {
-    requestAnimationFrame(() => {
-      document.getElementById(MC_CHECKOUT_WHATSAPP_ANCHOR)?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      })
-    })
+  function irAWhatsapp() {
+    navigate(CONFIG_WHATSAPP_PATH)
   }
 
   async function persistModo(modo: McCheckoutVentasModo) {
@@ -86,26 +78,17 @@ export function CheckoutVentasRequiredModal({
 
       if (modo === 'pasarela_micatalogo') {
         onClose()
-        if (context === 'cuenta') {
-          scrollToCheckoutVentasSection()
-        } else {
-          navigate(`/app/cuenta#${MC_CHECKOUT_VENTAS_ANCHOR}`)
-        }
+        irACheckoutVentas()
         return
       }
 
-      // whatsapp
       onClose()
-      if (context === 'cuenta') {
-        scrollToWhatsappSection()
-      } else {
-        navigate(`/app/cuenta#${MC_CHECKOUT_WHATSAPP_ANCHOR}`)
-      }
+      irAWhatsapp()
     } catch {
       onClose()
       if (modo === 'pasarela') navigate('/app/pagos-pasarela')
-      else if (modo === 'whatsapp') navigate(`/app/cuenta#${MC_CHECKOUT_WHATSAPP_ANCHOR}`)
-      else navigate(`/app/cuenta#${MC_CHECKOUT_VENTAS_ANCHOR}`)
+      else if (modo === 'whatsapp') navigate(CONFIG_WHATSAPP_PATH)
+      else navigate(CONFIG_CHECKOUT_VENTAS_PATH)
     } finally {
       setBusy(false)
     }
@@ -130,7 +113,7 @@ export function CheckoutVentasRequiredModal({
           Configurá cómo cobrás
         </h2>
         <p className="ios-footnote mt-2 leading-relaxed text-[var(--cat-muted)]">
-          Elegí un método para activar el catálogo público y el checkout. Podés cambiarlo después en Cuenta.
+          Elegí un método para activar el catálogo público y el checkout. Podés cambiarlo después en Configuraciones.
         </p>
 
         <CheckoutVentasModoOptions

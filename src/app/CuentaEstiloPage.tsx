@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ExpertStar } from '@/components/billing/ExpertStar'
@@ -81,14 +82,9 @@ export function CuentaEstiloPage() {
   }
 
   return (
-    <div className="mc-shell space-y-6">
+    <div className="mc-shell mc-config-subpage">
       <div>
-        <Link
-          to="/app/cuenta"
-          className="ios-footnote font-medium text-mc-700 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-80"
-        >
-          ← Volver a Cuenta
-        </Link>
+        <ConfiguracionesBackLink />
         <h1 className="ios-large-title mt-3">Estilo del portal de venta</h1>
         <p className="ios-subhead mt-2 max-w-xl leading-relaxed text-[var(--cat-muted)]">
           Definí cómo se ve tu catálogo público: plantilla, colores y vista previa antes de publicar.

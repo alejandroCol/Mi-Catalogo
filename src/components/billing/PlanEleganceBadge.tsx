@@ -1,7 +1,7 @@
 import { ownerPlanEleganceLabel } from '@/lib/billingAccess'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 
-/** «Eres Expert» — tipografía editorial para sensación exclusiva. */
+/** «Eres Expert» — sans limpio, alineado con la UI de la app. */
 export function PlanEleganceBadge({
   tenant,
   settings,
@@ -13,10 +13,9 @@ export function PlanEleganceBadge({
 }) {
   const label = ownerPlanEleganceLabel(tenant, settings)
   return (
-    <p
-      className={`font-serif text-[22px] font-light italic tracking-wide text-[var(--cat-text)] sm:text-[26px] ${className}`}
-    >
-      Eres <span className="not-italic font-normal">{label}</span>
+    <p className={`mc-plan-elegance ${className}`.trim()}>
+      <span className="mc-plan-elegance__lead">Eres</span>{' '}
+      <span className="mc-plan-elegance__name">{label}</span>
     </p>
   )
 }

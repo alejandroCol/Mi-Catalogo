@@ -15,8 +15,8 @@ const STEPS = [
     body: 'Anotá pedidos y llevá el control de totales.',
   },
   {
-    title: 'Cuenta',
-    body: 'Tu enlace público y los datos de la tienda.',
+    title: 'Configuraciones',
+    body: 'Tu enlace público, checkout y opciones de la tienda.',
   },
 ] as const
 

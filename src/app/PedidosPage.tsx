@@ -4,13 +4,18 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
   updateDoc,
 } from 'firebase/firestore'
+import { Link } from 'react-router-dom'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
+import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
+import { MC } from '@/lib/mcCollections'
+import type { McPlatformSettings } from '@/types/mc'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
 import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { formatCop } from '@/lib/formatCop'
@@ -39,7 +44,8 @@ function previewLineas(o: McOrdenCatalogo) {
 }
 
 export function PedidosPage() {
-  const { profile } = useMcAuth()
+  const { profile, tenant } = useMcAuth()
+  const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [ventas, setVentas] = useState<(McOrdenCatalogo & { id: string })[]>([])
   const [manual, setManual] = useState<(McPedido & { id: string })[]>([])
   const [nota, setNota] = useState('')
@@ -49,6 +55,18 @@ export function PedidosPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [expandedVentaId, setExpandedVentaId] = useState<string | null>(null)
   const [manualFormOpen, setManualFormOpen] = useState(false)
+
+  useEffect(() => {
+    if (!firebaseConfigured) return
+    void getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc)).then((ps) => {
+      setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
+    })
+  }, [])
+
+  const checkoutModo = explicitCheckoutVentasModo(tenant)
+  const showSaldoLink =
+    checkoutModo === 'pasarela' ||
+    (checkoutModo === 'pasarela_micatalogo' && platformSettings?.pasarelaMicatalogoActiva === true)
 
   useEffect(() => {
     if (!firebaseConfigured || !profile?.tenantId) return
@@ -145,8 +163,16 @@ export function PedidosPage() {
 
   return (
     <div className="mc-shell space-y-8">
-      <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <h1 className="ios-large-title">Ventas</h1>
+        {showSaldoLink ? (
+          <Link
+            to="/app/mi-saldo"
+            className="mc-btn-secondary inline-flex items-center justify-center px-4 py-2.5 text-[14px] font-medium no-underline"
+          >
+            Ver mi saldo
+          </Link>
+        ) : null}
       </div>
 
       <section className="space-y-2">

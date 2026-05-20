@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "build:functions": "npm --prefix functions run build",
-    "deploy:functions": "firebase deploy --only functions"
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:storage": "firebase deploy --only storage"
   },
   "dependencies": {
     "clsx": "^2.1.1",

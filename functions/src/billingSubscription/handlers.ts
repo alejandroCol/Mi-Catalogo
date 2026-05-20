@@ -1,4 +1,5 @@
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { FieldValue } from 'firebase-admin/firestore'
+import { db } from '../firebaseAdmin.js'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import type { McBillingDebitMethod } from './constants.js'
@@ -13,16 +14,18 @@ import {
 } from './onepayBillingApi.js'
 import {
   mcBillingActivateWithCharge,
+  mcBillingCancelAutoRenew,
   mcBillingEnsureCustomerV2,
+  mcBillingListPaymentHistory,
   mcBillingProcessGraceExpiries,
   mcBillingResolvePrice,
   mcBillingRunDueRenewals,
   mcBillingTryFinalizeFromChargeWebhook,
   type McBillingPayerProfile,
+  type McBillingSubFirestore,
 } from './service.js'
 import type { McBillingPeriod } from './schedule.js'
-
-const db = getFirestore()
+import { MC_BILLING_SUB_COLLECTION, MC_BILLING_SUB_DOC } from './constants.js'
 
 const DEFAULT_CAPTURE_ROUTE_ID = 'ggMoeO2K3G'
 
@@ -70,13 +73,22 @@ async function getPlatformBillingCreds(): Promise<{
 }
 
 function parsePayer(data: Record<string, unknown>, fallbackEmail: string, fallbackName: string): McBillingPayerProfile {
+  const firstFromForm =
+    typeof data.firstName === 'string' && data.firstName.trim() ? data.firstName.trim() : ''
+  const lastFromForm =
+    typeof data.lastName === 'string' && data.lastName.trim() ? data.lastName.trim() : ''
+
   const { first, last } = (() => {
+    if (firstFromForm && lastFromForm) {
+      return { first: firstFromForm, last: lastFromForm }
+    }
     const raw =
-      (typeof data.firstName === 'string' && data.firstName.trim()) ||
+      firstFromForm ||
       (typeof data.displayName === 'string' && data.displayName.trim()) ||
       fallbackName
     const p = raw.trim().split(/\s+/)
-    if (p.length <= 1) return { first: p[0] || 'Titular', last: '—' }
+    if (lastFromForm) return { first: p[0] || 'Titular', last: lastFromForm }
+    if (p.length <= 1) return { first: p[0] || 'Titular', last: 'Mi Catalogo' }
     return { first: p[0]!, last: p.slice(1).join(' ') }
   })()
   const docType =
@@ -147,19 +159,26 @@ export const mcBillingValidateDiscountCode = onCall({ invoker: 'public' }, async
 export const mcBillingEnsureCustomer = onCall({ invoker: 'public' }, async (request) => {
   const uid = request.auth?.uid
   if (!uid) throw new HttpsError('unauthenticated', 'Iniciá sesión.')
-  const { tenantId } = await resolveTenantOwner(uid)
-  const data = (request.data && typeof request.data === 'object' ? request.data : {}) as Record<
-    string,
-    unknown
-  >
-  const userSnap = await db.doc(`mc_users/${uid}`).get()
-  const u = userSnap.data() as { email?: string; displayName?: string }
-  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
-  const nombreTienda = (tenantSnap.data() as { nombreTienda?: string }).nombreTienda ?? 'Tienda'
-  const payer = parsePayer(data, u.email ?? '', u.displayName ?? nombreTienda)
-  const { secretKey } = await getPlatformBillingCreds()
-  const customerId = await mcBillingEnsureCustomerV2(db, tenantId, payer, secretKey)
-  return { ok: true as const, customerId }
+  try {
+    const { tenantId } = await resolveTenantOwner(uid)
+    const data = (request.data && typeof request.data === 'object' ? request.data : {}) as Record<
+      string,
+      unknown
+    >
+    const userSnap = await db.doc(`mc_users/${uid}`).get()
+    const u = userSnap.data() as { email?: string; displayName?: string }
+    const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
+    const nombreTienda = (tenantSnap.data() as { nombreTienda?: string }).nombreTienda ?? 'Tienda'
+    const payer = parsePayer(data, u.email ?? '', u.displayName ?? nombreTienda)
+    const { secretKey } = await getPlatformBillingCreds()
+    const customerId = await mcBillingEnsureCustomerV2(db, tenantId, payer, secretKey)
+    return { ok: true as const, customerId }
+  } catch (e) {
+    if (e instanceof HttpsError) throw e
+    const msg = e instanceof Error ? e.message : 'No se pudo crear el cliente de pagos.'
+    console.error('[mcBillingEnsureCustomer]', msg, e)
+    throw new HttpsError('failed-precondition', msg)
+  }
 })
 
 export const mcBillingAddCard = onCall({ invoker: 'public' }, async (request) => {
@@ -292,10 +311,13 @@ export const mcBillingCompleteActivation = onCall({ invoker: 'public' }, async (
   const accountId = typeof data.accountId === 'string' ? data.accountId.trim() : ''
   const discountCode = typeof data.discountCode === 'string' ? data.discountCode.trim() : ''
 
-  if (method === 'card' && !cardId) {
+  const pricing = await mcBillingResolvePrice(db, period, discountCode || undefined)
+  const requiresPaymentMethod = pricing.finalPriceCop > 0
+
+  if (requiresPaymentMethod && method === 'card' && !cardId) {
     throw new HttpsError('invalid-argument', 'Registrá tu tarjeta antes de activar.')
   }
-  if (method === 'nequi' && !accountId) {
+  if (requiresPaymentMethod && method === 'nequi' && !accountId) {
     throw new HttpsError('invalid-argument', 'Vinculá Nequi antes de activar.')
   }
 
@@ -317,24 +339,33 @@ export const mcBillingCompleteActivation = onCall({ invoker: 'public' }, async (
     }
   }
 
-  const result = await mcBillingActivateWithCharge({
-    db,
-    tenantId,
-    period,
-    method,
-    cardId: method === 'card' ? cardId : undefined,
-    accountId: method === 'nequi' ? accountId : undefined,
-    discountCodeRaw: discountCode || undefined,
-    platformSk: secretKey,
-    nombreTienda,
-  })
+  try {
+    const result = await mcBillingActivateWithCharge({
+      db,
+      tenantId,
+      period,
+      method,
+      cardId: method === 'card' ? cardId : undefined,
+      accountId: method === 'nequi' ? accountId : undefined,
+      discountCodeRaw: discountCode || undefined,
+      platformSk: secretKey,
+      nombreTienda,
+    })
 
-  return {
-    ok: true as const,
-    chargeId: result.chargeId,
-    status: result.status,
-    pending: result.pending,
-    message: result.message,
+    return {
+      ok: true as const,
+      chargeId: result.chargeId,
+      status: result.status,
+      pending: result.pending,
+      message: result.message,
+    }
+  } catch (e) {
+    if (e instanceof HttpsError) throw e
+    console.error('[mcBillingCompleteActivation]', e)
+    throw new HttpsError(
+      'failed-precondition',
+      e instanceof Error ? e.message : 'No se pudo activar el plan.',
+    )
   }
 })
 
@@ -354,6 +385,119 @@ export const mcBillingPaymentMethods = onCall({ invoker: 'public' }, async (requ
     (a) => (a.subtype ?? '').toUpperCase() === 'ELECTRONIC_DEPOSIT',
   )
   return { cards, nequiAccounts }
+})
+
+export const mcBillingGetSubscriptionState = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Iniciá sesión.')
+  const { tenantId } = await resolveTenantOwner(uid)
+  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
+  if (!tenantSnap.exists) throw new HttpsError('not-found', 'Tienda no encontrada.')
+  const tenant = tenantSnap.data() as {
+    subscriptionEndsAt?: number
+    billingPinnedCardId?: string
+    billingPinnedAccountId?: string
+    billingDebitMethod?: 'card' | 'nequi'
+    billingAutoRenewEnabled?: boolean
+    billingSubStatus?: string
+  }
+  const subSnap = await db.doc(`mc_tenants/${tenantId}/${MC_BILLING_SUB_COLLECTION}/${MC_BILLING_SUB_DOC}`).get()
+  const sub = subSnap.exists ? (subSnap.data() as McBillingSubFirestore) : null
+  const autoRenewEnabled =
+    tenant.billingAutoRenewEnabled !== false && sub?.autoRenewEnabled !== false
+  return {
+    subscriptionEndsAt: tenant.subscriptionEndsAt ?? 0,
+    billingPeriod: sub?.billingPeriod ?? 'monthly',
+    amountCop: sub?.amountCop ?? 0,
+    autoRenewEnabled,
+    billingSubStatus: tenant.billingSubStatus ?? 'none',
+    pinnedCardId: tenant.billingPinnedCardId ?? null,
+    pinnedAccountId: tenant.billingPinnedAccountId ?? null,
+    debitMethod: tenant.billingDebitMethod ?? null,
+  }
+})
+
+export const mcBillingListPaymentHistoryCallable = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Iniciá sesión.')
+  const { tenantId } = await resolveTenantOwner(uid)
+  const payments = await mcBillingListPaymentHistory(db, tenantId)
+  return { payments }
+})
+
+export const mcBillingCancelAutoRenewCallable = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Iniciá sesión.')
+  const { tenantId } = await resolveTenantOwner(uid)
+  try {
+    await mcBillingCancelAutoRenew(db, tenantId)
+    return {
+      ok: true as const,
+      message: 'Débito automático cancelado. Tu plan sigue vigente hasta la fecha de vencimiento.',
+    }
+  } catch (e) {
+    throw new HttpsError('failed-precondition', e instanceof Error ? e.message : 'No se pudo cancelar.')
+  }
+})
+
+export const mcBillingSetDefaultPaymentMethod = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Iniciá sesión.')
+  const { tenantId } = await resolveTenantOwner(uid)
+  const data = request.data as { cardId?: unknown; accountId?: unknown }
+  const cardId = typeof data.cardId === 'string' ? data.cardId.trim() : ''
+  const accountId = typeof data.accountId === 'string' ? data.accountId.trim() : ''
+  if (Boolean(cardId) === Boolean(accountId)) {
+    throw new HttpsError('invalid-argument', 'Indicá tarjeta o Nequi (uno solo).')
+  }
+
+  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
+  const customerId = (tenantSnap.data() as { billingOnePayCustomerId?: string }).billingOnePayCustomerId?.trim()
+  if (!customerId) {
+    throw new HttpsError('failed-precondition', 'Completá primero tus datos de facturación.')
+  }
+  const { secretKey } = await getPlatformBillingCreds()
+
+  if (cardId) {
+    const cards = await onepayListCards(customerId, secretKey)
+    if (!cards.some((c) => c.id === cardId)) {
+      throw new HttpsError('not-found', 'Tarjeta no encontrada en tu cuenta.')
+    }
+    await db.doc(`mc_tenants/${tenantId}`).set(
+      {
+        billingPinnedCardId: cardId,
+        billingPinnedAccountId: FieldValue.delete(),
+        billingDebitMethod: 'card',
+        billingAutoRenewEnabled: true,
+      },
+      { merge: true },
+    )
+    await db.doc(`mc_tenants/${tenantId}/${MC_BILLING_SUB_COLLECTION}/${MC_BILLING_SUB_DOC}`).set(
+      { autoRenewEnabled: true, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    )
+    return { ok: true as const, method: 'card' as const }
+  }
+
+  const accounts = await onepayListAccounts(customerId, secretKey)
+  const acc = accounts.find((a) => a.id === accountId)
+  if (!acc || !accountReadyForDebit(acc)) {
+    throw new HttpsError('failed-precondition', 'Nequi no está listo para débito.')
+  }
+  await db.doc(`mc_tenants/${tenantId}`).set(
+    {
+      billingPinnedAccountId: accountId,
+      billingPinnedCardId: FieldValue.delete(),
+      billingDebitMethod: 'nequi',
+      billingAutoRenewEnabled: true,
+    },
+    { merge: true },
+  )
+  await db.doc(`mc_tenants/${tenantId}/${MC_BILLING_SUB_COLLECTION}/${MC_BILLING_SUB_DOC}`).set(
+    { autoRenewEnabled: true, debitMethodKind: 'account', updatedAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  )
+  return { ok: true as const, method: 'nequi' as const }
 })
 
 export const mcBillingCron = onSchedule(

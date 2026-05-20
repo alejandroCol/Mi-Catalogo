@@ -1,1 +1,0 @@
-function e(e){return`https://us-central1-mi-catalogo-de61a.cloudfunctions.net/mcOnepayCatalogWebhook?k=${encodeURIComponent(e)}`}export{e as t};

@@ -45,13 +45,14 @@ export function initCardFields(params: {
     FTCaptures.init(params.routeId, env, () => {})
     const css = {
       color: '#0a0a0a',
-      height: '48px',
+      height: '42px',
       'font-size': '15px',
-      padding: '12px 14px',
+      padding: '0 12px',
+      'line-height': '42px',
       'box-sizing': 'border-box',
-      'border-radius': '12px',
-      border: '1px solid #e5e5e5',
-      background: '#ffffff',
+      'border-radius': '0',
+      border: '0',
+      background: 'transparent',
     }
     FTCaptures.field(`#op-cc-holder-${suf}`, {
       type: 'card-holder',

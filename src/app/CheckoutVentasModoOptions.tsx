@@ -47,7 +47,7 @@ export function CheckoutVentasModoOptions({
       >
         <p className="text-[14px] font-semibold text-[var(--cat-text)]">Pasarela sin registro OnePay</p>
         <p className="mt-1 text-[12px] leading-relaxed text-[var(--cat-muted)]">
-          Cobrá en línea con la cuenta OnePay de Mi Catálogo, sin dar de alta tu comercio ni KYB desde acá.
+          Cobrá en línea con la cuenta OnePay de Mi Catálogo. Retirás tus fondos cuando quieras desde Ventas.
         </p>
         <p className="mt-2 rounded-md border border-amber-200/80 bg-amber-50/50 px-2 py-1.5 text-[11px] leading-snug text-amber-950">
           <span className="font-semibold">Costo al retirar fondos:</span> si no creás tu cuenta comercio en OnePay, al

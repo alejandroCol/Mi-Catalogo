@@ -81,7 +81,7 @@ export function AppShell() {
             }
           >
             <IconSliders size={22} />
-            <span>Cuenta</span>
+            <span className="text-[10px] leading-tight sm:text-[11px]">Configuraciones</span>
           </NavLink>
         </span>
       </nav>

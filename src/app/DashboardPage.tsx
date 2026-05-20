@@ -8,16 +8,19 @@ import { billingPlanOf } from '@/lib/catalogTheme'
 import { formatCop } from '@/lib/formatCop'
 import { firebaseConfigured, getDb, getFirebaseFunctions } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
-import { catalogoVendedorGate, isCatalogoVendedorListo } from '@/lib/checkoutVentasModo'
+import {
+  catalogoVendedorGate,
+  explicitCheckoutVentasModo,
+  hasNonWhatsappCheckoutVentasEnabled,
+  isCatalogoVendedorListo,
+} from '@/lib/checkoutVentasModo'
 import { isSubscriptionActive } from '@/lib/subscription'
 import { useTenantPedidosSales } from '@/hooks/useTenantPedidosSales'
 import { useTenantHasProducts } from '@/hooks/useTenantHasProducts'
 import {
   IconBankCard,
-  IconCalendar,
   IconChevronRight,
   IconClipboard,
-  IconCoins,
   IconLink,
   IconPlusCircle,
 } from '@/icons/McIcons'
@@ -26,7 +29,7 @@ import { CheckoutVentasRequiredModal } from '@/app/CheckoutVentasRequiredModal'
 import type { McPlatformSettings } from '@/types/mc'
 
 export function DashboardPage() {
-  const { profile, tenant, firebaseUser } = useMcAuth()
+  const { profile, tenant } = useMcAuth()
   const [onepayBalancePreview, setOnepayBalancePreview] = useState<string | null>(null)
   const [onepayBalancePreviewLoading, setOnepayBalancePreviewLoading] = useState(false)
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
@@ -38,23 +41,27 @@ export function DashboardPage() {
   const active = tenant ? isSubscriptionActive(tenant.subscriptionEndsAt) : false
 
   useEffect(() => {
+    const modo = explicitCheckoutVentasModo(tenant)
     if (
       !tenant ||
       !profile ||
       !active ||
       profile.uid !== tenant.ownerUid ||
-      tenant.onepayPaymentsEnabled !== true ||
+      (modo !== 'pasarela' && modo !== 'pasarela_micatalogo') ||
       !firebaseConfigured
     ) {
       return
     }
+    if (modo === 'pasarela' && tenant.onepayPaymentsEnabled !== true) return
     let cancelled = false
     setOnepayBalancePreviewLoading(true)
     ;(async () => {
       try {
-        const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepayMerchantBalance')
-        const res = (await fn({})) as { data: { balance_label?: string } }
-        const bl = res.data?.balance_label
+        const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepaySellerSaldoSummary')
+        const res = (await fn({})) as {
+          data: { balance?: { balance_label?: string } }
+        }
+        const bl = res.data?.balance?.balance_label
         if (!cancelled) {
           setOnepayBalancePreview(typeof bl === 'string' && bl.trim() ? bl.trim() : null)
         }
@@ -110,38 +117,40 @@ export function DashboardPage() {
     window.open(publicUrl, '_blank', 'noopener,noreferrer')
   }
   const plan = billingPlanOf(tenant)
+  const planBadgeClass =
+    plan === 'expert'
+      ? 'border-[color-mix(in_srgb,var(--cat-text)_15%,transparent)] text-[var(--cat-text)]'
+      : 'border-neutral-200/70 text-[var(--cat-muted)]'
   const hoyLabel = new Date().toLocaleDateString('es-CO', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   })
+  const nonWhatsappPaymentEnabled = hasNonWhatsappCheckoutVentasEnabled(tenant, platformSettings)
+  const checkoutModo = explicitCheckoutVentasModo(tenant)
+  const saldoPath =
+    checkoutModo === 'pasarela' || checkoutModo === 'pasarela_micatalogo' ? '/app/mi-saldo' : null
+  const showOnepayEnableCta =
+    active &&
+    profile.uid === tenant.ownerUid &&
+    tenant.onepayPaymentsEnabled !== true &&
+    !nonWhatsappPaymentEnabled
 
   return (
-    <div className="mc-shell space-y-10">
-      <section className="border border-neutral-200/50 bg-[var(--cat-surface)] px-6 py-8 sm:px-8 sm:py-9">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--cat-muted)]">Tu tienda</p>
-            <h1 className="mt-2 text-[1.75rem] font-medium leading-[1.15] tracking-tighter text-[var(--cat-text)] sm:text-[2rem]">
-              {tenant.nombreTienda}
-            </h1>
-            <p className="mt-3 text-[15px] text-[var(--cat-muted)]">
-              <span className="font-medium text-[var(--cat-text)]">
-                {profile.displayName?.trim() || firebaseUser?.email || '—'}
-              </span>
-            </p>
-            <p className="mt-2 text-[13px] capitalize leading-relaxed text-[var(--cat-muted)]">{hoyLabel}</p>
-          </div>
+    <div className="mc-shell space-y-6 sm:space-y-8">
+      <section className="border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-6 sm:px-8 sm:py-8">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--cat-muted)]">Tu tienda</p>
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-2">
+          <h1 className="min-w-0 text-[1.65rem] font-medium leading-[1.15] tracking-tighter text-[var(--cat-text)] sm:text-[2rem]">
+            {tenant.nombreTienda}
+          </h1>
           <span
-            className={`inline-flex shrink-0 self-start border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] ${
-              plan === 'expert'
-                ? 'border-[color-mix(in_srgb,var(--cat-text)_15%,transparent)] text-[var(--cat-text)]'
-                : 'border-neutral-200/70 text-[var(--cat-muted)]'
-            }`}
+            className={`inline-flex shrink-0 border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] sm:px-3 sm:py-1 sm:text-[11px] ${planBadgeClass}`}
           >
             {plan === 'expert' ? 'Expert' : 'Free'}
           </span>
         </div>
+        <p className="mt-2 text-[13px] capitalize leading-relaxed text-[var(--cat-muted)]">{hoyLabel}</p>
       </section>
 
       {!active && (
@@ -161,7 +170,7 @@ export function DashboardPage() {
         </section>
       )}
 
-      {active && profile?.uid === tenant.ownerUid && tenant.onepayPaymentsEnabled !== true && (
+      {showOnepayEnableCta && (
         <section aria-label="Pagos con pasarela">
           <Link
             to="/app/pagos-pasarela"
@@ -216,50 +225,30 @@ export function DashboardPage() {
         </section>
       )}
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="border border-neutral-200/50 bg-[var(--cat-surface)] p-6">
-          <div className="flex items-start gap-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-neutral-200/60 text-[var(--cat-text)]">
-              <IconCoins size={20} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--cat-muted)]">Vendido hoy</p>
-              {sales.loading ? (
-                <div className="mt-3 h-9 w-36 animate-pulse rounded-sm bg-neutral-100" />
-              ) : (
-                <p className="mt-2 break-words text-[1.5rem] font-medium tabular-nums leading-none tracking-tighter text-[var(--cat-text)] sm:text-[1.65rem]">
-                  {formatCop(sales.today)}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="border border-neutral-200/50 bg-[var(--cat-surface)] p-6">
-          <div className="flex items-start gap-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-neutral-200/60 text-[var(--cat-text)]">
-              <IconCalendar size={20} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--cat-muted)]">
-                {sales.periodLabel}
-              </p>
-              {sales.loading ? (
-                <div className="mt-3 h-9 w-36 animate-pulse rounded-sm bg-neutral-100" />
-              ) : (
-                <p className="mt-2 break-words text-[1.5rem] font-medium tabular-nums leading-none tracking-tighter text-[var(--cat-text)] sm:text-[1.65rem]">
-                  {formatCop(sales.periodTotal)}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+      <section className="grid grid-cols-2 gap-3 sm:gap-4">
+        <SaldoCard
+          saldoPath={saldoPath}
+          periodo="hoy"
+          label="Vendido hoy"
+          loading={sales.loading}
+          amount={sales.today}
+        />
+        <SaldoCard
+          saldoPath={saldoPath}
+          periodo="semana"
+          label={sales.periodLabel}
+          loading={sales.loading}
+          amount={sales.periodTotal}
+        />
       </section>
 
-      {active && profile?.uid === tenant.ownerUid && tenant.onepayPaymentsEnabled === true && (
+
+      {active &&
+        profile?.uid === tenant.ownerUid &&
+        (checkoutModo === 'pasarela_micatalogo' || tenant.onepayPaymentsEnabled === true) && (
         <section aria-label="Dinero en pasarela">
           <Link
-            to="/app/pagos-pasarela/onepay"
+            to={checkoutModo === 'pasarela_micatalogo' ? '/app/mi-saldo' : '/app/pagos-pasarela/onepay'}
             className="group flex w-full items-start gap-4 border border-neutral-200/55 bg-[var(--cat-surface)] px-5 py-6 text-left shadow-[0_1px_0_color-mix(in_srgb,var(--cat-text)_5%,transparent)] transition duration-200 hover:border-[color-mix(in_srgb,var(--cat-text)_14%,transparent)] hover:bg-neutral-50/40 sm:px-7 sm:py-7"
           >
             <span className="flex h-11 w-11 shrink-0 items-center justify-center border border-[color-mix(in_srgb,var(--cat-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--cat-surface)_90%,var(--cat-accent))] text-[var(--cat-text)]">
@@ -393,4 +382,43 @@ export function DashboardPage() {
       />
     </div>
   )
+}
+
+function SaldoCard({
+  saldoPath,
+  periodo,
+  label,
+  loading,
+  amount,
+}: {
+  saldoPath: string | null
+  periodo: 'hoy' | 'semana'
+  label: string
+  loading: boolean
+  amount: number
+}) {
+  const inner = (
+    <>
+      <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)] sm:text-[13px]">
+        {label}
+      </p>
+      {loading ? (
+        <div className="mt-3 h-10 w-full max-w-[9rem] animate-pulse rounded-sm bg-neutral-100 sm:h-11" />
+      ) : (
+        <p className="mt-2 break-words text-[1.45rem] font-medium tabular-nums leading-none tracking-tighter text-[var(--cat-text)] sm:mt-3 sm:text-[2rem]">
+          {formatCop(amount)}
+        </p>
+      )}
+    </>
+  )
+  const className =
+    'border border-neutral-200/50 bg-[var(--cat-surface)] p-5 sm:p-7 transition hover:border-neutral-300/70 hover:bg-neutral-50/40'
+  if (saldoPath) {
+    return (
+      <Link to={`${saldoPath}?periodo=${periodo}`} className={`${className} no-underline`}>
+        {inner}
+      </Link>
+    )
+  }
+  return <div className={className}>{inner}</div>
 }

@@ -1,27 +1,19 @@
 import { useState } from 'react'
 import { deleteField, doc, updateDoc } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import { ProductoVariantesEditor } from '@/components/producto/ProductoVariantesEditor'
 import { getDb, getStorageApp, firebaseStorageConfigured } from '@/lib/firebase'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
 import { formatIntegerEsCo } from '@/lib/formatCop'
 import { mcProductosCollection } from '@/lib/mcCollections'
+import {
+  buildVarianteFromDraft,
+  parsePrecioVarianteOpcional,
+  sumarStockVariantes,
+  variantesConStockDefinido,
+  variantesDraftFromProducto,
+} from '@/lib/productoVariantes'
 import type { McProducto, McProductoVariante } from '@/types/mc'
-
-type VarianteDraft = {
-  id: string
-  nombre: string
-  hex: string
-  precio: string
-  file: File | null
-  imageUrl?: string
-}
-
-function parsePrecioVariante(raw: string): number | undefined {
-  const d = raw.replace(/\D/g, '')
-  if (!d) return undefined
-  const n = Number(d)
-  return Number.isFinite(n) && n > 0 ? n : undefined
-}
 
 export function EditProductModal({
   tenantId,
@@ -41,18 +33,11 @@ export function EditProductModal({
   const [mainFile, setMainFile] = useState<File | null>(null)
   const [galeriaFiles, setGaleriaFiles] = useState<File[]>([])
   const [galeriaUrls, setGaleriaUrls] = useState<string[]>(product.galeriaImagenes ?? [])
-  const [variantes, setVariantes] = useState<VarianteDraft[]>(
-    (product.variantes ?? []).map((v) => ({
-      id: v.id,
-      nombre: v.nombre,
-      hex: v.hex ?? '#525252',
-      precio: v.precioCop != null && v.precioCop > 0 ? formatIntegerEsCo(v.precioCop) : '',
-      file: null,
-      imageUrl: v.imageUrl,
-    })),
-  )
+  const [variantes, setVariantes] = useState(() => variantesDraftFromProducto(product))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  const tieneVariantes = variantes.length > 0
 
   function onPrecioChange(raw: string) {
     const digits = raw.replace(/\D/g, '')
@@ -66,35 +51,6 @@ export function EditProductModal({
       return
     }
     setPrecio(formatIntegerEsCo(n))
-  }
-
-  function onPrecioVariante(i: number, raw: string) {
-    const digits = raw.replace(/\D/g, '')
-    if (digits === '') {
-      patchVariante(i, { precio: '' })
-      return
-    }
-    const n = Number(digits)
-    if (!Number.isFinite(n)) {
-      patchVariante(i, { precio: '' })
-      return
-    }
-    patchVariante(i, { precio: formatIntegerEsCo(n) })
-  }
-
-  function patchVariante(i: number, partial: Partial<VarianteDraft>) {
-    setVariantes((prev) => prev.map((v, j) => (j === i ? { ...v, ...partial } : v)))
-  }
-
-  function addVariante() {
-    setVariantes((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), nombre: '', hex: '#525252', precio: '', file: null },
-    ])
-  }
-
-  function removeVariante(i: number) {
-    setVariantes((prev) => prev.filter((_, j) => j !== i))
   }
 
   function removeGaleriaUrl(url: string) {
@@ -115,14 +71,15 @@ export function EditProductModal({
       return
     }
 
-    const varianteRows = variantes.filter((v) => v.nombre.trim())
-    for (const v of varianteRows) {
-      if (v.precio.trim() && parsePrecioVariante(v.precio) == null) {
+    for (const v of variantes) {
+      if (!v.nombre.trim()) continue
+      if (v.precio.trim() && parsePrecioVarianteOpcional(v.precio) == null) {
         setErr(`Precio opcional inválido en «${v.nombre.trim()}».`)
         return
       }
     }
 
+    const varianteRows = variantes.filter((v) => v.nombre.trim())
     if (!firebaseStorageConfigured && (mainFile || galeriaFiles.length || varianteRows.some((v) => v.file))) {
       setErr('Firebase Storage no está configurado; no se pueden subir imágenes.')
       return
@@ -163,21 +120,21 @@ export function EditProductModal({
           await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
           vImg = await getDownloadURL(pathRef)
         }
-        const pc = parsePrecioVariante(v.precio)
-        const item: McProductoVariante = {
-          id: v.id,
-          nombre: v.nombre.trim(),
-          hex: v.hex?.trim() || undefined,
-        }
-        if (pc != null) item.precioCop = pc
+        const item = buildVarianteFromDraft(v)
+        if (!item) continue
         if (vImg) item.imageUrl = vImg
         builtVariantes.push(item)
+      }
+
+      let stockFinal = Number.isFinite(stockNum) ? stockNum : 0
+      if (builtVariantes.length > 0 && variantesConStockDefinido(builtVariantes)) {
+        stockFinal = sumarStockVariantes(builtVariantes)
       }
 
       await updateDoc(refDoc, {
         nombre: nombre.trim(),
         precioCop: precioNum,
-        stock: Number.isFinite(stockNum) ? stockNum : 0,
+        stock: stockFinal,
         updatedAt: Date.now(),
         imageUrl: imageUrl ?? deleteField(),
         marcarNovedad,
@@ -199,14 +156,14 @@ export function EditProductModal({
       <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-neutral-200/50 bg-white p-5 sm:rounded-lg">
         <h2 className="ios-headline">Editar artículo</h2>
         <p className="ios-footnote mt-1.5 text-mc-600">
-          Actualizá datos, fotos extra, y colores u opciones con precio propio si hace falta.
+          Actualizá datos, fotos y variantes con stock, color u olor propios por opción.
         </p>
         <form onSubmit={onSubmit} className="mt-4 space-y-5">
           <div>
             <label className="ios-footnote font-medium text-mc-700">Nombre</label>
             <input className="mc-input mt-1.5" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={tieneVariantes ? '' : 'grid grid-cols-2 gap-3'}>
             <div>
               <label className="ios-footnote font-medium text-mc-700">Precio base (COP)</label>
               <input
@@ -217,16 +174,22 @@ export function EditProductModal({
                 autoComplete="off"
               />
             </div>
-            <div>
-              <label className="ios-footnote font-medium text-mc-700">Stock</label>
-              <input
-                className="mc-input mt-1.5"
-                inputMode="numeric"
-                value={stock}
-                onChange={(e) => setStock(e.target.value.replace(/\D/g, ''))}
-                autoComplete="off"
-              />
-            </div>
+            {!tieneVariantes ? (
+              <div>
+                <label className="ios-footnote font-medium text-mc-700">Stock</label>
+                <input
+                  className="mc-input mt-1.5"
+                  inputMode="numeric"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value.replace(/\D/g, ''))}
+                  autoComplete="off"
+                />
+              </div>
+            ) : (
+              <p className="mt-2 text-[12px] leading-relaxed text-mc-600">
+                El stock total se calcula sumando el de cada variante.
+              </p>
+            )}
           </div>
           <label className="flex cursor-pointer items-start gap-2.5">
             <input
@@ -272,73 +235,7 @@ export function EditProductModal({
             />
           </div>
 
-          <div className="rounded-md border border-neutral-200/60 bg-mc-50/50 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="ios-footnote font-semibold text-mc-800">Variantes (color / opción)</p>
-              <button type="button" className="text-[13px] font-medium text-mc-900 underline" onClick={addVariante}>
-                + Añadir
-              </button>
-            </div>
-            <p className="mt-1 text-[12px] leading-relaxed text-mc-600">
-              Nombre obligatorio por fila. Color y precio propio opcionales. Podés subir una foto por variante.
-            </p>
-            <ul className="mt-3 space-y-4">
-              {variantes.map((v, i) => (
-                <li key={v.id} className="rounded-md border border-neutral-200/50 bg-white p-3">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <label className="text-[11px] font-medium text-mc-600">Nombre</label>
-                      <input
-                        className="mc-input mt-1 py-2 text-[14px]"
-                        value={v.nombre}
-                        onChange={(e) => patchVariante(i, { nombre: e.target.value })}
-                        placeholder="Ej. Azul marino"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-medium text-mc-600">Muestra de color</label>
-                      <input
-                        type="color"
-                        className="mt-1 h-10 w-full cursor-pointer rounded-md border border-neutral-200/70"
-                        value={v.hex}
-                        onChange={(e) => patchVariante(i, { hex: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-medium text-mc-600">Precio COP (opcional)</label>
-                      <input
-                        className="mc-input mt-1 py-2 text-[14px]"
-                        inputMode="numeric"
-                        value={v.precio}
-                        onChange={(e) => onPrecioVariante(i, e.target.value)}
-                        placeholder="Vacío = precio base"
-                        autoComplete="off"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-medium text-mc-600">Foto variante (opcional)</label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="mt-1 w-full text-[13px] file:rounded file:border file:bg-neutral-50 file:px-2 file:py-1"
-                        onChange={(e) => patchVariante(i, { file: e.target.files?.[0] ?? null })}
-                      />
-                      {v.imageUrl && !v.file && (
-                        <p className="mt-1 text-[11px] text-mc-500">Hay imagen guardada para esta variante.</p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="mt-2 text-[12px] text-mc-500 underline"
-                    onClick={() => removeVariante(i)}
-                  >
-                    Eliminar variante
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ProductoVariantesEditor variantes={variantes} onChange={setVariantes} allowImage />
 
           {err && <p className="ios-subhead text-red-800">{err}</p>}
           <div className="flex gap-2 pt-2">

@@ -12,6 +12,7 @@ import {
 import { resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
+import { productoStockEfectivo } from '@/lib/productoVariantes'
 import type { McCatalogThemePreset } from '@/types/mc'
 import type { McProducto } from '@/types/mc'
 import { CatalogListToolbar } from '@/public/CatalogListToolbar'
@@ -142,7 +143,7 @@ function ReyProductCard({
           {formatCop(p.precioCop)}
         </p>
         <p className="mt-1 text-[10px] leading-relaxed mc-pc-muted sm:text-[11px]">
-          {p.stock > 0 ? `${p.stock} en stock` : 'Stock a consultar'}
+          {productoStockEfectivo(p) > 0 ? `${productoStockEfectivo(p)} en stock` : 'Stock a consultar'}
         </p>
       </Link>
     </article>
@@ -197,7 +198,9 @@ function ReyProductCardBold({
         <p className="mt-2 text-lg font-semibold tabular-nums text-[var(--cat-text)] sm:text-xl">
           {formatCop(p.precioCop)}
         </p>
-        <p className="mt-2 text-sm mc-pc-muted">{p.stock > 0 ? `Stock ${p.stock}` : 'Consultar stock'}</p>
+        <p className="mt-2 text-sm mc-pc-muted">
+          {productoStockEfectivo(p) > 0 ? `Stock ${productoStockEfectivo(p)}` : 'Consultar stock'}
+        </p>
       </Link>
     </article>
   )

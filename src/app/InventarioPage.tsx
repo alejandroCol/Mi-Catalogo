@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { collection, doc, getDoc, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { deleteObject, ref } from 'firebase/storage'
-import { Link, useNavigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { mcProductosCollection, MC } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
+import { productoStockEfectivo, variantesValidas } from '@/lib/productoVariantes'
 import type { McPlatformSettings, McProducto } from '@/types/mc'
 import { BulkAddProductsModal } from '@/app/BulkAddProductsModal'
 import { EditProductModal } from '@/app/EditProductModal'
 import { QuickAddProductModal } from '@/app/QuickAddProductModal'
+import { ExpertUpgradeSheet } from '@/components/billing/ExpertUpgradeSheet'
 import { billingPlanOf } from '@/lib/catalogTheme'
-import { ExpertStar } from '@/components/billing/ExpertStar'
 import { hasExpertFeatureAccess } from '@/lib/billingAccess'
 import {
   maxProductosForTenant,
@@ -26,15 +26,15 @@ import {
   mcToggleProductoNovedad,
 } from '@/lib/mcWrites'
 import { isProductNovedad } from '@/lib/catalogNovedad'
-import { IconPlus } from '@/icons/McIcons'
+import { IconPhotoStack, IconPlus } from '@/icons/McIcons'
 
 export function InventarioPage() {
   const { profile, tenant } = useMcAuth()
-  const nav = useNavigate()
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
+  const [expertSheetOpen, setExpertSheetOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<(McProducto & { id: string }) | null>(null)
   const [limitHint, setLimitHint] = useState<string | null>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
@@ -122,6 +122,7 @@ export function InventarioPage() {
   }
 
   function openBulkModal() {
+    if (!expertAccess) return
     if (atLimit && limitMsg) {
       setLimitHint(limitMsg)
       return
@@ -143,9 +144,13 @@ export function InventarioPage() {
           {!expert && (
             <>
               {' '}
-              <Link to="/app/plan" className="font-semibold underline underline-offset-2">
+              <button
+                type="button"
+                className="font-semibold underline underline-offset-2"
+                onClick={() => setExpertSheetOpen(true)}
+              >
                 Ver plan Expert
-              </Link>
+              </button>
             </>
           )}
         </div>
@@ -154,26 +159,30 @@ export function InventarioPage() {
         <p className="mt-3 text-[13px] text-[var(--cat-muted)]">{limitHint}</p>
       )}
       <p className="ios-subhead mt-2 max-w-2xl leading-relaxed">
-        Tocá el botón <strong className="font-medium text-[var(--cat-text)]">+</strong> para agregar un artículo con foto, nombre, precio y stock.
-        {' '}
-        Con <ExpertStar className="mx-0.5 inline" /> podés usar{' '}
+        Cargá cada producto con foto, nombre, precio y stock.
+        {expertAccess && ' Con Expert también podés subir varias fotos a la vez desde la galería.'}
+      </p>
+
+      <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-stretch">
         <button
           type="button"
-          className="font-semibold text-[var(--cat-accent)] underline decoration-transparent underline-offset-2 hover:decoration-current"
-          onClick={() => (expertAccess ? openBulkModal() : nav('/app/plan'))}
+          className="mc-btn-primary inline-flex w-full items-center justify-center gap-2 px-5 py-3.5 text-[16px] sm:min-w-[220px] sm:flex-1"
+          onClick={() => openAddModal()}
         >
-          carga masiva desde la galería
+          <IconPlus size={20} className="text-[var(--cat-accent-text)]" />
+          Agregar producto
         </button>
-        .
-      </p>
-      <button
-        type="button"
-        className="mc-btn-secondary mt-4 inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-[15px] sm:w-auto"
-        onClick={() => (expertAccess ? setBulkOpen(true) : nav('/app/plan'))}
-      >
-        <ExpertStar />
-        Carga masiva (varias fotos)
-      </button>
+        {expertAccess && (
+          <button
+            type="button"
+            className="mc-btn-secondary inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-[15px] sm:w-auto"
+            onClick={() => openBulkModal()}
+          >
+            <IconPhotoStack size={18} />
+            Carga masiva de fotos
+          </button>
+        )}
+      </div>
 
       <ul className="mt-8 space-y-4">
         {rows.map((p) => (
@@ -188,7 +197,10 @@ export function InventarioPage() {
             <div className="min-w-0 flex-1">
               <p className="ios-headline">{p.nombre}</p>
               <p className="ios-subhead tabular-nums">
-                {formatCop(p.precioCop)} · stock {p.stock}
+                {formatCop(p.precioCop)} · stock {productoStockEfectivo(p)}
+                {variantesValidas(p).length > 0 ? (
+                  <span className="text-mc-500"> · {variantesValidas(p).length} variantes</span>
+                ) : null}
                 {isProductNovedad(p) && (
                   <span className="ml-2 inline-block border border-neutral-200/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-mc-600">
                     Novedad
@@ -238,14 +250,14 @@ export function InventarioPage() {
       </ul>
 
       {rows.length === 0 && (
-        <p className="mt-8 text-center ios-footnote">Todavía no cargaste artículos.</p>
+        <p className="mt-8 text-center ios-footnote">Todavía no cargaste productos.</p>
       )}
 
       <button
         ref={fabRef}
         type="button"
         className="mc-fab"
-        aria-label="Agregar artículo"
+        aria-label="Agregar producto"
         onClick={() => openAddModal()}
       >
         <IconPlus size={24} className="text-[var(--cat-accent-text)]" />
@@ -280,6 +292,12 @@ export function InventarioPage() {
           nextOrden={rows.length}
         />
       )}
+
+      <ExpertUpgradeSheet
+        open={expertSheetOpen}
+        onClose={() => setExpertSheetOpen(false)}
+        title="Más productos con Expert"
+      />
     </div>
   )
 }

@@ -148,6 +148,9 @@ const PublicPoliciesPage = lazy(() =>
     default: m.PublicPoliciesPage,
   })),
 )
+const LandingPage = lazy(() =>
+  import('@/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
+)
 
 function RouteFallback() {
   return (
@@ -252,7 +255,7 @@ export function App() {
             <Route path="seguimiento" element={<PublicOrderTrackingPage />} />
             <Route path="politicas" element={<PublicPoliciesPage />} />
           </Route>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
+import { ExpertUpgradeSheet } from '@/components/billing/ExpertUpgradeSheet'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ExpertStar } from '@/components/billing/ExpertStar'
@@ -130,6 +130,7 @@ export function CarritosAbandonadosPage() {
   const [descuentoPct, setDescuentoPct] = useState('10')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [expertSheetOpen, setExpertSheetOpen] = useState(false)
 
   const listado = useMemo(() => {
     if (filtro === 'todos') return rows
@@ -206,7 +207,7 @@ export function CarritosAbandonadosPage() {
       {!tenant ? (
         <p className="text-[15px] text-[var(--cat-muted)]">Cargando tienda…</p>
       ) : !expertAccess ? (
-        <ExpertUpgradeGate />
+        <ExpertUpgradeGate onVerPlanes={() => setExpertSheetOpen(true)} />
       ) : (
         <>
           {recuperadosCount > 0 ? (
@@ -286,22 +287,29 @@ export function CarritosAbandonadosPage() {
           onConfirm={() => void confirmarRecordatorio()}
         />
       ) : null}
+
+      <ExpertUpgradeSheet
+        open={expertSheetOpen}
+        onClose={() => setExpertSheetOpen(false)}
+        title="Carritos abandonados con Expert"
+      />
     </div>
   )
 }
 
-function ExpertUpgradeGate() {
+function ExpertUpgradeGate({ onVerPlanes }: { onVerPlanes: () => void }) {
   return (
     <div className="mc-card space-y-4">
       <p className="ios-subhead leading-relaxed text-[var(--cat-text)]">
         Recuperar carritos abandonados es una función <strong className="font-medium">Expert</strong>.
       </p>
-      <Link
-        to="/app/plan"
-        className="mc-btn-primary inline-flex w-full items-center justify-center py-3 text-[15px] no-underline"
+      <button
+        type="button"
+        className="mc-btn-primary inline-flex w-full items-center justify-center py-3 text-[15px]"
+        onClick={onVerPlanes}
       >
         Ver planes
-      </Link>
+      </button>
     </div>
   )
 }

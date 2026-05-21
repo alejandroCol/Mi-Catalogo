@@ -1,4 +1,5 @@
 import { isProductNovedad } from '@/lib/catalogNovedad'
+import { productoStockEfectivo } from '@/lib/productoVariantes'
 import type { McProducto } from '@/types/mc'
 
 export type CatalogSortId = 'orden' | 'precio-asc' | 'precio-desc' | 'nombre-az' | 'nombre-za' | 'recientes'
@@ -110,7 +111,7 @@ export function applyCatalogListFilters(
     out = out.filter((p) => isProductNovedad(p, now))
   }
   if (f.onlyInStock) {
-    out = out.filter((p) => p.stock > 0)
+    out = out.filter((p) => productoStockEfectivo(p) > 0)
   }
   out = out.filter((p) => inPriceRange(p, minP, maxP))
   return sortList(out, f.sort)

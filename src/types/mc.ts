@@ -214,12 +214,17 @@ export interface McCarritoIniciado {
   recuperadoAt?: number
 }
 
-/** Variante (ej. color). Precio e imagen opcionales; si no van, usan los del producto base. */
+/** Variante vendible (color, olor, capacidad, talla, etc.). Precio, imagen y stock opcionales. */
 export interface McProductoVariante {
   id: string
+  /** Etiqueta visible: «Lavanda», «256 GB», «Negro / M», etc. */
   nombre: string
-  /** Color para UI (swatch), ej. #c41e3a */
+  /** Categoría de la opción para agrupar en catálogo: «Color», «Olor», «Capacidad»… */
+  tipo?: string
+  /** Muestra de color en UI (swatch), ej. #c41e3a — opcional. */
   hex?: string
+  /** Unidades disponibles de esta variante. Si hay variantes con stock, el del producto suele ser la suma. */
+  stock?: number
   /** Si se define, sustituye al precio base del producto para esta variante. */
   precioCop?: number
   /** Foto propia de la variante (opcional). */

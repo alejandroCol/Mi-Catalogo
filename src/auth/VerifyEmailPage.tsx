@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { reload, signOut } from 'firebase/auth'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, getAuthApp } from '@/lib/firebase'
@@ -77,9 +77,6 @@ export function VerifyEmailPage() {
     const until = Number(raw)
     if (Number.isFinite(until) && until > Date.now()) {
       setCooldownUntil(until)
-      setInfo(
-        'Hay que esperar un poco entre un envío y otro. Cuando termine el temporizador podés usar «Reenviar correo».',
-      )
     }
   }, [])
 
@@ -132,9 +129,9 @@ export function VerifyEmailPage() {
     }
   }
 
-  async function cerrarSesion() {
+  async function cambiarCorreo() {
     await signOut(getAuthApp())
-    nav('/login', { replace: true })
+    nav('/register', { replace: true })
   }
 
   if (!firebaseConfigured) {
@@ -150,33 +147,39 @@ export function VerifyEmailPage() {
   return (
     <div className="mc-page flex min-h-svh flex-col justify-center px-4 py-10">
       <div className="mx-auto w-full max-w-md">
-        <AuthBrandHeader
-          title="Confirmá tu correo"
-          subtitle={
-            <>
-              Te enviamos un mensaje con un <strong className="font-medium text-mc-900">enlace seguro</strong> para
-              validar que el correo es tuyo y activar tu cuenta.
-            </>
-          }
-        />
+        <AuthBrandHeader title="Confirmá tu correo" />
 
         <div className="mc-card space-y-5">
-          {email ? (
+          <div className="space-y-3">
             <p className="text-[15px] leading-relaxed text-mc-800">
-              Lo mandamos a{' '}
-              <span className="break-all font-medium text-mc-900">{email}</span>. Cuando hagas clic en el enlace del correo,
-              volvé acá y tocá «Ya confirmé».
+              Te enviamos un mensaje con un enlace al correo{' '}
+              {email ? (
+                <span className="break-all font-medium text-mc-900">{email}</span>
+              ) : (
+                'que registraste'
+              )}{' '}
+              para validar que es tuyo.
             </p>
-          ) : null}
 
-          <p className="text-[13px] leading-relaxed text-mc-600">
-            El mensaje puede tardar uno o dos minutos; revisá también spam o promociones.
-          </p>
+            <p className="text-[13px] leading-relaxed text-mc-600">
+              El mensaje puede tardar uno o dos minutos; revisá también spam o promociones.
+            </p>
+
+            <p className="text-[14px] leading-relaxed">
+              <button
+                type="button"
+                className="font-medium text-mc-900 underline decoration-neutral-300 underline-offset-4 transition duration-200 ease-in-out hover:opacity-70"
+                onClick={() => void cambiarCorreo()}
+              >
+                Cambiar correo
+              </button>
+            </p>
+          </div>
 
           {info && <p className="text-[15px] leading-relaxed text-emerald-800">{info}</p>}
           {err && <p className="text-[15px] leading-relaxed text-red-800">{err}</p>}
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 pt-1">
             <button
               type="button"
               disabled={busy}
@@ -194,27 +197,7 @@ export function VerifyEmailPage() {
               {cooldownSecs > 0 ? `Reenviar en ${cooldownSecs}s` : busy ? 'Enviando…' : 'Reenviar correo'}
             </button>
           </div>
-
-          {cooldownSecs > 0 ? (
-            <p className="text-center text-[14px] leading-relaxed text-mc-600">
-              Podés pedir otro correo en <span className="font-semibold tabular-nums text-mc-900">{cooldownSecs}s</span>.
-            </p>
-          ) : null}
-
-          <div className="border-t border-neutral-200/60 pt-4">
-            <button type="button" className="text-[14px] font-medium text-mc-600 underline underline-offset-4" onClick={() => void cerrarSesion()}>
-              Cerrar sesión y usar otro correo
-            </button>
-          </div>
         </div>
-
-        <p className="mt-8 text-center ios-subhead">
-          ¿Correo equivocado en el registro?{' '}
-          <Link to="/login" className="font-medium text-mc-900 underline decoration-neutral-300 underline-offset-4">
-            Entrá y cerrá sesión
-          </Link>{' '}
-          o creá una cuenta nueva.
-        </p>
       </div>
     </div>
   )

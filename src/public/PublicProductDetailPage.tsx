@@ -3,20 +3,38 @@ import { Link, useParams } from 'react-router-dom'
 import { doc, onSnapshot } from 'firebase/firestore'
 import clsx from 'clsx'
 import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext'
+import type { LineaCarritoSimple } from '@/catalog-local/simpleCartTypes'
 import { downloadCatalogImage } from '@/catalog-local/downloadCatalogImage'
 import { FullscreenImageOverlay } from '@/catalog-local/FullscreenImageOverlay'
 import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
+import {
+  agruparVariantesPorTipo,
+  productoUsaStockPorVariante,
+  stockDisponibleVariante,
+  variantePrecioEfectivo,
+  variantesValidas,
+} from '@/lib/productoVariantes'
 import { buildProductShareData, canUseWebShare, shareSafe } from '@/lib/webShare'
 import type { McProducto, McProductoVariante } from '@/types/mc'
 import { usePublicTenant } from '@/public/usePublicTenant'
 
 const DOCENA = 12
 
-function variantesValidas(prod: McProducto): McProductoVariante[] {
-  return (prod.variantes ?? []).filter((v) => v.nombre?.trim())
+function varianteEnCarrito(lines: LineaCarritoSimple[], productId: string, varianteId: string): number {
+  let n = 0
+  for (const l of lines) {
+    if (l.productId === productId && l.varianteId === varianteId) n += l.cantidad
+  }
+  return n
+}
+
+function stockVarianteUi(prod: McProducto, v: McProductoVariante, lines: LineaCarritoSimple[]): number {
+  const enCart = varianteEnCarrito(lines, prod.id, v.id)
+  const totalCart = lines.filter((l) => l.productId === prod.id).reduce((s, l) => s + l.cantidad, 0)
+  return stockDisponibleVariante(prod, v, enCart, totalCart)
 }
 
 export function PublicProductDetailPage() {
@@ -60,13 +78,14 @@ export function PublicProductDetailPage() {
     if (vs.length > 0) {
       setSelectedVid((prev) => {
         if (prev && vs.some((v) => v.id === prev)) return prev
-        return vs[0]!.id
+        const conStock = vs.find((v) => stockVarianteUi(prod, v, lines) > 0)
+        return (conStock ?? vs[0])!.id
       })
     } else {
       setSelectedVid(null)
     }
     setGalleryPick(null)
-  }, [prod?.id, prod?.updatedAt])
+  }, [prod?.id, prod?.updatedAt, lines])
 
   const mainSrc = useMemo(() => {
     if (!prod) return null
@@ -75,7 +94,7 @@ export function PublicProductDetailPage() {
     return prod.imageUrl ?? null
   }, [prod, selected?.imageUrl, galleryPick])
 
-  const effectivePrice = selected?.precioCop ?? prod?.precioCop ?? 0
+  const effectivePrice = selected && prod ? variantePrecioEfectivo(selected, prod) : prod?.precioCop ?? 0
 
   const enCarrito = useMemo(() => {
     if (!prod) return 0
@@ -102,13 +121,17 @@ export function PublicProductDetailPage() {
 
   useEffect(() => {
     if (!prod) return
-    const d = Math.max(0, prod.stock - totalEnCarritoProducto)
+    const totalCart = lines.filter((l) => l.productId === prod.id).reduce((s, l) => s + l.cantidad, 0)
+    const d =
+      hasVariants && selected
+        ? stockDisponibleVariante(prod, selected, enCarrito, totalCart)
+        : Math.max(0, Math.floor(prod.stock ?? 0) - totalCart)
     if (d <= 0) {
       setQtyToAdd(1)
       return
     }
     setQtyToAdd((q) => Math.max(1, Math.min(q, d)))
-  }, [prod?.id, prod?.stock, totalEnCarritoProducto, selected?.id])
+  }, [prod?.id, prod?.stock, enCarrito, selected?.id, hasVariants, lines])
 
   if (!firebaseConfigured) {
     return <p className="mc-pc-text">Configurá Firebase.</p>
@@ -131,7 +154,13 @@ export function PublicProductDetailPage() {
   }
 
   const product = prod
-  const disp = Math.max(0, product.stock - totalEnCarritoProducto)
+  const disp =
+    hasVariants && selected
+      ? stockDisponibleVariante(product, selected, enCarrito, totalEnCarritoProducto)
+      : Math.max(0, Math.floor(product.stock ?? 0) - totalEnCarritoProducto)
+
+  const gruposVariantes = agruparVariantesPorTipo(vars)
+  const usaStockPorVariante = productoUsaStockPorVariante(product)
 
   const galeriaUrls = (() => {
     const u = new Set<string>()
@@ -179,51 +208,76 @@ export function PublicProductDetailPage() {
     </nav>
   )
 
-  const VariantChips = ({ className }: { className?: string }) =>
+  const VariantChip = ({ v }: { v: McProductoVariante }) => {
+    const active = v.id === selected?.id
+    const dispV = stockVarianteUi(product, v, lines)
+    const agotada = dispV < 1
+    const precioV = variantePrecioEfectivo(v, product)
+
+    return (
+      <button
+        key={v.id}
+        type="button"
+        disabled={agotada}
+        onClick={() => {
+          setSelectedVid(v.id)
+          setGalleryPick(null)
+        }}
+        className={clsx(
+          'inline-flex min-h-[48px] max-w-full items-center gap-2.5 rounded-2xl border px-3.5 py-2.5 text-left text-[13px] font-medium transition',
+          agotada && 'cursor-not-allowed opacity-45',
+          active && !agotada
+            ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_12%,var(--cat-surface)_88%)] text-[var(--cat-text)] ring-1 ring-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)] shadow-sm'
+            : !agotada &&
+                'mc-pc-border bg-[var(--cat-surface)] text-[var(--cat-text)] hover:border-[color-mix(in_srgb,var(--cat-text)_22%,transparent)] hover:shadow-sm',
+        )}
+      >
+        {v.hex ? (
+          <span
+            className="h-7 w-7 shrink-0 rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_28%,transparent)] shadow-inner"
+            style={{ backgroundColor: v.hex }}
+            aria-hidden
+          />
+        ) : (
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border mc-pc-border bg-[color-mix(in_srgb,var(--cat-text)_4%,var(--cat-surface)_96%)] text-[11px] font-bold mc-pc-muted">
+            {v.nombre.trim().charAt(0).toUpperCase()}
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block leading-tight">{v.nombre}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-semibold tabular-nums text-[var(--cat-muted)]">
+            <span>{formatCop(precioV)}</span>
+            {usaStockPorVariante ? (
+              <span className={clsx('font-medium', agotada ? 'text-red-600/90' : 'text-emerald-700/90')}>
+                {agotada ? 'Agotado' : `${dispV} disp.`}
+              </span>
+            ) : null}
+          </span>
+        </span>
+      </button>
+    )
+  }
+
+  const VariantSelectors = ({ className }: { className?: string }) =>
     hasVariants ? (
-      <div className={clsx('space-y-2', className)}>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
-          Elegí opción
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {vars.map((v) => {
-            const active = v.id === selected?.id
-            return (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => {
-                  setSelectedVid(v.id)
-                  setGalleryPick(null)
-                }}
-                className={clsx(
-                  'inline-flex min-h-[44px] items-center gap-2 rounded-full border px-3.5 py-2 text-left text-[13px] font-medium transition',
-                  active
-                    ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_12%,var(--cat-surface)_88%)] text-[var(--cat-text)] ring-1 ring-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)]'
-                    : 'mc-pc-border bg-[var(--cat-surface)] text-[var(--cat-text)] hover:border-[color-mix(in_srgb,var(--cat-text)_22%,transparent)]',
-                )}
-              >
-                {v.hex ? (
-                  <span
-                    className="h-6 w-6 shrink-0 rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_28%,transparent)] shadow-sm"
-                    style={{ backgroundColor: v.hex }}
-                    aria-hidden
-                  />
-                ) : (
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border mc-pc-border text-[10px] mc-pc-muted">
-                    ·
-                  </span>
-                )}
-                <span className="min-w-0">
-                  <span className="block leading-tight">{v.nombre}</span>
-                  <span className="mt-0.5 block text-[11px] font-semibold tabular-nums text-[var(--cat-muted)]">
-                    {formatCop(v.precioCop ?? product.precioCop)}
-                  </span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
+      <div className={clsx('space-y-4', className)}>
+        {gruposVariantes.length === 1 ? (
+          <div className="space-y-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
+              Elegí {gruposVariantes[0]!.tipo.toLowerCase()}
+            </p>
+            <div className="flex flex-wrap gap-2">{gruposVariantes[0]!.items.map((v) => <VariantChip key={v.id} v={v} />)}</div>
+          </div>
+        ) : (
+          gruposVariantes.map((g) => (
+            <div key={g.tipo} className="space-y-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
+                {g.tipo}
+              </p>
+              <div className="flex flex-wrap gap-2">{g.items.map((v) => <VariantChip key={v.id} v={v} />)}</div>
+            </div>
+          ))
+        )}
       </div>
     ) : null
 
@@ -421,7 +475,7 @@ export function PublicProductDetailPage() {
             {formatCop(effectivePrice)}
           </p>
 
-          <VariantChips
+          <VariantSelectors
             className={clsx('mt-5', (isBold || isBoutique) && 'md:mx-auto md:max-w-md')}
           />
 
@@ -433,8 +487,18 @@ export function PublicProductDetailPage() {
               (isBold || isBoutique) && 'text-center md:text-left',
             )}
           >
-            Stock bodega {product.stock}
-            {enCarrito > 0 ? ` · podés sumar hasta ${disp} más` : ` · podés pedir ${disp}`}
+            {hasVariants && selected ? (
+              <>
+                {selected.tipo ? `${selected.tipo}: ${selected.nombre}` : selected.nombre}
+                {usaStockPorVariante ? (
+                  <> · {disp > 0 ? `${disp} disponibles` : 'Sin stock en esta opción'}</>
+                ) : (
+                  <> · stock general {product.stock}</>
+                )}
+              </>
+            ) : (
+              <>Stock {product.stock}{enCarrito > 0 ? ` · podés sumar hasta ${disp} más` : ` · podés pedir ${disp}`}</>
+            )}
           </p>
 
           {mainSrc && (
@@ -470,7 +534,9 @@ export function PublicProductDetailPage() {
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-medium text-[var(--cat-text)]">{product.nombre}</p>
             {hasVariants && selected ? (
-              <p className="truncate text-[11px] text-[var(--cat-muted)]">{selected.nombre}</p>
+              <p className="truncate text-[11px] text-[var(--cat-muted)]">
+                {selected.tipo ? `${selected.tipo}: ${selected.nombre}` : selected.nombre}
+              </p>
             ) : null}
             <p className="text-[15px] font-semibold tabular-nums text-[var(--cat-text)]">
               {formatCop(effectivePrice)}

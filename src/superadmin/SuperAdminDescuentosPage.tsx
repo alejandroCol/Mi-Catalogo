@@ -13,6 +13,8 @@ function normalizeCode(raw: string): string {
   return raw.normalize('NFC').trim().toUpperCase().replace(/\s+/g, '')
 }
 
+type PromoKind = 'price' | 'free_months' | 'free_days_legacy'
+
 export function SuperAdminDescuentosPage() {
   const { profile } = useMcAuth()
   const [rows, setRows] = useState<(McBillingDiscountCode & { id: string })[]>([])
@@ -22,9 +24,11 @@ export function SuperAdminDescuentosPage() {
   const [err, setErr] = useState<string | null>(null)
 
   const [code, setCode] = useState('')
+  const [promoKind, setPromoKind] = useState<PromoKind>('free_months')
   const [priceCop, setPriceCop] = useState('')
+  const [freeMonths, setFreeMonths] = useState<'1' | '2' | '3'>('1')
   const [freeDays, setFreeDays] = useState('30')
-  const [period, setPeriod] = useState<'both' | 'monthly' | 'yearly'>('both')
+  const [period, setPeriod] = useState<'both' | 'monthly' | 'yearly'>('monthly')
   const [maxUses, setMaxUses] = useState('')
 
   const load = useCallback(async () => {
@@ -49,15 +53,16 @@ export function SuperAdminDescuentosPage() {
 
   async function crear() {
     const norm = normalizeCode(code)
-    const price = Number(priceCop.replace(/\D/g, ''))
+    const price = promoKind === 'price' ? Number(priceCop.replace(/\D/g, '')) : 0
+    const months = Number(freeMonths)
     const days = Number(freeDays.replace(/\D/g, ''))
     const max = maxUses.trim() ? Number(maxUses.replace(/\D/g, '')) : undefined
     if (!norm) {
       setErr('Ingresá un código.')
       return
     }
-    if (!Number.isFinite(price) || price < 0) {
-      setErr('Precio final inválido (0 = gratis por X días).')
+    if (promoKind === 'price' && (!Number.isFinite(price) || price < 0)) {
+      setErr('Precio final inválido.')
       return
     }
     setBusy(true)
@@ -69,7 +74,11 @@ export function SuperAdminDescuentosPage() {
         codeNormalized: norm,
         active: true,
         priceCop: price,
-        ...(price === 0 && days > 0 ? { freeTrialDays: days } : {}),
+        ...(promoKind === 'free_months'
+          ? { freeMonths: months, requiresPaymentMethod: true }
+          : promoKind === 'free_days_legacy' && days > 0
+            ? { freeTrialDays: days, requiresPaymentMethod: false }
+            : {}),
         ...(period !== 'both' ? { billingPeriod: period } : {}),
         ...(max && max > 0 ? { maxRedemptions: max, redemptionCount: 0 } : {}),
         updatedAt: Date.now(),
@@ -96,6 +105,16 @@ export function SuperAdminDescuentosPage() {
     await load()
   }
 
+  function describeRow(r: McBillingDiscountCode): string {
+    if (r.freeMonths && r.priceCop === 0) {
+      return `${r.freeMonths} mes${r.freeMonths > 1 ? 'es' : ''} gratis · requiere método de pago`
+    }
+    if (r.priceCop === 0) {
+      return `Gratis ${r.freeTrialDays ?? 30} días (sin método de pago)`
+    }
+    return formatCop(r.priceCop)
+  }
+
   if (!isMcSuperAdminUser(profile)) {
     return <Navigate to="/app" replace />
   }
@@ -113,25 +132,50 @@ export function SuperAdminDescuentosPage() {
       <div>
         <h1 className="ios-large-title">Códigos de descuento</h1>
         <p className="ios-subhead mt-1 max-w-xl text-[var(--cat-muted)]">
-          Bajá el precio del plan Expert o activalo gratis por un período (`precio 0` + días).
+          Meses gratis con método de pago (cobro $0 hoy, precio normal después), precio reducido o días gratis legacy.
         </p>
       </div>
 
       <div className="mc-card mx-auto max-w-lg space-y-4">
         <p className="ios-headline">Nuevo código</p>
         <input className="mc-input" placeholder="CÓDIGO" value={code} onChange={(e) => setCode(e.target.value)} />
-        <input
+
+        <select
           className="mc-input"
-          placeholder="Precio final COP (0 = gratis)"
-          value={priceCop}
-          onChange={(e) => setPriceCop(e.target.value)}
-        />
-        <input
-          className="mc-input"
-          placeholder="Días gratis si precio 0"
-          value={freeDays}
-          onChange={(e) => setFreeDays(e.target.value)}
-        />
+          value={promoKind}
+          onChange={(e) => setPromoKind(e.target.value as PromoKind)}
+        >
+          <option value="free_months">Meses gratis (1–3) con método de pago</option>
+          <option value="price">Precio final fijo</option>
+          <option value="free_days_legacy">Días gratis sin método de pago (legacy)</option>
+        </select>
+
+        {promoKind === 'price' && (
+          <input
+            className="mc-input"
+            placeholder="Precio final COP"
+            value={priceCop}
+            onChange={(e) => setPriceCop(e.target.value)}
+          />
+        )}
+
+        {promoKind === 'free_months' && (
+          <select className="mc-input" value={freeMonths} onChange={(e) => setFreeMonths(e.target.value as '1' | '2' | '3')}>
+            <option value="1">1 mes gratis</option>
+            <option value="2">2 meses gratis</option>
+            <option value="3">3 meses gratis</option>
+          </select>
+        )}
+
+        {promoKind === 'free_days_legacy' && (
+          <input
+            className="mc-input"
+            placeholder="Días gratis"
+            value={freeDays}
+            onChange={(e) => setFreeDays(e.target.value)}
+          />
+        )}
+
         <select className="mc-input" value={period} onChange={(e) => setPeriod(e.target.value as typeof period)}>
           <option value="both">Mensual y anual</option>
           <option value="monthly">Solo mensual</option>
@@ -159,10 +203,9 @@ export function SuperAdminDescuentosPage() {
               <div>
                 <p className="font-mono text-[15px] font-medium">{r.code}</p>
                 <p className="ios-footnote text-[var(--cat-muted)]">
-                  {r.priceCop === 0
-                    ? `Gratis ${r.freeTrialDays ?? 30} días`
-                    : formatCop(r.priceCop)}
+                  {describeRow(r)}
                   {r.billingPeriod ? ` · ${r.billingPeriod}` : ''}
+                  {r.restrictedTenantId ? ' · exclusivo tienda' : ''}
                   {r.maxRedemptions ? ` · ${r.redemptionCount ?? 0}/${r.maxRedemptions} usos` : ''}
                 </p>
               </div>

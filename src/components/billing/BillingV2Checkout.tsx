@@ -12,6 +12,12 @@ type PayMethod = 'card' | 'nequi'
 type Props = {
   period: McBillingPeriod
   amountCop: number
+  requiresPaymentMethod?: boolean
+  discountPreview?: {
+    finalPriceCop: number
+    basePriceCop: number
+    freeMonths?: number
+  } | null
   discountCode?: string
   expertName: string
   onSuccess: (message: string) => void
@@ -21,6 +27,8 @@ type Props = {
 export function BillingV2Checkout({
   period,
   amountCop,
+  requiresPaymentMethod = amountCop > 0,
+  discountPreview,
   discountCode,
   expertName,
   onSuccess,
@@ -187,7 +195,7 @@ export function BillingV2Checkout({
     }
   }
 
-  if (amountCop === 0) {
+  if (amountCop === 0 && !requiresPaymentMethod) {
     return (
       <div className="space-y-4 p-4 sm:p-6">
         <p className="ios-subhead">Tu código activa el plan sin cobro hoy.</p>
@@ -199,14 +207,33 @@ export function BillingV2Checkout({
     )
   }
 
+  const renewalCop = discountPreview?.basePriceCop ?? amountCop
+  const promoLabel =
+    amountCop === 0 && requiresPaymentMethod
+      ? discountPreview?.freeMonths
+        ? `${discountPreview.freeMonths} mes${discountPreview.freeMonths > 1 ? 'es' : ''} gratis`
+        : 'Primer período gratis'
+      : null
+
   return (
     <div className="space-y-4 p-4 sm:p-6">
       <div className="rounded-xl border border-neutral-200/90 bg-neutral-50/50 px-4 py-3">
         <p className="text-[12px] font-medium text-[var(--cat-muted)]">Pago seguro · débito automático</p>
-        <p className="mt-0.5 text-[17px] font-medium tracking-tight">
-          {formatCop(amountCop)}{' '}
-          <span className="text-[13px] text-[var(--cat-muted)]">/ {period === 'yearly' ? 'año' : 'mes'}</span>
-        </p>
+        {promoLabel ? (
+          <>
+            <p className="mt-0.5 text-[17px] font-medium tracking-tight text-emerald-800">
+              {formatCop(0)} hoy · {promoLabel}
+            </p>
+            <p className="mt-1 text-[13px] text-[var(--cat-muted)]">
+              Después {formatCop(renewalCop)} / {period === 'yearly' ? 'año' : 'mes'} con tu método de pago
+            </p>
+          </>
+        ) : (
+          <p className="mt-0.5 text-[17px] font-medium tracking-tight">
+            {formatCop(amountCop)}{' '}
+            <span className="text-[13px] text-[var(--cat-muted)]">/ {period === 'yearly' ? 'año' : 'mes'}</span>
+          </p>
+        )}
       </div>
 
       {step === 'profile' ? (

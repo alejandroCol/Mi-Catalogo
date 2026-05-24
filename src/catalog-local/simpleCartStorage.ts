@@ -34,8 +34,9 @@ export function setSimpleLineQty(
   productId: string,
   cantidad: number,
   varianteId?: string,
+  tallaId?: string,
 ): LineaCarritoSimple[] {
-  const key = cartLineKey({ productId, varianteId })
+  const key = cartLineKey({ productId, varianteId, tallaId })
   if (cantidad <= 0) return lines.filter((l) => cartLineKey(l) !== key)
   return lines.map((l) => (cartLineKey(l) === key ? { ...l, cantidad } : l))
 }

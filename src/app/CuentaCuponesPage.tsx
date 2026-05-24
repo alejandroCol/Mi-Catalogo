@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 import { normalizeCuponCodigo } from '@/lib/checkoutPricing'
@@ -14,7 +15,8 @@ export function CuentaCuponesPage() {
   const [nuevoCuponTipo, setNuevoCuponTipo] = useState<'porcentaje' | 'monto_fijo'>('porcentaje')
   const [nuevoCuponValor, setNuevoCuponValor] = useState('')
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const { showSaveSuccess } = useSaveSuccess()
 
   useEffect(() => {
     if (!tenant) return
@@ -33,14 +35,14 @@ export function CuentaCuponesPage() {
   async function guardar() {
     if (!profile?.tenantId) return
     setBusy(true)
-    setMsg(null)
+    setErr(null)
     try {
       const cuponesValidos = cupones.filter((c) => normalizeCuponCodigo(c.codigo))
       const seen = new Set<string>()
       for (const c of cuponesValidos) {
         const k = normalizeCuponCodigo(c.codigo)
         if (seen.has(k)) {
-          setMsg('Hay códigos de cupón repetidos. Unificá o borrá duplicados.')
+          setErr('Hay códigos de cupón repetidos. Unificá o borrá duplicados.')
           setBusy(false)
           return
         }
@@ -57,9 +59,9 @@ export function CuentaCuponesPage() {
         activo: Boolean(c.activo),
       }))
       await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), { cuponesCatalogo })
-      setMsg('Guardado.')
+      showSaveSuccess({ message: 'Los cupones del checkout se actualizaron.' })
     } catch {
-      setMsg('No se pudo guardar.')
+      setErr('No se pudo guardar.')
     } finally {
       setBusy(false)
     }
@@ -121,16 +123,16 @@ export function CuentaCuponesPage() {
             onClick={() => {
               const code = normalizeCuponCodigo(nuevoCuponCodigo)
               if (!code) {
-                setMsg('Escribí un código para el cupón.')
+                setErr('Escribí un código para el cupón.')
                 return
               }
               if (cupones.some((c) => normalizeCuponCodigo(c.codigo) === code)) {
-                setMsg('Ya existe un cupón con ese código.')
+                setErr('Ya existe un cupón con ese código.')
                 return
               }
               const v = Number(String(nuevoCuponValor).replace(',', '.'))
               if (!Number.isFinite(v) || v <= 0) {
-                setMsg('El valor del cupón debe ser mayor a 0.')
+                setErr('El valor del cupón debe ser mayor a 0.')
                 return
               }
               const valor =
@@ -140,7 +142,7 @@ export function CuentaCuponesPage() {
               setCupones((prev) => [...prev, { id, codigo: code, tipo: nuevoCuponTipo, valor, activo: true }])
               setNuevoCuponCodigo('')
               setNuevoCuponValor('')
-              setMsg(null)
+              setErr(null)
             }}
           >
             Agregar cupón
@@ -188,7 +190,7 @@ export function CuentaCuponesPage() {
           <p className="ios-footnote text-[var(--cat-muted)]">Todavía no hay cupones.</p>
         )}
 
-        {msg && <p className="text-[15px] text-[var(--cat-text)] opacity-90">{msg}</p>}
+        {err && <p className="text-[15px] text-red-800">{err}</p>}
         <button type="button" className="mc-btn-primary w-full" disabled={busy} onClick={() => void guardar()}>
           Guardar cupones
         </button>

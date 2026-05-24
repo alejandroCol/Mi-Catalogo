@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 
@@ -9,7 +10,8 @@ export function CuentaPoliticasPage() {
   const { profile, tenant } = useMcAuth()
   const [politicasCambios, setPoliticasCambios] = useState('')
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const { showSaveSuccess } = useSaveSuccess()
 
   useEffect(() => {
     if (!tenant) return
@@ -19,14 +21,14 @@ export function CuentaPoliticasPage() {
   async function guardar() {
     if (!profile?.tenantId) return
     setBusy(true)
-    setMsg(null)
+    setErr(null)
     try {
       await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), {
         politicasCambios: politicasCambios.trim() || '',
       })
-      setMsg('Guardado.')
+      showSaveSuccess({ message: 'Las políticas del catálogo se actualizaron.' })
     } catch {
-      setMsg('No se pudo guardar.')
+      setErr('No se pudo guardar.')
     } finally {
       setBusy(false)
     }
@@ -51,7 +53,7 @@ export function CuentaPoliticasPage() {
             placeholder="Plazos, condiciones…"
           />
         </div>
-        {msg && <p className="text-[15px] text-[var(--cat-text)] opacity-90">{msg}</p>}
+        {err && <p className="text-[15px] text-red-800">{err}</p>}
         <button type="button" className="mc-btn-primary w-full" disabled={busy} onClick={() => void guardar()}>
           Guardar
         </button>

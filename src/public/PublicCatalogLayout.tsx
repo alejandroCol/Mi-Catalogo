@@ -1,10 +1,14 @@
 import { Link, Outlet, useLocation, useParams } from 'react-router-dom'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import clsx from 'clsx'
 import {
   CatalogoSimpleCartProvider,
   useCatalogoSimpleCart,
 } from '@/catalog-local/CatalogoSimpleCartContext'
+import {
+  CartAddAnimationProvider,
+  useCartAddAnimation,
+} from '@/public/cart-animation/CartAddAnimationContext'
 import { buildPedidoWhatsappTextSimple, whatsappUrlFromNumber } from '@/catalog-local/buildWhatsappUrl'
 import { cartLineKey } from '@/catalog-local/cartLineKey'
 import {
@@ -14,16 +18,26 @@ import {
 } from '@/lib/catalogTheme'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 import { usePublicTenant } from '@/public/usePublicTenant'
+import { usePublicCatalogVisitTracking } from '@/public/usePublicCatalogAnalytics'
 import { McCatalogModal } from '@/public/McCatalogModal'
 
 function CartChrome() {
   const { slug } = useParams<{ slug: string }>()
+  usePublicCatalogVisitTracking()
   const { pathname } = useLocation()
   const { tenant } = usePublicTenant(slug)
   const { lines, totalPiezas, updateQty, clear, highlightProductId, cartBumpGeneration } =
     useCatalogoSimpleCart()
+  const { registerCartTarget, cartReceiving } = useCartAddAnimation()
   const [cartOpen, setCartOpen] = useState(false)
   const cartItemCount = lines.length
+
+  const cartTargetRef = useCallback(
+    (el: HTMLButtonElement | null) => {
+      registerCartTarget(el)
+    },
+    [registerCartTarget],
+  )
 
   const pathBase = slug ? `/c/${slug}` : '/'
   const enCheckout = slug ? pathname.startsWith(`${pathBase}/checkout`) : false
@@ -109,6 +123,7 @@ function CartChrome() {
               </Link>
             )}
             <button
+              ref={cartTargetRef}
               type="button"
               onClick={() => setCartOpen(true)}
               aria-label={
@@ -116,9 +131,17 @@ function CartChrome() {
                   ? `Carrito, ${cartItemCount} ${cartItemCount === 1 ? 'artículo' : 'artículos'} · ${totalPiezas} uds.`
                   : 'Abrir carrito'
               }
-              className="group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_22%,transparent)] bg-[var(--cat-surface)] text-[var(--cat-text)] shadow-sm transition hover:border-[color-mix(in_srgb,var(--cat-text)_16%,transparent)]"
+              className={clsx(
+                'group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_22%,transparent)] bg-[var(--cat-surface)] text-[var(--cat-text)] shadow-sm transition hover:border-[color-mix(in_srgb,var(--cat-text)_16%,transparent)]',
+                cartReceiving && 'mc-pc-cart-btn-receiving',
+              )}
             >
-              <span className="mc-pc-cart-icon-wrap relative flex h-8 w-8 items-center justify-center rounded-full border-0 !shadow-none">
+              <span
+                className={clsx(
+                  'mc-pc-cart-icon-wrap relative flex h-8 w-8 items-center justify-center rounded-full border-0 !shadow-none',
+                  cartReceiving && 'mc-pc-cart-icon-receiving',
+                )}
+              >
                 <svg
                   className="h-[1.1rem] w-[1.1rem]"
                   fill="none"
@@ -248,7 +271,7 @@ function CartChrome() {
                   <button
                     type="button"
                     className="rounded-md border mc-pc-border mc-pc-surface px-2.5 py-1 text-sm transition duration-200 ease-in-out hover:opacity-75"
-                    onClick={() => updateQty(l.productId, l.cantidad - 1, l.varianteId)}
+                    onClick={() => updateQty(l.productId, l.cantidad - 1, l.varianteId, l.tallaId)}
                   >
                     −
                   </button>
@@ -256,7 +279,7 @@ function CartChrome() {
                   <button
                     type="button"
                     className="rounded-md border mc-pc-border mc-pc-surface px-2.5 py-1 text-sm transition duration-200 ease-in-out hover:opacity-75"
-                    onClick={() => updateQty(l.productId, l.cantidad + 1, l.varianteId)}
+                    onClick={() => updateQty(l.productId, l.cantidad + 1, l.varianteId, l.tallaId)}
                   >
                     +
                   </button>
@@ -289,7 +312,9 @@ export function PublicCatalogLayout() {
       style={publicCatalogCssVars(tenant)}
     >
       <CatalogoSimpleCartProvider storageKey={key}>
-        <Chrome />
+        <CartAddAnimationProvider>
+          <Chrome />
+        </CartAddAnimationProvider>
       </CatalogoSimpleCartProvider>
     </div>
   )

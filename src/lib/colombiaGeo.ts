@@ -47,3 +47,59 @@ export function formatoDepartamentoEtiqueta(d: string): string {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
 }
+
+function normalizeGeoKey(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+/** Fila DIVIPOLA que coincide con departamento + municipio (nombres oficiales). */
+export function buscarDivipolaMunicipio(
+  departamento: string,
+  municipio: string,
+): DivipolaRow | null {
+  const d = departamento.trim()
+  const m = municipio.trim()
+  if (!d || !m) return null
+  const mk = normalizeGeoKey(m)
+  for (const r of ROWS) {
+    if (r.dpto !== d) continue
+    if (normalizeGeoKey(r.nom_mpio) === mk) return r
+  }
+  return null
+}
+
+/** Código municipal DANE de 5 dígitos (`cod_mpio`). */
+export function codigoDaneMunicipio(departamento: string, municipio: string): string | null {
+  return buscarDivipolaMunicipio(departamento, municipio)?.cod_mpio ?? null
+}
+
+/** Código de 8 dígitos que exige Envia.com para `city` / `postalCode` en Colombia. */
+export function codigoDaneEnviaCiudad(departamento: string, municipio: string): string | null {
+  const cod = codigoDaneMunicipio(departamento, municipio)
+  if (!cod) return null
+  return cod.length >= 8 ? cod.slice(0, 8) : cod.padEnd(8, '0')
+}
+
+/** Código de departamento para Envia (`state`): `DC` en Bogotá, si no `cod_dpto`. */
+export function codigoEnviaDepartamento(departamento: string): string | null {
+  const row = buscarDivipolaMunicipio(departamento, municipioPlaceholder(departamento))
+  if (!row) {
+    const d = departamento.trim()
+    if (!d) return null
+    const any = ROWS.find((r) => r.dpto === d)
+    if (!any) return null
+    return any.cod_dpto === '11' ? 'DC' : any.cod_dpto
+  }
+  return row.cod_dpto === '11' ? 'DC' : row.cod_dpto
+}
+
+function municipioPlaceholder(departamento: string): string {
+  const d = departamento.trim()
+  const first = ROWS.find((r) => r.dpto === d)
+  return first?.nom_mpio ?? ''
+}

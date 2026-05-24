@@ -10,6 +10,7 @@ import { MC } from '@/lib/mcCollections'
 import { buildCatalogThemeForSave, defaultColorsForPreset } from '@/lib/catalogTheme'
 import { CatalogPresetPickerGrid } from '@/app/CatalogPresetPickerGrid'
 import { PublicCatalogThemePreview } from '@/app/PublicCatalogThemePreview'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import type { McCatalogThemePreset } from '@/types/mc'
 
 const HEX = /^#[0-9A-Fa-f]{6}$/
@@ -19,7 +20,8 @@ export function CuentaEstiloPage() {
   const nav = useNavigate()
   const expertAccess = hasExpertFeatureAccess(tenant)
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const { showSaveSuccess } = useSaveSuccess()
 
   const [preset, setPreset] = useState<McCatalogThemePreset>('morning')
   const [cAccent, setCAccent] = useState('')
@@ -49,7 +51,7 @@ export function CuentaEstiloPage() {
       return
     }
     setBusy(true)
-    setMsg(null)
+    setErr(null)
     try {
       const colors = {
         ...(HEX.test(cAccent) ? { accent: cAccent } : {}),
@@ -62,9 +64,12 @@ export function CuentaEstiloPage() {
       await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), {
         catalogTheme: buildCatalogThemeForSave(preset, colors),
       })
-      setMsg('Tema actualizado (catálogo público y panel).')
+      showSaveSuccess({
+        title: 'Tema actualizado',
+        message: 'Los cambios ya se ven en tu catálogo público y en el panel.',
+      })
     } catch {
-      setMsg('No se pudo guardar el tema.')
+      setErr('No se pudo guardar el tema.')
     } finally {
       setBusy(false)
     }
@@ -168,7 +173,7 @@ export function CuentaEstiloPage() {
           <p className="ios-footnote text-[var(--cat-muted)]">
             Dejá un campo vacío o borrá el hex para volver al valor de la plantilla en ese color.
           </p>
-          {msg && <p className="text-[15px] text-[var(--cat-text)] opacity-90">{msg}</p>}
+          {err && <p className="text-[15px] text-red-800">{err}</p>}
           <button type="button" className="mc-btn-primary w-full" disabled={busy} onClick={() => void guardarTema()}>
             Guardar tema del panel
           </button>

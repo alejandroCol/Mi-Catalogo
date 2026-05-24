@@ -305,6 +305,13 @@
   .mc-input:focus {
     @apply border-neutral-400/80 ring-1 ring-neutral-900/10;
   }
+  /** Inputs dentro del formulario de producto — más contraste sobre fondo gris. */
+  .mc-producto-form-section .mc-input {
+    @apply border-neutral-300/95 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)];
+  }
+  .mc-producto-form-section .mc-input:focus {
+    @apply border-neutral-400 ring-1 ring-neutral-900/12;
+  }
   .mc-fab {
     @apply fixed right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-neutral-200/40 transition duration-200 ease-in-out active:opacity-85;
     bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 5.5rem));
@@ -423,6 +430,107 @@
   }
   .mc-pc-cart-badge-bump {
     animation: mc-pc-cart-badge-pop 0.48s cubic-bezier(0.34, 1.45, 0.64, 1);
+  }
+  @keyframes mc-pc-cart-icon-receive {
+    0% {
+      transform: scale(1);
+    }
+    35% {
+      transform: scale(1.08);
+    }
+    65% {
+      transform: scale(0.96);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @keyframes mc-pc-cart-receive-ring {
+    0% {
+      opacity: 0.55;
+      transform: scale(0.92);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.35);
+    }
+  }
+  .mc-pc-cart-icon-receiving {
+    animation: mc-pc-cart-icon-receive 0.62s cubic-bezier(0.34, 1.2, 0.64, 1);
+  }
+  .mc-pc-cart-icon-receiving::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: inherit;
+    border: 1.5px solid color-mix(in srgb, var(--cat-accent) 55%, transparent);
+    pointer-events: none;
+    animation: mc-pc-cart-receive-ring 0.62s ease-out forwards;
+  }
+  .mc-pc-cart-btn-receiving {
+    border-color: color-mix(in srgb, var(--cat-accent) 38%, transparent) !important;
+  }
+  .mc-pc-cart-fly-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .mc-pc-cart-fly-particle {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    border-radius: 11px;
+    overflow: hidden;
+    box-shadow:
+      0 6px 20px rgba(0, 0, 0, 0.14),
+      0 0 0 2px rgba(255, 255, 255, 0.92);
+    will-change: transform, opacity;
+    transform-origin: center center;
+  }
+  .mc-pc-cart-fly-particle-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .mc-pc-cart-fly-particle-fallback {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--cat-accent) 88%, white 12%),
+      color-mix(in srgb, var(--cat-accent) 65%, black 8%)
+    );
+  }
+  @keyframes mc-pc-add-btn-pulse {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(0.97);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  .mc-pc-add-btn-pulse {
+    animation: mc-pc-add-btn-pulse 0.38s cubic-bezier(0.34, 1.15, 0.64, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mc-pc-cart-icon-receiving {
+      animation: none;
+    }
+    .mc-pc-cart-icon-receiving::after {
+      animation: none;
+      opacity: 0;
+    }
+    .mc-pc-add-btn-pulse {
+      animation: none;
+    }
   }
   @keyframes mc-pc-cart-line-in {
     from {

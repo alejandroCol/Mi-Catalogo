@@ -67,6 +67,104 @@ export function IconPhotoStack({ size, className }: McIconProps) {
   )
 }
 
+/** Estilo del catálogo: plantilla y paleta de colores */
+export function IconSwatches({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M5 8.5h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 4.5h10a2 2 0 0 1 2 2v9"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="13" r="1.35" fill="currentColor" />
+      <circle cx="11.5" cy="15.5" r="1.35" fill="currentColor" />
+      <circle cx="8" cy="18" r="1.35" fill="currentColor" />
+    </Svg>
+  )
+}
+
+/** Logo / marca de la tienda */
+export function IconLogo({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <rect
+        x="5"
+        y="5"
+        width="14"
+        height="14"
+        rx="3.5"
+        stroke="currentColor"
+        strokeWidth={stroke}
+      />
+      <path
+        d="M8.5 15.5V9.5l3.5 3.5 3.5-3.5v6"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  )
+}
+
+/** Envíos: paquete con cinta */
+export function IconShipping({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M12 3.5 19.5 7.5v9L12 20.5 4.5 16.5v-9L12 3.5Z"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <path d="M12 3.5v17M12 12 19.5 7.5M12 12 4.5 7.5" stroke="currentColor" strokeWidth={stroke} />
+      <path d="M9.25 10.5h5.5" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+    </Svg>
+  )
+}
+
+/** WhatsApp / mensajes: burbuja de chat */
+export function IconWhatsApp({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M6 5.5h12a2 2 0 0 1 2 2v6.75a2 2 0 0 1-2 2H10.25L6.5 18.5V16.25a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8.75 10.25h6.5M8.75 13.25h4.25"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+      />
+    </Svg>
+  )
+}
+
+/** Perfil / usuario */
+export function IconPerson({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <circle cx="12" cy="9" r="3.25" stroke="currentColor" strokeWidth={stroke} />
+      <path
+        d="M5.5 19.5c0-3.31 2.91-6 6.5-6s6.5 2.69 6.5 6"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+      />
+    </Svg>
+  )
+}
+
 /** Inventario / caja */
 export function IconCube({ size, className }: McIconProps) {
   return (

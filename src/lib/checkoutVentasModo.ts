@@ -12,6 +12,13 @@ export function explicitCheckoutVentasModo(
   return null
 }
 
+/** El vendedor ya eligió un modo de cobro en Cuenta (aunque falte completar requisitos). */
+export function hasCheckoutVentasModoSelected(
+  tenant: Pick<McTenant, 'checkoutVentasModo'> | null | undefined,
+): boolean {
+  return explicitCheckoutVentasModo(tenant) !== null
+}
+
 type TenantVentasPick = Pick<
   McTenant,
   | 'checkoutVentasModo'

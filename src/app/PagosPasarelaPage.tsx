@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
@@ -25,6 +25,7 @@ import {
   type DivipolaMunicipio,
 } from '@/lib/divipolaCities'
 import { isSubscriptionActive } from '@/lib/subscription'
+import { KybPdfUploadField, type KybPdfFieldKey } from '@/components/onepay/KybPdfUploadField'
 
 function callableErrorMessage(e: unknown): string {
   if (
@@ -41,65 +42,6 @@ function callableErrorMessage(e: unknown): string {
 type CompanyKind = 'organization' | 'individual'
 
 type KybBankRow = { id: string; name: string; supported_types: string[] }
-
-type KybPdfFieldKey = 'rut' | 'dni' | 'ccc' | 'bank' | 'simple'
-
-function KybPdfUrlField({
-  label,
-  url,
-  onUrlChange,
-  field,
-  disabled,
-  uploading,
-  uploadsLocked,
-  storageConfigured,
-  onPickPdf,
-}: {
-  label: ReactNode
-  url: string
-  onUrlChange: (v: string) => void
-  field: KybPdfFieldKey
-  disabled: boolean
-  uploading: boolean
-  /** true mientras cualquier archivo KYB está subiendo */
-  uploadsLocked: boolean
-  storageConfigured: boolean
-  onPickPdf: (field: KybPdfFieldKey, list: FileList | null) => void
-}) {
-  const freezeFields = disabled || uploadsLocked
-  const canPick = storageConfigured && !freezeFields
-  return (
-    <div className="block space-y-1">
-      <span className="text-[12px] font-medium text-[var(--cat-muted)]">{label}</span>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-        <input
-          className="mc-input min-w-0 flex-1"
-          value={url}
-          onChange={(e) => onUrlChange(e.target.value)}
-          disabled={freezeFields}
-          placeholder="https://… (PDF)"
-        />
-        <label
-          className={`inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-neutral-200/70 bg-[var(--cat-surface)] px-3 py-2.5 text-[13px] font-medium text-[var(--cat-text)] transition hover:bg-neutral-100/80 ${
-            canPick ? '' : 'pointer-events-none opacity-45'
-          }`}
-        >
-          <input
-            type="file"
-            accept="application/pdf,.pdf"
-            className="sr-only"
-            disabled={!canPick}
-            onChange={(e) => {
-              onPickPdf(field, e.target.files)
-              e.target.value = ''
-            }}
-          />
-          {uploading ? 'Subiendo…' : 'Elegir PDF'}
-        </label>
-      </div>
-    </div>
-  )
-}
 
 export function PagosPasarelaPage() {
   const { profile, tenant, firebaseUser } = useMcAuth()
@@ -297,7 +239,7 @@ export function PagosPasarelaPage() {
       const file = list?.item(0)
       if (!file || !tenant?.id) return
       if (!firebaseStorageConfigured) {
-        setErr('Firebase Storage no está configurado; podés pegar la URL HTTPS del PDF o definir el bucket en el proyecto.')
+        setErr('Firebase Storage no está configurado. Contactá soporte para habilitar la subida de documentos.')
         return
       }
       const looksPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
@@ -403,14 +345,18 @@ export function PagosPasarelaPage() {
         if (fiscalSelected.length === 0) return 'Marcá al menos una responsabilidad fiscal.'
       }
       if (s === 2) {
-        if (!docRutUrl.startsWith('https://')) return 'URL del RUT debe ser https://'
-        if (!docDniUrl.startsWith('https://')) return 'URL del documento del titular / representante debe ser https://'
+        if (!docRutUrl.startsWith('https://')) return 'Subí el RUT en PDF.'
+        if (!docDniUrl.startsWith('https://')) {
+          return esPersonaJuridica
+            ? 'Subí el documento de identidad del representante en PDF.'
+            : 'Subí tu documento de identidad en PDF.'
+        }
         if (fiscalSelected.includes('O_47') && !docSimpleUrl.startsWith('https://')) {
-          return 'Con O_47 necesitás la URL del certificado de régimen simple.'
+          return 'Con régimen simple (O_47) tenés que subir el certificado en PDF.'
         }
         if (esPersonaJuridica) {
-          if (!docCccUrl.startsWith('https://')) return 'Persona jurídica: URL de cámara de comercio (https).'
-          if (!docBankUrl.startsWith('https://')) return 'Persona jurídica: URL de certificación bancaria (https).'
+          if (!docCccUrl.startsWith('https://')) return 'Subí el certificado de cámara de comercio en PDF.'
+          if (!docBankUrl.startsWith('https://')) return 'Subí la certificación bancaria en PDF.'
         } else {
           const bid = accountBankId.trim()
           if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bid)) {
@@ -1056,52 +1002,48 @@ export function PagosPasarelaPage() {
             {step === 2 && (
               <>
                 <p className="text-[13px] leading-relaxed text-[var(--cat-muted)]">
-                  OnePay requiere enlaces públicos{' '}
-                  <strong className="font-medium text-[var(--cat-text)]">https</strong> a cada PDF (ver{' '}
+                  OnePay necesita los documentos en PDF. Subilos acá y nosotros los guardamos de forma segura para enviarlos
+                  en tu solicitud (
                   <a
                     className="text-[var(--cat-accent)] underline"
                     href="https://docs.onepay.la/client/companies/create"
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Crear empresa
+                    requisitos OnePay
                   </a>
-                  ). Podés pegar la URL del archivo o usar <strong className="font-medium text-[var(--cat-text)]">Elegir PDF</strong> por
-                  cada tipo.
+                  ).
                   {firebaseStorageConfigured ? (
                     <>
                       {' '}
-                      Al subir, guardamos el PDF en Firebase Storage (<code className="rounded bg-neutral-500/15 px-1 py-0.5 text-[11px]">mc_tenants/&lt;tienda&gt;/onepay_kyb/</code>
-                      ) y rellenamos la URL por vos.
+                      Cada archivo queda en{' '}
+                      <code className="rounded bg-neutral-500/15 px-1 py-0.5 text-[11px]">mc_tenants/&lt;tienda&gt;/onepay_kyb/</code>{' '}
+                      y se marca en verde cuando está listo.
                     </>
                   ) : (
                     <>
                       {' '}
-                      Para usar la subida desde acá, configurá <strong className="font-medium text-[var(--cat-text)]">Storage</strong> en el proyecto
-                      (bucket en <code className="rounded bg-neutral-500/15 px-1 py-0.5 text-[11px]">.env</code>); si no, cargá cada PDF donde sea público y pegá solo el enlace.
+                      Para subir desde acá, el proyecto debe tener{' '}
+                      <strong className="font-medium text-[var(--cat-text)]">Firebase Storage</strong> configurado.
                     </>
                   )}
                 </p>
-                <KybPdfUrlField
+                <KybPdfUploadField
                   label="RUT (PDF)"
                   field="rut"
-                  url={docRutUrl}
-                  onUrlChange={setDocRutUrl}
+                  uploaded={docRutUrl.startsWith('https://')}
                   disabled={busy}
                   uploading={kybPdfUploadField === 'rut'}
                   uploadsLocked={kybPdfUploadField !== null}
                   storageConfigured={firebaseStorageConfigured}
                   onPickPdf={handleKybPdfPick}
                 />
-                <KybPdfUrlField
+                <KybPdfUploadField
                   label={
-                    <>
-                      Documento identidad titular {esPersonaJuridica ? '(representante)' : ''} (PDF)
-                    </>
+                    <>Documento identidad titular {esPersonaJuridica ? '(representante)' : ''} (PDF)</>
                   }
                   field="dni"
-                  url={docDniUrl}
-                  onUrlChange={setDocDniUrl}
+                  uploaded={docDniUrl.startsWith('https://')}
                   disabled={busy}
                   uploading={kybPdfUploadField === 'dni'}
                   uploadsLocked={kybPdfUploadField !== null}
@@ -1213,22 +1155,20 @@ export function PagosPasarelaPage() {
                 ) : null}
                 {esPersonaJuridica ? (
                   <>
-                    <KybPdfUrlField
+                    <KybPdfUploadField
                       label="Cámara de comercio (PDF)"
                       field="ccc"
-                      url={docCccUrl}
-                      onUrlChange={setDocCccUrl}
+                      uploaded={docCccUrl.startsWith('https://')}
                       disabled={busy}
                       uploading={kybPdfUploadField === 'ccc'}
                       uploadsLocked={kybPdfUploadField !== null}
                       storageConfigured={firebaseStorageConfigured}
                       onPickPdf={handleKybPdfPick}
                     />
-                    <KybPdfUrlField
+                    <KybPdfUploadField
                       label="Certificación bancaria (PDF)"
                       field="bank"
-                      url={docBankUrl}
-                      onUrlChange={setDocBankUrl}
+                      uploaded={docBankUrl.startsWith('https://')}
                       disabled={busy}
                       uploading={kybPdfUploadField === 'bank'}
                       uploadsLocked={kybPdfUploadField !== null}
@@ -1238,11 +1178,10 @@ export function PagosPasarelaPage() {
                   </>
                 ) : null}
                 {fiscalSelected.includes('O_47') && (
-                  <KybPdfUrlField
+                  <KybPdfUploadField
                     label="Certificado régimen simple (PDF)"
                     field="simple"
-                    url={docSimpleUrl}
-                    onUrlChange={setDocSimpleUrl}
+                    uploaded={docSimpleUrl.startsWith('https://')}
                     disabled={busy}
                     uploading={kybPdfUploadField === 'simple'}
                     uploadsLocked={kybPdfUploadField !== null}

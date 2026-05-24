@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { McAuthProvider } from '@/auth/McAuthContext'
 import { RequireMcAuth } from '@/app/RequireMcAuth'
+import { McRouteAnalyticsTracker } from '@/lib/McRouteAnalyticsTracker'
 
 const LoginPage = lazy(() =>
   import('@/auth/LoginPage').then((m) => ({ default: m.LoginPage })),
@@ -57,6 +58,11 @@ const CuentaWhatsAppPage = lazy(() =>
 const CuentaCheckoutVentasPage = lazy(() =>
   import('@/app/CuentaCheckoutVentasPage').then((m) => ({ default: m.CuentaCheckoutVentasPage })),
 )
+const CuentaCheckoutVentasSeleccionPage = lazy(() =>
+  import('@/app/CuentaCheckoutVentasSeleccionPage').then((m) => ({
+    default: m.CuentaCheckoutVentasSeleccionPage,
+  })),
+)
 const CuentaPoliticasPage = lazy(() =>
   import('@/app/CuentaPoliticasPage').then((m) => ({ default: m.CuentaPoliticasPage })),
 )
@@ -77,6 +83,9 @@ const OnepayRetiroFondosPage = lazy(() =>
 )
 const PlanUpgradePage = lazy(() =>
   import('@/app/PlanUpgradePage').then((m) => ({ default: m.PlanUpgradePage })),
+)
+const EstadisticasPage = lazy(() =>
+  import('@/app/EstadisticasPage').then((m) => ({ default: m.EstadisticasPage })),
 )
 const SuperAdminPage = lazy(() =>
   import('@/superadmin/SuperAdminPage').then((m) => ({
@@ -101,6 +110,16 @@ const SuperAdminPlanesPage = lazy(() =>
 const SuperAdminDescuentosPage = lazy(() =>
   import('@/superadmin/SuperAdminDescuentosPage').then((m) => ({
     default: m.SuperAdminDescuentosPage,
+  })),
+)
+const SuperAdminAnalyticsPage = lazy(() =>
+  import('@/superadmin/SuperAdminAnalyticsPage').then((m) => ({
+    default: m.SuperAdminAnalyticsPage,
+  })),
+)
+const SuperAdminTerminosPage = lazy(() =>
+  import('@/superadmin/SuperAdminTerminosPage').then((m) => ({
+    default: m.SuperAdminTerminosPage,
   })),
 )
 const SuperAdminTenantOnepayPage = lazy(() =>
@@ -164,6 +183,7 @@ export function App() {
   return (
     <McAuthProvider>
       <Suspense fallback={<RouteFallback />}>
+        <McRouteAnalyticsTracker />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/registro" element={<RegisterPage />} />
@@ -180,11 +200,13 @@ export function App() {
             <Route path="inventario" element={<InventarioPage />} />
             <Route path="pedidos" element={<PedidosPage />} />
             <Route path="plan" element={<PlanUpgradePage />} />
+            <Route path="estadisticas" element={<EstadisticasPage />} />
             <Route path="cuenta" element={<CuentaPage />} />
             <Route path="cuenta/perfil" element={<CuentaPerfilPage />} />
             <Route path="cuenta/tienda" element={<CuentaTiendaPage />} />
             <Route path="cuenta/whatsapp" element={<CuentaWhatsAppPage />} />
             <Route path="cuenta/checkout-ventas" element={<CuentaCheckoutVentasPage />} />
+            <Route path="cuenta/checkout-ventas/seleccion" element={<CuentaCheckoutVentasSeleccionPage />} />
             <Route path="cuenta/politicas" element={<CuentaPoliticasPage />} />
             <Route path="cuenta/resumen-ventas" element={<CuentaResumenVentasPage />} />
             <Route path="cuenta/envio" element={<CuentaEnvioPage />} />
@@ -235,6 +257,22 @@ export function App() {
             element={
               <RequireMcAuth>
                 <SuperAdminDescuentosPage />
+              </RequireMcAuth>
+            }
+          />
+          <Route
+            path="/superadmin/analytics"
+            element={
+              <RequireMcAuth>
+                <SuperAdminAnalyticsPage />
+              </RequireMcAuth>
+            }
+          />
+          <Route
+            path="/superadmin/terminos"
+            element={
+              <RequireMcAuth>
+                <SuperAdminTerminosPage />
               </RequireMcAuth>
             }
           />

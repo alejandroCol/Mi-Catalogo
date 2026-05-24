@@ -4,6 +4,7 @@ import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { deleteField, doc, updateDoc } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { billingPlanOf } from '@/lib/catalogTheme'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
 import { firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
@@ -15,6 +16,7 @@ export function CuentaLogoPage() {
   const { profile, tenant } = useMcAuth()
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const { showSaveSuccess } = useSaveSuccess()
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const plan = tenant ? billingPlanOf(tenant) : 'free'
@@ -39,7 +41,10 @@ export function CuentaLogoPage() {
       const url = await getDownloadURL(pathRef)
       await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), { storeLogoUrl: url })
       setPreviewUrl(url)
-      setMsg('Logo actualizado. Ya se ve en tu catálogo público.')
+      showSaveSuccess({
+        title: 'Logo actualizado',
+        message: 'Ya se ve en tu catálogo público.',
+      })
     } catch (err: unknown) {
       const code =
         err && typeof err === 'object' && 'code' in err ? String((err as { code: string }).code) : ''
@@ -67,7 +72,10 @@ export function CuentaLogoPage() {
       }
       await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), { storeLogoUrl: deleteField() })
       setPreviewUrl(null)
-      setMsg('Logo quitado.')
+      showSaveSuccess({
+        title: 'Logo quitado',
+        message: 'Tu catálogo ya no muestra logo personalizado.',
+      })
     } catch {
       setMsg('No se pudo quitar el logo.')
     } finally {

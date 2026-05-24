@@ -5,12 +5,14 @@ type Props = {
   title: string
   children: ReactNode
   headerExtra?: ReactNode
+  backTo?: string
+  backLabel?: string
 }
 
-export function ConfiguracionesSubpageLayout({ title, children, headerExtra }: Props) {
+export function ConfiguracionesSubpageLayout({ title, children, headerExtra, backTo, backLabel }: Props) {
   return (
     <div className="mc-shell mc-config-subpage">
-      <ConfiguracionesBackLink />
+      <ConfiguracionesBackLink to={backTo} label={backLabel} />
       <div className="space-y-2">
         <h1 className="ios-large-title">{title}</h1>
         {headerExtra}

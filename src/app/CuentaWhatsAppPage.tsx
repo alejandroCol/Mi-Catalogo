@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 import {
@@ -17,7 +18,8 @@ export function CuentaWhatsAppPage() {
   const [waLocal, setWaLocal] = useState('')
   const [intro, setIntro] = useState('')
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const { showSaveSuccess } = useSaveSuccess()
 
   useEffect(() => {
     if (!tenant) return
@@ -39,11 +41,11 @@ export function CuentaWhatsAppPage() {
   async function guardar() {
     if (!profile?.tenantId) return
     setBusy(true)
-    setMsg(null)
+    setErr(null)
     try {
       const digits = combineWaDigits(waPrefix, waLocal).replace(/\D/g, '')
       if (digits.length < 10 || digits.length > 15) {
-        setMsg('Revisá el WhatsApp: código de país + número local (sin 0 inicial donde aplique).')
+        setErr('Revisá el WhatsApp: código de país + número local (sin 0 inicial donde aplique).')
         setBusy(false)
         return
       }
@@ -51,9 +53,9 @@ export function CuentaWhatsAppPage() {
         whatsappNumero: digits,
         mensajeIntro: intro.trim() || '',
       })
-      setMsg('Guardado.')
+      showSaveSuccess({ message: 'WhatsApp y mensaje de pedidos actualizados.' })
     } catch {
-      setMsg('No se pudo guardar.')
+      setErr('No se pudo guardar.')
     } finally {
       setBusy(false)
     }
@@ -111,7 +113,7 @@ export function CuentaWhatsAppPage() {
             onChange={(e) => setIntro(e.target.value)}
           />
         </div>
-        {msg && <p className="text-[15px] text-[var(--cat-text)] opacity-90">{msg}</p>}
+        {err && <p className="text-[15px] text-red-800">{err}</p>}
         <button type="button" className="mc-btn-primary w-full" disabled={busy} onClick={() => void guardar()}>
           Guardar
         </button>

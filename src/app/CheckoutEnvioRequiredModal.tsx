@@ -39,9 +39,9 @@ export function CheckoutEnvioRequiredModal({
           Configurá el envío
         </h2>
         <p className="ios-footnote mt-2 leading-relaxed text-[var(--cat-muted)]">
-          Antes de abrir el catálogo público, definí el costo de envío en el checkout (tarifa por defecto, por ciudad o
-          tarifas Mi Catálogo). Podés dejarlo en <strong className="font-medium text-[var(--cat-text)]">$0</strong> si no
-          cobrás envío.
+          Antes de abrir el catálogo público, configurá el envío en el checkout:{' '}
+          <strong className="font-medium text-[var(--cat-text)]">cotización automática</strong> con tarifas reales o{' '}
+          <strong className="font-medium text-[var(--cat-text)]">precios fijos por ciudad</strong>.
         </p>
         <div className="mt-5 flex flex-col gap-2">
           <button

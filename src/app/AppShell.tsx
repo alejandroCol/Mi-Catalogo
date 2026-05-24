@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { SellerOnboardingOverlay, useAssignSellerOnboardingTabAnchors } from '@/app/SellerOnboardingOverlay'
+import { McSaveSuccessProvider } from '@/components/McSaveSuccessModal'
 import { clearPendingSellerOnboarding, shouldShowSellerOnboarding } from '@/lib/onboardingStorage'
 import { tenantThemeCssVars } from '@/lib/catalogTheme'
 import { IconCart, IconCube, IconHome, IconSliders } from '@/icons/McIcons'
@@ -24,6 +25,7 @@ export function AppShell() {
   }
 
   return (
+    <McSaveSuccessProvider>
     <div
       className="min-h-svh"
       style={{
@@ -86,5 +88,6 @@ export function AppShell() {
         </span>
       </nav>
     </div>
+    </McSaveSuccessProvider>
   )
 }

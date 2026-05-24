@@ -11,11 +11,17 @@ import {
 } from '@/lib/catalogListFilter'
 import { resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import { mcProductosCollection } from '@/lib/mcCollections'
-import { formatCop } from '@/lib/formatCop'
+import {
+  catalogDescuentosTabVisible,
+  productoTieneDescuento,
+  resolveCatalogDescuentosTabLabel,
+} from '@/lib/productoDescuento'
 import { productoStockEfectivo } from '@/lib/productoVariantes'
 import type { McCatalogThemePreset } from '@/types/mc'
 import type { McProducto } from '@/types/mc'
 import { CatalogListToolbar } from '@/public/CatalogListToolbar'
+import { CatalogProductPrice, CatalogDiscountBadge } from '@/public/CatalogProductPrice'
+import { CatalogViewTabs, type CatalogViewTab } from '@/public/CatalogViewTabs'
 import { SeasonBannerHero } from '@/public/SeasonBannerHero'
 import { usePublicTenant } from '@/public/usePublicTenant'
 import { isSeasonBannerActive, MC_CATALOGO_PRODUCTOS_ID } from '@/lib/seasonBanner'
@@ -104,6 +110,11 @@ function ReyProductCard({
             <NovedadBadge floating />
           </span>
         )}
+        <CatalogDiscountBadge
+          product={p}
+          floating
+          className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3"
+        />
         {img ? (
           <Link
             to={`/c/${slug}/p/${p.id}`}
@@ -139,9 +150,7 @@ function ReyProductCard({
         >
           {p.nombre}
         </h3>
-        <p className="mt-1.5 text-sm font-semibold tabular-nums text-[var(--cat-text)] sm:text-[15px]">
-          {formatCop(p.precioCop)}
-        </p>
+        <CatalogProductPrice product={p} size="sm" showDesde className="mt-1.5" />
         <p className="mt-1 text-[10px] leading-relaxed mc-pc-muted sm:text-[11px]">
           {productoStockEfectivo(p) > 0 ? `${productoStockEfectivo(p)} en stock` : 'Stock a consultar'}
         </p>
@@ -168,6 +177,7 @@ function ReyProductCardBold({
             <NovedadBadge floating />
           </span>
         )}
+        <CatalogDiscountBadge product={p} floating className="absolute right-4 top-4 z-10" />
         {img ? (
           <Link
             to={`/c/${slug}/p/${p.id}`}
@@ -195,9 +205,7 @@ function ReyProductCardBold({
         <h3 className="mc-pc-display text-[1.35rem] font-semibold leading-tight text-[var(--cat-text)] sm:text-2xl">
           {p.nombre}
         </h3>
-        <p className="mt-2 text-lg font-semibold tabular-nums text-[var(--cat-text)] sm:text-xl">
-          {formatCop(p.precioCop)}
-        </p>
+        <CatalogProductPrice product={p} size="md" showDesde className="mt-2 justify-center" />
         <p className="mt-2 text-sm mc-pc-muted">
           {productoStockEfectivo(p) > 0 ? `Stock ${productoStockEfectivo(p)}` : 'Consultar stock'}
         </p>
@@ -218,6 +226,7 @@ export function PublicCatalogListPage() {
   const { tenantId, tenant, loading, error } = usePublicTenant(slug)
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
   const [filter, setFilter] = useState(getDefaultCatalogListFilter)
+  const [viewTab, setViewTab] = useState<CatalogViewTab>('todos')
   const [novedadNow] = useState(() => Date.now())
 
   const preset = tenant ? resolvePublicCatalogTheme(tenant).preset : 'morning'
@@ -236,21 +245,30 @@ export function PublicCatalogListPage() {
     })
   }, [tenantId])
 
+  const descuentos = useMemo(() => rows.filter((p) => productoTieneDescuento(p)), [rows])
+  const descuentosTabLabel = tenant ? resolveCatalogDescuentosTabLabel(tenant) : 'Descuento'
+  const showDescuentosTab = tenant ? catalogDescuentosTabVisible(tenant, descuentos.length) : false
+
+  const scopedRows = useMemo(() => {
+    if (viewTab === 'descuentos') return descuentos
+    return rows
+  }, [viewTab, rows, descuentos])
+
   const { novedades, resto } = useMemo(() => {
     const n: (McProducto & { id: string })[] = []
     const r: (McProducto & { id: string })[] = []
-    for (const p of rows) {
+    for (const p of scopedRows) {
       if (isProductNovedad(p, novedadNow)) n.push(p)
       else r.push(p)
     }
     return { novedades: n, resto: r }
-  }, [rows, novedadNow])
+  }, [scopedRows, novedadNow])
 
   const hasActiveFilters = useMemo(() => catalogListHasActiveFilters(filter), [filter])
-  const catalogPriceRange = useMemo(() => priceRangeFromRows(rows), [rows])
+  const catalogPriceRange = useMemo(() => priceRangeFromRows(scopedRows), [scopedRows])
   const filteredRows = useMemo(
-    () => applyCatalogListFilters(rows, filter, novedadNow),
-    [rows, filter, novedadNow],
+    () => applyCatalogListFilters(scopedRows, filter, novedadNow),
+    [scopedRows, filter, novedadNow],
   )
 
   if (!firebaseConfigured) {
@@ -333,8 +351,9 @@ export function PublicCatalogListPage() {
     )
   }
 
-  const showNovedadesBlock = novedades.length > 0
+  const showNovedadesBlock = viewTab === 'todos' && novedades.length > 0
   const novedadesHint = `Alta reciente o destacado por la tienda (últimos ${NOVEDAD_DIAS_RECENTE} días).`
+  const descuentosHint = `Artículos con precio especial en ${descuentosTabLabel.toLowerCase()}.`
   const novedadBadgeFor = (p: McProducto & { id: string }) => isProductNovedad(p, novedadNow)
   const restoSectionTitle = sectionHeading(preset, 'resto')
   const noHeroBeforeSearch = preset === 'morning'
@@ -354,12 +373,22 @@ export function PublicCatalogListPage() {
       <div className={clsx(!showSeasonHero && (noHeroBeforeSearch ? 'space-y-0' : 'space-y-3 sm:space-y-4'))}>
         {!showSeasonHero ? <CatalogIntro preset={preset} /> : null}
         <div id="mc-catalogo-busqueda" className="scroll-mt-20">
+          {showDescuentosTab && !hasActiveFilters && (
+            <div className="mb-4">
+              <CatalogViewTabs
+                active={viewTab}
+                onChange={setViewTab}
+                descuentosLabel={descuentosTabLabel}
+                descuentosCount={descuentos.length}
+              />
+            </div>
+          )}
           <CatalogListToolbar
             value={filter}
             onChange={setFilter}
             onReset={() => setFilter(getDefaultCatalogListFilter())}
             resultCount={filteredRows.length}
-            totalInCatalog={rows.length}
+            totalInCatalog={scopedRows.length}
             hasActiveFilters={hasActiveFilters}
             catalogPriceMin={catalogPriceRange.min}
             catalogPriceMax={catalogPriceRange.max}
@@ -390,6 +419,23 @@ export function PublicCatalogListPage() {
             listFor(filteredRows, novedadBadgeFor)
           )}
         </section>
+      ) : viewTab === 'descuentos' ? (
+        <section className="scroll-mt-4" aria-label={descuentosTabLabel}>
+          <h2 className="mc-pc-display mb-2 text-lg font-medium tracking-tight mc-pc-text sm:text-xl">
+            {descuentosTabLabel}
+          </h2>
+          <p className="mb-6 max-w-xl text-[13px] leading-relaxed mc-pc-muted sm:text-sm">{descuentosHint}</p>
+          {filteredRows.length === 0 ? (
+            <div className="mc-pc-rey-card flex flex-col items-center rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--cat-muted)_28%,var(--cat-surface)_72%)] bg-[color-mix(in_srgb,var(--cat-bg)_45%,var(--cat-surface)_55%)] px-6 py-12 text-center sm:py-14">
+              <p className="text-base font-medium text-[var(--cat-text)]">No hay ofertas con estos criterios</p>
+              <p className="mt-2 max-w-sm text-sm leading-relaxed text-[var(--cat-muted)]">
+                Probá quitar filtros o volvé a «Todos».
+              </p>
+            </div>
+          ) : (
+            listFor(filteredRows, productoTieneDescuento)
+          )}
+        </section>
       ) : (
         <>
           {showNovedadesBlock && (
@@ -413,9 +459,9 @@ export function PublicCatalogListPage() {
                 {restoSectionTitle}
               </h2>
             )}
-            {listFor(showNovedadesBlock ? resto : rows, () => false)}
-            {rows.length === 0 && <p className="text-sm mc-pc-muted">Aún no hay artículos en el catálogo.</p>}
-            {showNovedadesBlock && resto.length === 0 && rows.length > 0 && (
+            {listFor(showNovedadesBlock ? resto : scopedRows, () => false)}
+            {scopedRows.length === 0 && <p className="text-sm mc-pc-muted">Aún no hay artículos en el catálogo.</p>}
+            {showNovedadesBlock && resto.length === 0 && scopedRows.length > 0 && (
               <p className="text-sm mc-pc-muted">Todo el catálogo está en Novedades por ahora.</p>
             )}
           </section>

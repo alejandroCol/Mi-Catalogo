@@ -14,10 +14,12 @@ import {
   normalizeCuponCodigo,
   totalCheckoutCop,
 } from '@/lib/checkoutPricing'
-import { resolveEnvioCop, effectiveEnvioPricingForCheckout } from '@/lib/checkoutShipping'
+import { MC_ENVIO_CHECKOUT_ETIQUETA } from '@/lib/envioCotizacion'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
+import { useEnvioCheckoutQuote } from '@/hooks/useEnvioCheckoutQuote'
 import type { McCuponTienda, McOrdenCatalogoLinea } from '@/types/mc'
 import { usePublicTenant } from '@/public/usePublicTenant'
+import { usePublicCheckoutStartTracking } from '@/public/usePublicCatalogAnalytics'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 import { MunicipioCombobox } from '@/public/MunicipioCombobox'
 import { COLOMBIA_DEPARTAMENTOS, formatoDepartamentoEtiqueta, MC_CHECKOUT_DOCUMENTO_TIPOS } from '@/lib/colombiaGeo'
@@ -104,6 +106,7 @@ function CheckoutCard({ title, children }: { title: string; children: ReactNode 
 
 export function PublicCheckoutPage() {
   const { slug } = useParams<{ slug: string }>()
+  usePublicCheckoutStartTracking()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { tenantId, tenant, platformSettings, loading, error } = usePublicTenant(slug)
@@ -168,24 +171,27 @@ export function PublicCheckoutPage() {
     return { lineasOrden: lineas, subtotalCop: t, preciosOk: ok }
   }, [lines])
 
-  const envioPricingInput = useMemo(
-    () => effectiveEnvioPricingForCheckout(tenant ?? undefined, platformSettings ?? undefined),
-    [
-      tenant?.envioEstimadoCop,
-      tenant?.envioPorCiudad,
-      tenant?.envioGratisDesdeCop,
-      tenant?.envioUsarTarifasMicatalogo,
-      platformSettings?.envioMicatalogoEstimadoCop,
-      platformSettings?.envioMicatalogoPorCiudad,
-    ],
-  )
+  const {
+    envioCop,
+    lineaEnvio,
+    fuente: envioFuente,
+    seleccionada: envioSeleccionada,
+    loading: envioQuoteLoading,
+    error: envioQuoteError,
+  } = useEnvioCheckoutQuote({
+    slug,
+    tenant: tenant ?? undefined,
+    platformSettings: platformSettings ?? undefined,
+    envioDepartamento,
+    envioCiudad,
+    envioDireccion,
+    destinoNombre: nombre,
+    destinoTelefono: telefono,
+    subtotalCop,
+    totalPiezas,
+  })
 
-  const { envioCop, lineaEnvio } = useMemo(
-    () => resolveEnvioCop(envioPricingInput, envioCiudad, subtotalCop, envioDepartamento),
-    [envioPricingInput, envioCiudad, envioDepartamento, subtotalCop],
-  )
-
-  const envioLabel = tenant?.envioEstimadoEtiqueta?.trim() || 'Envío'
+  const envioLabel = MC_ENVIO_CHECKOUT_ETIQUETA
 
   const descuentoCop = useMemo(() => {
     if (!cuponAplicado) return 0
@@ -337,6 +343,16 @@ export function PublicCheckoutPage() {
       if (envioDepartamento.trim()) base.envioDepartamento = envioDepartamento.trim()
       if (envioDireccion.trim()) base.envioDireccion = envioDireccion.trim()
       if (envioReferencia.trim()) base.envioReferencia = envioReferencia.trim()
+      if (envioSeleccionada) {
+        base.envioCotizacionCarrier = envioSeleccionada.carrier
+        base.envioCotizacionServicio = envioSeleccionada.service
+        if (envioSeleccionada.deliveryEstimate) {
+          base.envioCotizacionEntrega = envioSeleccionada.deliveryEstimate
+        }
+        base.envioCotizacionFuente = envioFuente
+      } else if (envioFuente === 'estatico') {
+        base.envioCotizacionFuente = 'estatico'
+      }
       if (cuponVigente) base.cuponCodigo = normalizeCuponCodigo(cuponVigente.codigo)
       if (carritoIniciadoId) base.carritoIniciadoId = carritoIniciadoId
 
@@ -652,7 +668,10 @@ export function PublicCheckoutPage() {
           {subtotalCop > 0 ? formatCop(subtotalCop) : '—'}
         </span>
       </li>
-      {(lineaEnvio === 'cobro' || lineaEnvio === 'gratis_umbral' || lineaEnvio === 'gratis_ciudad') && (
+      {(lineaEnvio === 'cobro' ||
+        lineaEnvio === 'cotizacion' ||
+        lineaEnvio === 'gratis_umbral' ||
+        lineaEnvio === 'gratis_ciudad') && (
         <li className="flex justify-between gap-4 py-2.5">
           <span className="leading-snug">
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">
@@ -663,9 +682,31 @@ export function PublicCheckoutPage() {
                 Subtotal igual o mayor al mínimo de tu tienda
               </span>
             ) : null}
+            {lineaEnvio === 'cotizacion' && envioSeleccionada ? (
+              <span className="mt-0.5 block text-[10px] font-normal normal-case tracking-normal text-[var(--cat-muted)]">
+                {envioSeleccionada.carrierLabel}
+                {envioSeleccionada.deliveryEstimate
+                  ? ` · ${envioSeleccionada.deliveryEstimate}`
+                  : ''}
+              </span>
+            ) : null}
+            {envioQuoteLoading ? (
+              <span className="mt-0.5 block text-[10px] font-normal normal-case tracking-normal text-[var(--cat-muted)]">
+                Cotizando envío…
+              </span>
+            ) : null}
+            {envioQuoteError ? (
+              <span className="mt-0.5 block text-[10px] font-normal normal-case tracking-normal text-amber-800">
+                {envioQuoteError}
+              </span>
+            ) : null}
           </span>
           <span className="shrink-0 text-[13px] font-medium tabular-nums text-[color-mix(in_srgb,var(--cat-text)_82%,var(--cat-muted)_18%)]">
-            {lineaEnvio === 'cobro' ? formatCop(envioCop) : 'Gratis'}
+            {envioQuoteLoading && lineaEnvio !== 'gratis_umbral' && lineaEnvio !== 'gratis_ciudad'
+              ? '…'
+              : lineaEnvio === 'cobro' || lineaEnvio === 'cotizacion'
+                ? formatCop(envioCop)
+                : 'Gratis'}
           </span>
         </li>
       )}
@@ -695,7 +736,7 @@ export function PublicCheckoutPage() {
       <button
         type="button"
         onClick={() => void pagarConOnepay()}
-        disabled={onepayBusy || busy || !preciosOk || subtotalCop <= 0}
+        disabled={onepayBusy || busy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading}
         className={resumenCtaAccentClass}
       >
         {onepayBusy ? 'Abriendo OnePay…' : `Pagar · ${totalCop > 0 ? formatCop(totalCop) : '—'}`}
@@ -710,7 +751,7 @@ export function PublicCheckoutPage() {
         <button
           type="button"
           onClick={pedirPorWhatsapp}
-          disabled={busy || onepayBusy || !preciosOk || subtotalCop <= 0}
+          disabled={busy || onepayBusy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading}
           className={resumenCtaAccentClass}
         >
           Pedir por Whatsapp
@@ -1059,7 +1100,7 @@ export function PublicCheckoutPage() {
           <div className="flex flex-col gap-2">
             <button
               type="submit"
-              disabled={busy || onepayBusy || !preciosOk || subtotalCop <= 0}
+              disabled={busy || onepayBusy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading}
               className="w-full rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? 'Procesando…' : 'Confirmar pago simulado'}

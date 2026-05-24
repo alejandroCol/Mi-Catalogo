@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { doc, getDoc } from 'firebase/firestore'
+import { deleteField, doc, getDoc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { CheckoutEnvioRequiredModal } from '@/app/CheckoutEnvioRequiredModal'
 import { CheckoutVentasRequiredModal } from '@/app/CheckoutVentasRequiredModal'
 import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
+import { McToggleSwitch } from '@/components/McToggleSwitch'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { IconClipboard } from '@/icons/McIcons'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { catalogoVendedorGate, isCatalogoVendedorListo } from '@/lib/checkoutVentasModo'
@@ -18,6 +20,11 @@ export function CuentaTiendaPage() {
   const [ventasRequiredModalOpen, setVentasRequiredModalOpen] = useState(false)
   const [envioRequiredModalOpen, setEnvioRequiredModalOpen] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [descuentosTabEnabled, setDescuentosTabEnabled] = useState(false)
+  const [descuentosTabLabel, setDescuentosTabLabel] = useState('')
+  const [descuentosTabBusy, setDescuentosTabBusy] = useState(false)
+  const [descuentosTabErr, setDescuentosTabErr] = useState<string | null>(null)
+  const { showSaveSuccess } = useSaveSuccess()
 
   useEffect(() => {
     if (!firebaseConfigured) return
@@ -25,6 +32,12 @@ export function CuentaTiendaPage() {
       setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
     })
   }, [])
+
+  useEffect(() => {
+    if (!tenant) return
+    setDescuentosTabEnabled(!!tenant.catalogDescuentosTab?.enabled)
+    setDescuentosTabLabel(tenant.catalogDescuentosTab?.label ?? '')
+  }, [tenant?.id, tenant?.catalogDescuentosTab?.enabled, tenant?.catalogDescuentosTab?.label])
 
   const catalogoUrlAbsolute = useMemo(() => {
     if (!tenant?.slug || typeof window === 'undefined') return ''
@@ -55,6 +68,28 @@ export function CuentaTiendaPage() {
       window.setTimeout(() => setCopiedCatalogo(false), 2200)
     } catch {
       setMsg('No se pudo copiar. Copiá manualmente desde la barra del navegador.')
+    }
+  }
+
+  async function guardarDescuentosTab() {
+    if (!profile?.tenantId || !tenant) return
+    setDescuentosTabBusy(true)
+    setDescuentosTabErr(null)
+    try {
+      const labelTrim = descuentosTabLabel.trim()
+      await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), {
+        catalogDescuentosTab: descuentosTabEnabled
+          ? {
+              enabled: true,
+              ...(labelTrim ? { label: labelTrim.slice(0, 32) } : {}),
+            }
+          : deleteField(),
+      })
+      showSaveSuccess({ message: 'La pestaña de descuentos del catálogo se actualizó.' })
+    } catch {
+      setDescuentosTabErr('No se pudo guardar. Revisá conexión.')
+    } finally {
+      setDescuentosTabBusy(false)
     }
   }
 
@@ -107,6 +142,61 @@ export function CuentaTiendaPage() {
           </Link>
         </div>
         {msg && <p className="text-[15px] text-[var(--cat-text)] opacity-90">{msg}</p>}
+      </div>
+
+      <div className="mc-card mt-6 space-y-4">
+        <div>
+          <h2 className="ios-headline text-[var(--cat-text)]">Tab de ofertas</h2>
+          <p className="ios-footnote mt-1.5 max-w-xl leading-relaxed text-[var(--cat-muted)]">
+            Mostrá un tab en tu catálogo con todos los productos que tengan descuento. Podés personalizar el nombre
+            (por ejemplo «Remate» o «Liquidación»).
+          </p>
+        </div>
+
+        <McToggleSwitch
+          id="mc-descuentos-tab-enabled"
+          checked={descuentosTabEnabled}
+          disabled={descuentosTabBusy}
+          onChange={setDescuentosTabEnabled}
+          label="Mostrar tab de descuentos en la tienda"
+          description="Los clientes verán un tab junto a «Todos» con los artículos en oferta."
+        />
+
+        {descuentosTabEnabled && (
+          <div>
+            <label htmlFor="mc-descuentos-tab-label" className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">
+              Nombre del tab
+            </label>
+            <input
+              id="mc-descuentos-tab-label"
+              className="mc-input mt-1.5"
+              value={descuentosTabLabel}
+              maxLength={32}
+              disabled={descuentosTabBusy}
+              placeholder="Descuento"
+              onChange={(e) => setDescuentosTabLabel(e.target.value)}
+            />
+            <p className="ios-footnote mt-1.5 text-[var(--cat-muted)]">
+              Si lo dejás vacío, se mostrará «Descuento».
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="mc-btn-primary px-5 py-2.5 text-[15px]"
+            disabled={descuentosTabBusy}
+            onClick={() => void guardarDescuentosTab()}
+          >
+            {descuentosTabBusy ? 'Guardando…' : 'Guardar tab de ofertas'}
+          </button>
+          {descuentosTabErr && (
+            <p className="text-[14px] text-red-800" aria-live="polite">
+              {descuentosTabErr}
+            </p>
+          )}
+        </div>
       </div>
 
       <CheckoutVentasRequiredModal

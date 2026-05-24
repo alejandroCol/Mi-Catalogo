@@ -3,6 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { updateProfile } from 'firebase/auth'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 
@@ -10,7 +11,8 @@ export function CuentaPerfilPage() {
   const { profile, firebaseUser } = useMcAuth()
   const [ownerDisplayName, setOwnerDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const { showSaveSuccess } = useSaveSuccess()
 
   useEffect(() => {
     setOwnerDisplayName(profile?.displayName?.trim() ?? '')
@@ -19,14 +21,14 @@ export function CuentaPerfilPage() {
   async function guardar() {
     if (!profile?.uid) return
     setBusy(true)
-    setMsg(null)
+    setErr(null)
     try {
       const dn = ownerDisplayName.trim()
       await updateDoc(doc(getDb(), MC.users, profile.uid), { displayName: dn })
       if (firebaseUser) await updateProfile(firebaseUser, { displayName: dn })
-      setMsg('Guardado.')
+      showSaveSuccess({ message: 'Tu nombre en el panel se actualizó correctamente.' })
     } catch {
-      setMsg('No se pudo guardar.')
+      setErr('No se pudo guardar.')
     } finally {
       setBusy(false)
     }
@@ -47,7 +49,7 @@ export function CuentaPerfilPage() {
           />
           <p className="ios-footnote mt-1.5 text-[var(--cat-muted)]">Solo visible para vos en el panel.</p>
         </div>
-        {msg && <p className="text-[15px] text-[var(--cat-text)] opacity-90">{msg}</p>}
+        {err && <p className="text-[15px] text-red-800">{err}</p>}
         <button type="button" className="mc-btn-primary w-full" disabled={busy} onClick={() => void guardar()}>
           Guardar
         </button>

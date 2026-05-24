@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
+import { useSearchParams } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import {
   hasExpertFeatureAccess,
@@ -15,6 +16,7 @@ import type { McPlatformSettings } from '@/types/mc'
 
 export function useExpertPlanPurchase() {
   const { tenant } = useMcAuth()
+  const [searchParams] = useSearchParams()
   const [msg, setMsg] = useState<string | null>(null)
   const [planConfig, setPlanConfig] = useState<McPlanConfig>(() => resolvePlanConfig(null))
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
@@ -22,6 +24,8 @@ export function useExpertPlanPurchase() {
   const [discountPreview, setDiscountPreview] = useState<{
     finalPriceCop: number
     basePriceCop: number
+    freeMonths?: number
+    requiresPaymentMethod?: boolean
   } | null>(null)
   const [validatingCode, setValidatingCode] = useState(false)
   const [period, setPeriod] = useState<McBillingPeriod>('monthly')
@@ -40,8 +44,19 @@ export function useExpertPlanPurchase() {
     })
   }, [])
 
-  async function validarCodigo(p: McBillingPeriod) {
-    const code = discountCode.trim()
+  useEffect(() => {
+    const fromUrl = searchParams.get('code')?.trim()
+    const fromTenant = tenant?.onboardingExpertRewardCode?.trim()
+    const initial = fromUrl || fromTenant
+    if (initial) {
+      const normalized = initial.toUpperCase()
+      setDiscountCode(normalized)
+      void validarCodigo('monthly', normalized)
+    }
+  }, [searchParams, tenant?.onboardingExpertRewardCode])
+
+  async function validarCodigo(p: McBillingPeriod, codeOverride?: string) {
+    const code = (codeOverride ?? discountCode).trim()
     if (!code || !firebaseConfigured) {
       setDiscountPreview(null)
       return
@@ -50,8 +65,18 @@ export function useExpertPlanPurchase() {
     try {
       const fn = httpsCallable(getFirebaseFunctions(), 'mcBillingValidateDiscountCode')
       const res = await fn({ code, period: p })
-      const d = res.data as { basePriceCop?: number; finalPriceCop?: number }
-      setDiscountPreview({ basePriceCop: d.basePriceCop ?? 0, finalPriceCop: d.finalPriceCop ?? 0 })
+      const d = res.data as {
+        basePriceCop?: number
+        finalPriceCop?: number
+        freeMonths?: number
+        requiresPaymentMethod?: boolean
+      }
+      setDiscountPreview({
+        basePriceCop: d.basePriceCop ?? 0,
+        finalPriceCop: d.finalPriceCop ?? 0,
+        freeMonths: d.freeMonths,
+        requiresPaymentMethod: d.requiresPaymentMethod,
+      })
       setMsg(null)
     } catch {
       setDiscountPreview(null)
@@ -64,6 +89,8 @@ export function useExpertPlanPurchase() {
   const precioMensual = discountPreview?.finalPriceCop ?? planConfig.expertPrecioMensualCop
   const precioAnual = planConfig.expertPrecioAnualCop
   const amountForPeriod = period === 'yearly' ? precioAnual : precioMensual
+  const checkoutRequiresPaymentMethod =
+    amountForPeriod > 0 || discountPreview?.requiresPaymentMethod === true
 
   function resetCheckout() {
     setCheckoutOpen(false)
@@ -90,6 +117,7 @@ export function useExpertPlanPurchase() {
     precioMensual,
     precioAnual,
     amountForPeriod,
+    checkoutRequiresPaymentMethod,
     resetCheckout,
   }
 }

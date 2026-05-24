@@ -1,11 +1,28 @@
 import { useState } from 'react'
 import { deleteField, doc, updateDoc } from 'firebase/firestore'
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import { ProductoDescuentoEditor, parseProductoDescuentoDraft, productoDescuentoDraftFromProduct } from '@/components/producto/ProductoDescuentoEditor'
+import { ProductoFormSection } from '@/components/producto/ProductoFormSection'
+import { ProductoImagenesEditor } from '@/components/producto/ProductoImagenesEditor'
+import { ProductoOpcionToggle } from '@/components/producto/ProductoOpcionToggle'
+import { ProductoTallasEditor } from '@/components/producto/ProductoTallasEditor'
 import { ProductoVariantesEditor } from '@/components/producto/ProductoVariantesEditor'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb, getStorageApp, firebaseStorageConfigured } from '@/lib/firebase'
-import { compressImageForUpload } from '@/lib/compressImageForUpload'
-import { formatIntegerEsCo } from '@/lib/formatCop'
 import { mcProductosCollection } from '@/lib/mcCollections'
+import {
+  imagenDraftFromProducto,
+  uploadProductoImagenes,
+  uploadVarianteImagen,
+  type ProductoImagenDraft,
+} from '@/lib/productoImagenes'
+import { formatIntegerEsCo } from '@/lib/formatCop'
+import {
+  buildTallasFromDrafts,
+  createCurvaTallasDraft,
+  sumarStockTallas,
+  tallasDraftFromProducto,
+  type TallaDraft,
+} from '@/lib/productoTallas'
 import {
   buildVarianteFromDraft,
   parsePrecioVarianteOpcional,
@@ -24,19 +41,31 @@ export function EditProductModal({
   product: McProducto & { id: string }
   onClose: () => void
 }) {
+  const initialImagenes = imagenDraftFromProducto(product)
+  const [esRopa] = useState(!!product.esRopa)
   const [nombre, setNombre] = useState(product.nombre)
+  const [descripcion, setDescripcion] = useState(product.descripcion ?? '')
   const [precio, setPrecio] = useState(
     product.precioCop > 0 ? formatIntegerEsCo(product.precioCop) : '',
   )
   const [stock, setStock] = useState(String(product.stock ?? 0))
   const [marcarNovedad, setMarcarNovedad] = useState(!!product.marcarNovedad)
-  const [mainFile, setMainFile] = useState<File | null>(null)
-  const [galeriaFiles, setGaleriaFiles] = useState<File[]>([])
-  const [galeriaUrls, setGaleriaUrls] = useState<string[]>(product.galeriaImagenes ?? [])
+  const [mostrarDescargaImagen, setMostrarDescargaImagen] = useState(!!product.mostrarDescargaImagen)
+  const [imagenes, setImagenes] = useState<ProductoImagenDraft[]>(initialImagenes.items)
+  const [coverId, setCoverId] = useState<string | null>(initialImagenes.coverId)
+  const [tallas, setTallas] = useState<TallaDraft[]>(() =>
+    product.esRopa
+      ? tallasDraftFromProducto(product).length > 0
+        ? tallasDraftFromProducto(product)
+        : createCurvaTallasDraft()
+      : [],
+  )
   const [variantes, setVariantes] = useState(() => variantesDraftFromProducto(product))
+  const [descuento, setDescuento] = useState(() => productoDescuentoDraftFromProduct(product))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  const { showSaveSuccess } = useSaveSuccess()
   const tieneVariantes = variantes.length > 0
 
   function onPrecioChange(raw: string) {
@@ -53,10 +82,6 @@ export function EditProductModal({
     setPrecio(formatIntegerEsCo(n))
   }
 
-  function removeGaleriaUrl(url: string) {
-    setGaleriaUrls((prev) => prev.filter((u) => u !== url))
-  }
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
@@ -71,6 +96,12 @@ export function EditProductModal({
       return
     }
 
+    const descParsed = parseProductoDescuentoDraft(descuento, precioNum)
+    if (!descParsed.ok) {
+      setErr(descParsed.error)
+      return
+    }
+
     for (const v of variantes) {
       if (!v.nombre.trim()) continue
       if (v.precio.trim() && parsePrecioVarianteOpcional(v.precio) == null) {
@@ -80,7 +111,14 @@ export function EditProductModal({
     }
 
     const varianteRows = variantes.filter((v) => v.nombre.trim())
-    if (!firebaseStorageConfigured && (mainFile || galeriaFiles.length || varianteRows.some((v) => v.file))) {
+    const builtTallas = esRopa ? buildTallasFromDrafts(tallas) : []
+    if (esRopa && sumarStockTallas(builtTallas) <= 0) {
+      setErr('Indicá stock en al menos una talla.')
+      return
+    }
+
+    const hasNewUploads = imagenes.some((i) => i.kind === 'new') || varianteRows.some((v) => v.file)
+    if (hasNewUploads && !firebaseStorageConfigured) {
       setErr('Firebase Storage no está configurado; no se pueden subir imágenes.')
       return
     }
@@ -92,22 +130,23 @@ export function EditProductModal({
       const storage = firebaseStorageConfigured ? getStorageApp() : null
 
       let imageUrl: string | undefined = product.imageUrl
-      if (mainFile && storage) {
-        const pathRef = ref(storage, `mc_tenants/${tenantId}/productos/${product.id}.jpg`)
-        const optimized = await compressImageForUpload(mainFile)
-        await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
-        imageUrl = await getDownloadURL(pathRef)
-      }
+      let galeriaImagenes: string[] | undefined = product.galeriaImagenes
 
-      const nextGaleria = [...galeriaUrls]
-      if (galeriaFiles.length && storage) {
-        for (const file of galeriaFiles) {
-          const token = crypto.randomUUID()
-          const pathRef = ref(storage, `mc_tenants/${tenantId}/productos/${product.id}_g_${token}.jpg`)
-          const optimized = await compressImageForUpload(file)
-          await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
-          const url = await getDownloadURL(pathRef)
-          nextGaleria.push(url)
+      if (imagenes.length === 0) {
+        imageUrl = undefined
+        galeriaImagenes = undefined
+      } else if (storage) {
+        const uploaded = await uploadProductoImagenes(storage, tenantId, product.id, imagenes, coverId)
+        imageUrl = uploaded.imageUrl
+        galeriaImagenes = uploaded.galeriaImagenes
+      } else {
+        const effectiveCoverId = coverId && imagenes.some((i) => i.id === coverId) ? coverId : imagenes[0]!.id
+        const coverItem = imagenes.find((i) => i.id === effectiveCoverId)
+        if (coverItem?.kind === 'existing') {
+          imageUrl = coverItem.url
+          galeriaImagenes = imagenes
+            .filter((i) => i.id !== effectiveCoverId && i.kind === 'existing')
+            .map((i) => (i as { url: string }).url)
         }
       }
 
@@ -115,33 +154,48 @@ export function EditProductModal({
       for (const v of varianteRows) {
         let vImg = v.imageUrl
         if (v.file && storage) {
-          const pathRef = ref(storage, `mc_tenants/${tenantId}/productos/${product.id}_v_${v.id}.jpg`)
-          const optimized = await compressImageForUpload(v.file)
-          await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
-          vImg = await getDownloadURL(pathRef)
+          vImg = await uploadVarianteImagen(storage, tenantId, product.id, v.id, v.file)
         }
         const item = buildVarianteFromDraft(v)
         if (!item) continue
+        if (esRopa) delete item.stock
         if (vImg) item.imageUrl = vImg
         builtVariantes.push(item)
       }
 
       let stockFinal = Number.isFinite(stockNum) ? stockNum : 0
-      if (builtVariantes.length > 0 && variantesConStockDefinido(builtVariantes)) {
+      if (esRopa) {
+        stockFinal = sumarStockTallas(builtTallas)
+      } else if (builtVariantes.length > 0 && variantesConStockDefinido(builtVariantes)) {
         stockFinal = sumarStockVariantes(builtVariantes)
       }
 
       await updateDoc(refDoc, {
         nombre: nombre.trim(),
+        descripcion: descripcion.trim() ? descripcion.trim() : deleteField(),
         precioCop: precioNum,
         stock: stockFinal,
         updatedAt: Date.now(),
         imageUrl: imageUrl ?? deleteField(),
         marcarNovedad,
-        galeriaImagenes: nextGaleria.length > 0 ? nextGaleria : deleteField(),
+        mostrarDescargaImagen,
+        esRopa: esRopa ? true : deleteField(),
+        tallas: esRopa && builtTallas.length > 0 ? builtTallas : deleteField(),
+        ...(descParsed.fields.descuentoActivo
+          ? descParsed.fields
+          : {
+              descuentoActivo: false,
+              descuentoTipo: deleteField(),
+              descuentoValor: deleteField(),
+            }),
+        galeriaImagenes: galeriaImagenes && galeriaImagenes.length > 0 ? galeriaImagenes : deleteField(),
         variantes: builtVariantes.length > 0 ? builtVariantes : deleteField(),
       })
 
+      showSaveSuccess({
+        title: 'Cambios guardados',
+        message: 'El producto se actualizó correctamente.',
+      })
       onClose()
     } catch {
       setErr('No se pudo guardar. Revisá conexión y permisos.')
@@ -153,89 +207,136 @@ export function EditProductModal({
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" role="dialog">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Cerrar" onClick={onClose} />
-      <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-neutral-200/50 bg-white p-5 sm:rounded-lg">
-        <h2 className="ios-headline">Editar artículo</h2>
-        <p className="ios-footnote mt-1.5 text-mc-600">
-          Actualizá datos, fotos y variantes con stock, color u olor propios por opción.
-        </p>
-        <form onSubmit={onSubmit} className="mt-4 space-y-5">
+      <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-neutral-200/50 bg-neutral-50 p-5 sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <label className="ios-footnote font-medium text-mc-700">Nombre</label>
-            <input className="mc-input mt-1.5" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+            <h2 className="ios-headline">Editar artículo</h2>
+            <p className="ios-footnote mt-1.5 text-mc-600">
+              {esRopa
+                ? 'Prenda de vestir: stock por talla y variantes de color o tela.'
+                : 'Actualizá datos, fotos y variantes.'}
+            </p>
           </div>
-          <div className={tieneVariantes ? '' : 'grid grid-cols-2 gap-3'}>
-            <div>
-              <label className="ios-footnote font-medium text-mc-700">Precio base (COP)</label>
-              <input
-                className="mc-input mt-1.5"
-                inputMode="numeric"
-                value={precio}
-                onChange={(e) => onPrecioChange(e.target.value)}
-                autoComplete="off"
-              />
-            </div>
-            {!tieneVariantes ? (
+          {esRopa ? (
+            <span className="shrink-0 rounded-full bg-mc-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+              Ropa
+            </span>
+          ) : null}
+        </div>
+        <form onSubmit={onSubmit} className="mt-4 space-y-4">
+          <ProductoFormSection>
+            <ProductoImagenesEditor
+              items={imagenes}
+              coverId={coverId}
+              onChange={(next, nextCover) => {
+                setImagenes(next)
+                setCoverId(nextCover)
+              }}
+              disabled={busy}
+            />
+          </ProductoFormSection>
+
+          <ProductoFormSection title="Información básica">
+            <div className="space-y-3">
               <div>
-                <label className="ios-footnote font-medium text-mc-700">Stock</label>
-                <input
-                  className="mc-input mt-1.5"
-                  inputMode="numeric"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value.replace(/\D/g, ''))}
-                  autoComplete="off"
+                <label className="ios-footnote font-medium text-mc-700">Nombre</label>
+                <input className="mc-input bg-white" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+              </div>
+              <div>
+                <label className="ios-footnote font-medium text-mc-700">Descripción (opcional)</label>
+                <textarea
+                  className="mc-input mt-1.5 min-h-[5.5rem] resize-y bg-white py-2.5 text-[15px] leading-relaxed"
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  placeholder="Material, medidas, cuidados, variantes disponibles…"
+                  rows={3}
                 />
+                <p className="mt-1 text-[12px] leading-relaxed text-mc-500">
+                  Se muestra en la ficha del producto en tu catálogo público.
+                </p>
+              </div>
+            </div>
+          </ProductoFormSection>
+
+          <ProductoFormSection title="Precio y stock">
+            {esRopa ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="ios-footnote font-medium text-mc-700">Precio base (COP)</label>
+                  <input
+                    className="mc-input mt-1.5 bg-white"
+                    inputMode="numeric"
+                    value={precio}
+                    onChange={(e) => onPrecioChange(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <ProductoTallasEditor tallas={tallas} onChange={setTallas} disabled={busy} />
               </div>
             ) : (
-              <p className="mt-2 text-[12px] leading-relaxed text-mc-600">
-                El stock total se calcula sumando el de cada variante.
-              </p>
+              <div className={tieneVariantes ? 'space-y-2' : 'grid grid-cols-2 gap-3'}>
+                <div>
+                  <label className="ios-footnote font-medium text-mc-700">Precio base (COP)</label>
+                  <input
+                    className="mc-input mt-1.5 bg-white"
+                    inputMode="numeric"
+                    value={precio}
+                    onChange={(e) => onPrecioChange(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                {!tieneVariantes ? (
+                  <div>
+                    <label className="ios-footnote font-medium text-mc-700">Stock</label>
+                    <input
+                      className="mc-input mt-1.5 bg-white"
+                      inputMode="numeric"
+                      value={stock}
+                      onChange={(e) => setStock(e.target.value.replace(/\D/g, ''))}
+                      autoComplete="off"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-[12px] leading-relaxed text-mc-600">
+                    El stock total se calcula sumando el de cada variante.
+                  </p>
+                )}
+              </div>
             )}
-          </div>
-          <label className="flex cursor-pointer items-start gap-2.5">
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300"
-              checked={marcarNovedad}
-              onChange={(e) => setMarcarNovedad(e.target.checked)}
-            />
-            <span className="ios-footnote text-mc-700">Destacar siempre como novedad</span>
-          </label>
-          <div>
-            <label className="ios-footnote font-medium text-mc-700">Nueva foto principal (opcional)</label>
-            <input
-              type="file"
-              accept="image/*"
-              className="mt-1.5 w-full text-[15px] text-mc-600 file:mr-3 file:rounded-md file:border file:border-neutral-200/70 file:bg-neutral-50 file:px-3 file:py-2 file:text-[13px]"
-              onChange={(e) => setMainFile(e.target.files?.[0] ?? null)}
-            />
-          </div>
-          <div>
-            <label className="ios-footnote font-medium text-mc-700">Galería — fotos actuales</label>
-            <ul className="mt-2 space-y-1.5">
-              {galeriaUrls.length === 0 ? (
-                <li className="text-[13px] text-mc-500">Ninguna</li>
-              ) : (
-                galeriaUrls.map((url) => (
-                  <li key={url} className="flex items-center justify-between gap-2 text-[13px]">
-                    <span className="min-w-0 truncate text-mc-700">{url.slice(-28)}</span>
-                    <button type="button" className="shrink-0 text-red-700 underline" onClick={() => removeGaleriaUrl(url)}>
-                      Quitar
-                    </button>
-                  </li>
-                ))
-              )}
-            </ul>
-            <label className="mt-2 block ios-footnote font-medium text-mc-700">Agregar fotos a la galería</label>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="mt-1.5 w-full text-[15px] text-mc-600 file:mr-3 file:rounded-md file:border file:border-neutral-200/70 file:bg-neutral-50 file:px-3 file:py-2 file:text-[13px]"
-              onChange={(e) => setGaleriaFiles(Array.from(e.target.files ?? []))}
-            />
-          </div>
+          </ProductoFormSection>
 
-          <ProductoVariantesEditor variantes={variantes} onChange={setVariantes} allowImage />
+          <ProductoDescuentoEditor
+            draft={descuento}
+            onChange={setDescuento}
+            precioBaseCop={Number(precio.replace(/\D/g, '')) || 0}
+            disabled={busy}
+          />
+
+          <ProductoVariantesEditor
+            variantes={variantes}
+            onChange={setVariantes}
+            allowImage
+            esRopa={esRopa}
+            disabled={busy}
+          />
+
+          <ProductoFormSection>
+            <div className="space-y-2.5">
+              <ProductoOpcionToggle
+                checked={marcarNovedad}
+                onChange={setMarcarNovedad}
+                disabled={busy}
+                title="Destacar siempre como novedad"
+              />
+              <ProductoOpcionToggle
+                checked={mostrarDescargaImagen}
+                onChange={setMostrarDescargaImagen}
+                disabled={busy}
+                title="Mostrar botón «Descargar imagen»"
+                description="Ideal para mayoristas que necesitan bajar la foto del producto desde el catálogo."
+              />
+            </div>
+          </ProductoFormSection>
 
           {err && <p className="ios-subhead text-red-800">{err}</p>}
           <div className="flex gap-2 pt-2">

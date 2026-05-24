@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import { useMcAuth } from '@/auth/McAuthContext'
+import { PasarelaOnepayComisionesModal } from '@/app/PasarelaOnepayComisionesModal'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { formatCop } from '@/lib/formatCop'
 import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
@@ -10,13 +11,6 @@ import {
   onepayFundWithdrawalPeriodShort,
   type OnepayFundWithdrawalPeriod,
 } from '@/lib/onepayFundWithdrawalPeriod'
-import {
-  onepayMerchantFeePerPaymentCop,
-  onepayMerchantNetPerPaymentCop,
-  pasarelaMicatalogoFeePerPaymentCop,
-  pasarelaMicatalogoNetPerPaymentCop,
-  PASARELA_MICATALOGO_WITHDRAWAL_FIXED_COP,
-} from '@/lib/pasarelaFees'
 import { IconBankCard, IconChevronLeft } from '@/icons/McIcons'
 
 function callableErrorMessage(e: unknown): string {
@@ -39,9 +33,26 @@ type PaymentRow = {
   grossCop: number
 }
 
+type WithdrawalRow = {
+  id: string
+  amountCop: number
+  netCop: number
+  createdAt: number
+}
+
+type PasarelaMicatalogoLedger = {
+  grossTotalCop: number
+  netTotalCop: number
+  withdrawnTotalCop: number
+  availableNetCop: number
+  paymentCount: number
+  withdrawals: WithdrawalRow[]
+}
+
 type SaldoSummary = {
   modo: 'pasarela' | 'pasarela_micatalogo'
   balance: { balance?: number; balance_label?: string } | null
+  ledger: PasarelaMicatalogoLedger | null
   grossTotalCop: number
   payments: PaymentRow[]
   payoutConfigured: boolean
@@ -56,8 +67,10 @@ export function VentasSaldoPage() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [data, setData] = useState<SaldoSummary | null>(null)
+  const [comisionesOpen, setComisionesOpen] = useState(false)
 
   const modo = explicitCheckoutVentasModo(tenant)
+  const isMicatalogo = data?.modo === 'pasarela_micatalogo'
 
   const load = useCallback(async () => {
     if (!firebaseConfigured || !tenant || modo === 'whatsapp' || modo === null) {
@@ -94,24 +107,10 @@ export function VentasSaldoPage() {
     return data.payments.filter((p) => p.createdAt >= from)
   }, [data?.payments, periodFilter])
 
-  const totals = useMemo(() => {
-    const rows = filteredPayments
-    const gross = rows.reduce((s, p) => s + p.grossCop, 0)
-    const isMc = data?.modo === 'pasarela_micatalogo'
-    const fee = rows.reduce(
-      (s, p) =>
-        s +
-        (isMc ? pasarelaMicatalogoFeePerPaymentCop(p.grossCop) : onepayMerchantFeePerPaymentCop(p.grossCop)),
-      0,
-    )
-    const net = rows.reduce(
-      (s, p) =>
-        s +
-        (isMc ? pasarelaMicatalogoNetPerPaymentCop(p.grossCop) : onepayMerchantNetPerPaymentCop(p.grossCop)),
-      0,
-    )
-    return { gross, fee, net, count: rows.length }
-  }, [filteredPayments, data?.modo])
+  const filteredGross = useMemo(
+    () => filteredPayments.reduce((s, p) => s + p.grossCop, 0),
+    [filteredPayments],
+  )
 
   if (!tenant) {
     return (
@@ -143,15 +142,22 @@ export function VentasSaldoPage() {
         ? ' · Esta semana'
         : ''
 
+  const ledger = data?.ledger
+  const heroAmount = isMicatalogo ? (ledger?.availableNetCop ?? 0) : (data?.balance?.balance ?? null)
+
   return (
     <div className="mc-shell space-y-8 pb-28">
+      <PasarelaOnepayComisionesModal open={comisionesOpen} onClose={() => setComisionesOpen(false)} />
+
       <div>
         <BackLink />
         <h1 className="mt-3 text-[1.75rem] font-medium leading-tight tracking-tight text-[var(--cat-text)] sm:text-[2rem]">
           Mi saldo{periodTitle}
         </h1>
         <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-[var(--cat-muted)]">
-          Cobros del catálogo con pasarela: bruto, comisión estimada y neto por venta.
+          {isMicatalogo
+            ? 'Resumen de tus ventas cobradas con pasarela Mi Catálogo.'
+            : 'Cobros del catálogo con pasarela OnePay.'}
         </p>
       </div>
 
@@ -172,37 +178,28 @@ export function VentasSaldoPage() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
-                  Saldo en pasarela
+                  {isMicatalogo ? 'Disponible para retirar' : 'Saldo en pasarela'}
                 </p>
                 <p className="mt-2 text-[1.9rem] font-medium tabular-nums leading-none tracking-tight text-[var(--cat-text)]">
-                  {data.balance?.balance_label?.trim() || formatCop(data.balance?.balance ?? 0)}
+                  {typeof heroAmount === 'number'
+                    ? formatCop(heroAmount)
+                    : data.balance?.balance_label?.trim() || formatCop(0)}
                 </p>
-                <div className="mt-4 grid grid-cols-3 gap-2 border-t border-neutral-200/40 pt-4 text-center sm:gap-4">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[var(--cat-muted)]">Bruto</p>
-                    <p className="mt-1 text-[15px] font-medium tabular-nums">{formatCop(totals.gross)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[var(--cat-muted)]">Comisión est.</p>
-                    <p className="mt-1 text-[15px] font-medium tabular-nums text-amber-900">
-                      −{formatCop(totals.fee)}
+                {isMicatalogo && ledger ? (
+                  <>
+                    <p className="mt-2 text-[12px] leading-relaxed text-[var(--cat-muted)]">
+                      Basado en {ledger.paymentCount}{' '}
+                      {ledger.paymentCount === 1 ? 'venta cobrada' : 'ventas cobradas'} en tu catálogo.
                     </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[var(--cat-muted)]">Neto est.</p>
-                    <p className="mt-1 text-[15px] font-medium tabular-nums text-emerald-900">
-                      {formatCop(totals.net)}
-                    </p>
-                  </div>
-                </div>
-                {data.modo === 'pasarela_micatalogo' ? (
-                  <p className="mt-3 text-[12px] leading-relaxed text-[var(--cat-muted)]">
-                    Al retirar se descuenta además{' '}
-                    <strong className="font-medium text-[var(--cat-text)]">
-                      {formatCop(PASARELA_MICATALOGO_WITHDRAWAL_FIXED_COP)}
-                    </strong>{' '}
-                    fijos por operación de retiro.
-                  </p>
+                    {ledger.withdrawnTotalCop > 0 ? (
+                      <p className="mt-2 text-[13px] text-[var(--cat-muted)]">
+                        Retiros realizados:{' '}
+                        <span className="font-medium tabular-nums text-[var(--cat-text)]">
+                          {formatCop(ledger.withdrawnTotalCop)}
+                        </span>
+                      </p>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             </div>
@@ -244,52 +241,87 @@ export function VentasSaldoPage() {
           )}
 
           <section>
-            <h2 className="text-[16px] font-medium tracking-tight text-[var(--cat-text)]">
-              Pagos con pasarela ({totals.count})
-            </h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-[16px] font-medium tracking-tight text-[var(--cat-text)]">
+                Ventas con pasarela ({isMicatalogo && ledger ? ledger.paymentCount : filteredPayments.length})
+              </h2>
+              {periodFilter && filteredPayments.length > 0 ? (
+                <p className="text-[13px] tabular-nums text-[var(--cat-muted)]">{formatCop(filteredGross)}</p>
+              ) : null}
+            </div>
             {filteredPayments.length === 0 ? (
               <p className="mt-4 text-[14px] text-[var(--cat-muted)]">No hay cobros en este período.</p>
             ) : (
               <ul className="mt-4 divide-y divide-neutral-200/50 border border-neutral-200/50">
-                {filteredPayments.map((p) => {
-                  const fee =
-                    data.modo === 'pasarela_micatalogo'
-                      ? pasarelaMicatalogoFeePerPaymentCop(p.grossCop)
-                      : onepayMerchantFeePerPaymentCop(p.grossCop)
-                  const net =
-                    data.modo === 'pasarela_micatalogo'
-                      ? pasarelaMicatalogoNetPerPaymentCop(p.grossCop)
-                      : onepayMerchantNetPerPaymentCop(p.grossCop)
-                  return (
-                    <li key={p.orderId} className="bg-[var(--cat-surface)] px-4 py-4 sm:px-5">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="text-[15px] font-medium text-[var(--cat-text)]">
-                            {p.clienteNombre?.trim() || 'Cliente'}
-                          </p>
-                          {p.numeroReferencia ? (
-                            <p className="font-mono text-[11px] text-[var(--cat-muted)]">{p.numeroReferencia}</p>
-                          ) : null}
-                          <p className="mt-1 text-[12px] text-[var(--cat-muted)]">
-                            {new Date(p.createdAt).toLocaleString('es-CO', {
-                              dateStyle: 'short',
-                              timeStyle: 'short',
-                            })}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-[11px] uppercase tracking-wide text-[var(--cat-muted)]">Bruto</p>
-                          <p className="text-[1.05rem] font-medium tabular-nums">{formatCop(p.grossCop)}</p>
-                          <p className="mt-1 text-[12px] tabular-nums text-amber-900">−{formatCop(fee)}</p>
-                          <p className="text-[13px] font-medium tabular-nums text-emerald-900">{formatCop(net)}</p>
-                        </div>
+                {filteredPayments.map((p) => (
+                  <li key={p.orderId} className="bg-[var(--cat-surface)] px-4 py-4 sm:px-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[15px] font-medium text-[var(--cat-text)]">
+                          {p.clienteNombre?.trim() || 'Cliente'}
+                        </p>
+                        {p.numeroReferencia ? (
+                          <p className="font-mono text-[11px] text-[var(--cat-muted)]">{p.numeroReferencia}</p>
+                        ) : null}
+                        <p className="mt-1 text-[12px] text-[var(--cat-muted)]">
+                          {new Date(p.createdAt).toLocaleString('es-CO', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </p>
                       </div>
-                    </li>
-                  )
-                })}
+                      <p className="shrink-0 text-[1.05rem] font-medium tabular-nums text-[var(--cat-text)] sm:text-right">
+                        {formatCop(p.grossCop)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
               </ul>
             )}
           </section>
+
+          {isMicatalogo && ledger && ledger.withdrawals.length > 0 ? (
+            <section>
+              <h2 className="text-[16px] font-medium tracking-tight text-[var(--cat-text)]">
+                Retiros ({ledger.withdrawals.length})
+              </h2>
+              <ul className="mt-4 divide-y divide-neutral-200/50 border border-neutral-200/50">
+                {ledger.withdrawals.map((w) => (
+                  <li key={w.id} className="bg-[var(--cat-surface)] px-4 py-4 sm:px-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-[15px] font-medium text-[var(--cat-text)]">Retiro a cuenta bancaria</p>
+                        <p className="mt-1 text-[12px] text-[var(--cat-muted)]">
+                          {new Date(w.createdAt).toLocaleString('es-CO', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-[1.05rem] font-medium tabular-nums text-emerald-900 sm:text-right">
+                        {formatCop(w.netCop)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <div className="border-t border-neutral-200/40 pt-6 text-center">
+            <button
+              type="button"
+              onClick={() => setComisionesOpen(true)}
+              className="group inline-flex items-center gap-1.5 text-[14px] font-medium text-[var(--cat-muted)] transition hover:text-[var(--cat-text)]"
+            >
+              <span className="border-b border-dotted border-current pb-0.5 transition group-hover:border-solid">
+                Ver comisiones de pasarela OnePay
+              </span>
+              <span aria-hidden="true" className="text-[12px] opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100">
+                →
+              </span>
+            </button>
+          </div>
         </>
       ) : null}
 

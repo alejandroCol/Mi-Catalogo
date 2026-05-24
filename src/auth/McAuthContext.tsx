@@ -5,6 +5,7 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 import { mapFirestoreDataToMcUser } from '@/lib/mcUserFromFirestore'
+import { setMcAnalyticsTenantContext } from '@/lib/mcAnalytics'
 import type { McTenant, McUser } from '@/types/mc'
 
 type McAuthState = {
@@ -99,6 +100,11 @@ export function McAuthProvider({ children }: { children: ReactNode }) {
     )
     return () => unsub()
   }, [profile?.tenantId])
+
+  useEffect(() => {
+    if (!tenant?.id || !tenant.slug) return
+    void setMcAnalyticsTenantContext(tenant.id, tenant.slug)
+  }, [tenant?.id, tenant?.slug])
 
   const loading = !authReady || (Boolean(firebaseUser) && (!profileReady || !tenantReady))
 

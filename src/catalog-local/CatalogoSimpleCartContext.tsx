@@ -24,8 +24,8 @@ type Ctx = {
   highlightProductId: string | null
   /** Se incrementa en cada `add` para animar el badge del carrito. */
   cartBumpGeneration: number
-  add: (line: LineaCarritoSimple) => void
-  updateQty: (productId: string, cantidad: number, varianteId?: string) => void
+  add: (line: LineaCarritoSimple, opts?: { deferBadgeMs?: number }) => void
+  updateQty: (productId: string, cantidad: number, varianteId?: string, tallaId?: string) => void
   /** Reemplaza el carrito (p. ej. recuperación de carrito abandonado). */
   restoreLines: (lines: LineaCarritoSimple[]) => void
   clear: () => void
@@ -52,7 +52,7 @@ export function CatalogoSimpleCartProvider({
   }, [])
 
   const add = useCallback(
-    (line: LineaCarritoSimple) => {
+    (line: LineaCarritoSimple, opts?: { deferBadgeMs?: number }) => {
       setLines((prev) => {
         const next = addOrMergeSimpleLine(prev, line)
         saveSimpleCart(storageKey, next)
@@ -60,7 +60,13 @@ export function CatalogoSimpleCartProvider({
       })
       if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
       setHighlightProductId(line.productId)
-      setCartBumpGeneration((g) => g + 1)
+      const bump = () => setCartBumpGeneration((g) => g + 1)
+      const deferMs = opts?.deferBadgeMs ?? 0
+      if (deferMs > 0) {
+        setTimeout(bump, deferMs)
+      } else {
+        bump()
+      }
       highlightTimerRef.current = setTimeout(() => {
         setHighlightProductId(null)
         highlightTimerRef.current = null
@@ -70,9 +76,9 @@ export function CatalogoSimpleCartProvider({
   )
 
   const updateQty = useCallback(
-    (productId: string, cantidad: number, varianteId?: string) => {
+    (productId: string, cantidad: number, varianteId?: string, tallaId?: string) => {
       setLines((prev) => {
-        const next = setSimpleLineQty(prev, productId, cantidad, varianteId)
+        const next = setSimpleLineQty(prev, productId, cantidad, varianteId, tallaId)
         saveSimpleCart(storageKey, next)
         return next
       })

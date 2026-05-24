@@ -57,7 +57,32 @@
         { "fieldPath": "billingSubStatus", "order": "ASCENDING" },
         { "fieldPath": "billingGraceUntilMs", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "ordenes_catalogo",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "pagoOnePay", "order": "ASCENDING" },
+        { "fieldPath": "onepayViaMicatalogo", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pasarela_retiros",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "analytics_daily",
+      "fieldPath": "dateKey",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
 }

@@ -29,6 +29,7 @@ export function ExpertPlanPurchaseFlow({ purchase, stickyCheckout = true, onPurc
     precioMensual,
     precioAnual,
     amountForPeriod,
+    checkoutRequiresPaymentMethod,
     resetCheckout,
   } = purchase
 
@@ -62,6 +63,13 @@ export function ExpertPlanPurchaseFlow({ purchase, stickyCheckout = true, onPurc
               <p className="ios-footnote text-[var(--cat-muted)]">
                 Con código:{' '}
                 <span className="font-medium text-[var(--cat-text)]">{formatCop(discountPreview.finalPriceCop)}</span>
+                {discountPreview.freeMonths && discountPreview.finalPriceCop === 0 ? (
+                  <span>
+                    {' '}
+                    · {discountPreview.freeMonths} mes{discountPreview.freeMonths > 1 ? 'es' : ''} gratis, luego{' '}
+                    {formatCop(discountPreview.basePriceCop)}/mes
+                  </span>
+                ) : null}
               </p>
             )}
           </div>
@@ -113,6 +121,8 @@ export function ExpertPlanPurchaseFlow({ purchase, stickyCheckout = true, onPurc
             <BillingV2Checkout
               period={period}
               amountCop={amountForPeriod}
+              requiresPaymentMethod={checkoutRequiresPaymentMethod}
+              discountPreview={discountPreview}
               discountCode={discountCode.trim() || undefined}
               expertName={expertName}
               onSuccess={(m) => {

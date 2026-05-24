@@ -144,12 +144,15 @@ export const mcBillingValidateDiscountCode = onCall({ invoker: 'public' }, async
   const code = typeof data.code === 'string' ? data.code.trim() : ''
   if (!code) throw new HttpsError('invalid-argument', 'Ingresá un código.')
   try {
-    const pricing = await mcBillingResolvePrice(db, period, code)
+    const { tenantId } = await resolveTenantOwner(uid)
+    const pricing = await mcBillingResolvePrice(db, period, code, tenantId)
     return {
       ok: true as const,
       basePriceCop: pricing.basePriceCop,
       finalPriceCop: pricing.finalPriceCop,
+      freeMonths: pricing.freeMonths,
       freeTrialDays: pricing.freeTrialDays,
+      requiresPaymentMethod: pricing.requiresPaymentMethod ?? false,
     }
   } catch (e) {
     throw new HttpsError('failed-precondition', e instanceof Error ? e.message : 'Código inválido.')
@@ -311,8 +314,9 @@ export const mcBillingCompleteActivation = onCall({ invoker: 'public' }, async (
   const accountId = typeof data.accountId === 'string' ? data.accountId.trim() : ''
   const discountCode = typeof data.discountCode === 'string' ? data.discountCode.trim() : ''
 
-  const pricing = await mcBillingResolvePrice(db, period, discountCode || undefined)
-  const requiresPaymentMethod = pricing.finalPriceCop > 0
+  const pricing = await mcBillingResolvePrice(db, period, discountCode || undefined, tenantId)
+  const requiresPaymentMethod =
+    pricing.finalPriceCop > 0 || pricing.requiresPaymentMethod === true
 
   if (requiresPaymentMethod && method === 'card' && !cardId) {
     throw new HttpsError('invalid-argument', 'Registrá tu tarjeta antes de activar.')

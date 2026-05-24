@@ -1,24 +1,25 @@
 import { useEffect, useState } from 'react'
-import { doc, getDoc } from 'firebase/firestore'
 import { Link } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 import { billingPlanOf } from '@/lib/catalogTheme'
 import { formatCop } from '@/lib/formatCop'
-import { firebaseConfigured, getDb, getFirebaseFunctions } from '@/lib/firebase'
-import { MC } from '@/lib/mcCollections'
+import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
 import {
   catalogoVendedorGate,
   explicitCheckoutVentasModo,
-  hasNonWhatsappCheckoutVentasEnabled,
+  hasCheckoutVentasModoSelected,
   isCatalogoVendedorListo,
 } from '@/lib/checkoutVentasModo'
 import { isSubscriptionActive } from '@/lib/subscription'
 import { useTenantPedidosSales } from '@/hooks/useTenantPedidosSales'
 import { useTenantHasProducts } from '@/hooks/useTenantHasProducts'
+import { useTenantTodayVisits } from '@/hooks/useTenantAnalytics'
+import { usePlatformSettings } from '@/hooks/usePlatformSettings'
 import {
   IconBankCard,
+  IconChartBars,
   IconChevronRight,
   IconClipboard,
   IconLink,
@@ -26,18 +27,22 @@ import {
 } from '@/icons/McIcons'
 import { CheckoutEnvioRequiredModal } from '@/app/CheckoutEnvioRequiredModal'
 import { CheckoutVentasRequiredModal } from '@/app/CheckoutVentasRequiredModal'
-import type { McPlatformSettings } from '@/types/mc'
+import { NewStoreExpertBanner } from '@/components/onboarding/NewStoreExpertBanner'
+import { NewStoreSetupChecklist } from '@/components/onboarding/NewStoreSetupChecklist'
+import { OnboardingExpertRewardCard } from '@/components/onboarding/OnboardingExpertRewardCard'
+import { isNewStoreForOnboarding } from '@/lib/newStoreOnboarding'
 
 export function DashboardPage() {
   const { profile, tenant } = useMcAuth()
+  const { platformSettings, ready: platformSettingsReady } = usePlatformSettings()
   const [onepayBalancePreview, setOnepayBalancePreview] = useState<string | null>(null)
   const [onepayBalancePreviewLoading, setOnepayBalancePreviewLoading] = useState(false)
-  const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [ventasRequiredModalOpen, setVentasRequiredModalOpen] = useState(false)
   const [envioRequiredModalOpen, setEnvioRequiredModalOpen] = useState(false)
   const summaryPeriod = tenant?.salesSummaryPeriod === 'fortnight' ? 'fortnight' : 'week'
   const sales = useTenantPedidosSales(profile?.tenantId, summaryPeriod)
   const { hasProducts, loading: productsLoading } = useTenantHasProducts(profile?.tenantId)
+  const { visits: todayVisits, loading: visitsLoading } = useTenantTodayVisits(profile?.tenantId)
   const active = tenant ? isSubscriptionActive(tenant.subscriptionEndsAt) : false
 
   useEffect(() => {
@@ -59,11 +64,19 @@ export function DashboardPage() {
       try {
         const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepaySellerSaldoSummary')
         const res = (await fn({})) as {
-          data: { balance?: { balance_label?: string } }
+          data: {
+            balance?: { balance_label?: string } | null
+            ledger?: { availableNetCop?: number } | null
+            modo?: string
+          }
         }
-        const bl = res.data?.balance?.balance_label
+        const ledgerAvailable = res.data?.ledger?.availableNetCop
+        const preview =
+          typeof ledgerAvailable === 'number'
+            ? formatCop(ledgerAvailable)
+            : res.data?.balance?.balance_label
         if (!cancelled) {
-          setOnepayBalancePreview(typeof bl === 'string' && bl.trim() ? bl.trim() : null)
+          setOnepayBalancePreview(typeof preview === 'string' && preview.trim() ? preview.trim() : null)
         }
       } catch {
         if (!cancelled) setOnepayBalancePreview(null)
@@ -75,23 +88,6 @@ export function DashboardPage() {
       cancelled = true
     }
   }, [tenant, profile, active])
-
-  useEffect(() => {
-    if (!firebaseConfigured) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const ps = await getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc))
-        if (cancelled) return
-        setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
-      } catch {
-        if (!cancelled) setPlatformSettings({})
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   if (!tenant || !profile) {
     return (
@@ -126,15 +122,13 @@ export function DashboardPage() {
     day: 'numeric',
     month: 'long',
   })
-  const nonWhatsappPaymentEnabled = hasNonWhatsappCheckoutVentasEnabled(tenant, platformSettings)
   const checkoutModo = explicitCheckoutVentasModo(tenant)
   const saldoPath =
     checkoutModo === 'pasarela' || checkoutModo === 'pasarela_micatalogo' ? '/app/mi-saldo' : null
   const showOnepayEnableCta =
-    active &&
-    profile.uid === tenant.ownerUid &&
-    tenant.onepayPaymentsEnabled !== true &&
-    !nonWhatsappPaymentEnabled
+    active && profile.uid === tenant.ownerUid && !hasCheckoutVentasModoSelected(tenant)
+
+  const showNewStoreOnboarding = isNewStoreForOnboarding(tenant)
 
   return (
     <div className="mc-shell space-y-6 sm:space-y-8">
@@ -152,6 +146,20 @@ export function DashboardPage() {
         </div>
         <p className="mt-2 text-[13px] capitalize leading-relaxed text-[var(--cat-muted)]">{hoyLabel}</p>
       </section>
+
+      {showNewStoreOnboarding && (
+        <>
+          <NewStoreExpertBanner tenant={tenant} />
+          <NewStoreSetupChecklist
+            tenant={tenant}
+            platformSettings={platformSettings}
+            platformSettingsReady={platformSettingsReady}
+            hasProducts={hasProducts}
+          />
+        </>
+      )}
+
+      {!showNewStoreOnboarding && <OnboardingExpertRewardCard tenant={tenant} />}
 
       {!active && (
         <div className="border border-neutral-200/60 bg-neutral-50/50 px-5 py-4 text-[13px] leading-relaxed text-[var(--cat-text)]">
@@ -242,6 +250,41 @@ export function DashboardPage() {
         />
       </section>
 
+      <section aria-label="Visitas al catálogo">
+        <Link
+          to="/app/estadisticas"
+          className="group relative flex w-full overflow-hidden border border-neutral-200/55 bg-[var(--cat-surface)] px-5 py-6 text-left shadow-[0_1px_0_color-mix(in_srgb,var(--cat-text)_5%,transparent)] transition duration-200 hover:border-[color-mix(in_srgb,var(--cat-text)_14%,transparent)] hover:bg-neutral-50/40 sm:px-7 sm:py-7"
+        >
+          <div
+            className="pointer-events-none absolute -left-6 bottom-0 h-28 w-28 rounded-full bg-[color-mix(in_srgb,var(--cat-accent)_14%,transparent)] blur-2xl"
+            aria-hidden
+          />
+          <div className="relative flex w-full items-start gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center border border-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--cat-surface)_92%,var(--cat-accent))] text-[var(--cat-text)]">
+              <IconChartBars size={22} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">
+                Estadísticas
+              </p>
+              <p className="mt-1.5 text-[17px] font-medium leading-snug tracking-tight text-[var(--cat-text)]">
+                Visitas a tu catálogo
+              </p>
+              {visitsLoading ? (
+                <div className="mt-3 h-8 w-16 animate-pulse rounded-sm bg-neutral-100" />
+              ) : (
+                <p className="mt-2 text-[1.35rem] font-medium tabular-nums leading-none tracking-tight text-[var(--cat-text)]">
+                  {todayVisits ?? 0}{' '}
+                  <span className="text-[13px] font-normal text-[var(--cat-muted)]">hoy</span>
+                </p>
+              )}
+            </div>
+            <span className="relative mt-1 shrink-0 rounded-sm border border-neutral-200/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--cat-text)] transition group-hover:border-neutral-300">
+              Ver estadísticas
+            </span>
+          </div>
+        </Link>
+      </section>
 
       {active &&
         profile?.uid === tenant.ownerUid &&
@@ -255,9 +298,11 @@ export function DashboardPage() {
               <IconBankCard size={22} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">Pasarela OnePay</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">
+                {checkoutModo === 'pasarela_micatalogo' ? 'Pasarela Mi Catálogo' : 'Pasarela OnePay'}
+              </p>
               <p className="mt-1.5 text-[17px] font-medium leading-snug tracking-tight text-[var(--cat-text)]">
-                Dinero en pasarela
+                {checkoutModo === 'pasarela_micatalogo' ? 'Saldo de tus ventas' : 'Dinero en pasarela'}
               </p>
               {onepayBalancePreviewLoading ? (
                 <div className="mt-3 h-8 w-40 max-w-[70%] animate-pulse rounded-sm bg-neutral-100" />
@@ -266,9 +311,6 @@ export function DashboardPage() {
                   {onepayBalancePreview ?? 'Ver balance y cobros'}
                 </p>
               )}
-              <p className="mt-2 text-[13px] leading-relaxed text-[var(--cat-muted)]">
-                Balance en OnePay y listado de cobros. Tocá para el detalle.
-              </p>
             </div>
             <IconChevronRight
               size={18}

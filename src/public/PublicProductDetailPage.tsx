@@ -6,22 +6,41 @@ import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext
 import type { LineaCarritoSimple } from '@/catalog-local/simpleCartTypes'
 import { downloadCatalogImage } from '@/catalog-local/downloadCatalogImage'
 import { FullscreenImageOverlay } from '@/catalog-local/FullscreenImageOverlay'
+import { ProductImageGallery } from '@/public/ProductImageGallery'
 import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
 import {
+  productoPorcentajeDescuentoDisplay,
+  productoPrecioLista,
+  productoPrecioVenta,
+  productoTieneDescuento,
+} from '@/lib/productoDescuento'
+import {
   agruparVariantesPorTipo,
   productoUsaStockPorVariante,
   stockDisponibleVariante,
-  variantePrecioEfectivo,
   variantesValidas,
 } from '@/lib/productoVariantes'
+import {
+  stockDisponibleTalla,
+  stockTallaUi,
+  tallaEnCarrito,
+  tallasValidas,
+} from '@/lib/productoTallas'
 import { buildProductShareData, canUseWebShare, shareSafe } from '@/lib/webShare'
-import type { McProducto, McProductoVariante } from '@/types/mc'
+import type { McProducto, McProductoTalla, McProductoVariante } from '@/types/mc'
 import { usePublicTenant } from '@/public/usePublicTenant'
+import { usePublicProductViewTracking } from '@/public/usePublicCatalogAnalytics'
+import { useCartAddAnimation } from '@/public/cart-animation/CartAddAnimationContext'
+import { CART_FLY_DURATION_MS } from '@/public/cart-animation/flyBezier'
 
 const DOCENA = 12
+
+function variantesPublicas(prod: McProducto): McProductoVariante[] {
+  return variantesValidas(prod).filter((v) => !prod.esRopa || v.tipo?.trim().toLowerCase() !== 'talla')
+}
 
 function varianteEnCarrito(lines: LineaCarritoSimple[], productId: string, varianteId: string): number {
   let n = 0
@@ -37,14 +56,46 @@ function stockVarianteUi(prod: McProducto, v: McProductoVariante, lines: LineaCa
   return stockDisponibleVariante(prod, v, enCart, totalCart)
 }
 
+function originalEnCarrito(lines: LineaCarritoSimple[], productId: string): number {
+  let n = 0
+  for (const l of lines) {
+    if (l.productId === productId && !l.varianteId) n += l.cantidad
+  }
+  return n
+}
+
+function stockOriginalUi(prod: McProducto, lines: LineaCarritoSimple[]): number {
+  const enCart = originalEnCarrito(lines, prod.id)
+  const totalCart = lines.filter((l) => l.productId === prod.id).reduce((s, l) => s + l.cantidad, 0)
+  if (productoUsaStockPorVariante(prod)) {
+    return Math.max(0, Math.floor(prod.stock ?? 0) - enCart)
+  }
+  return Math.max(0, Math.floor(prod.stock ?? 0) - totalCart)
+}
+
+function buildGalleryUrls(prod: McProducto, variante?: McProductoVariante): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const add = (url?: string) => {
+    if (!url || seen.has(url)) return
+    seen.add(url)
+    out.push(url)
+  }
+  if (variante?.imageUrl) add(variante.imageUrl)
+  add(prod.imageUrl)
+  for (const url of prod.galeriaImagenes ?? []) add(url)
+  return out
+}
+
 export function PublicProductDetailPage() {
   const { slug, productId } = useParams<{ slug: string; productId: string }>()
   const { tenantId, tenant, loading, error } = usePublicTenant(slug)
   const { add, lines } = useCatalogoSimpleCart()
+  const { playAddToCartFly } = useCartAddAnimation()
   const [p, setP] = useState<(McProducto & { id: string }) | null>(null)
-  const [fullscreen, setFullscreen] = useState<{ src: string; alt: string } | null>(null)
-  const [selectedVid, setSelectedVid] = useState<string | null>(null)
-  const [galleryPick, setGalleryPick] = useState<string | null>(null)
+  const [fullscreen, setFullscreen] = useState<{ index: number; alt: string } | null>(null)
+  const [selectedOption, setSelectedOption] = useState<'none' | 'original' | string>('none')
+  const [selectedTid, setSelectedTid] = useState<string | null>(null)
   const [qtyToAdd, setQtyToAdd] = useState(1)
 
   const preset = tenant ? resolvePublicCatalogTheme(tenant).preset : 'morning'
@@ -68,47 +119,68 @@ export function PublicProductDetailPage() {
   }, [tenantId, productId])
 
   const prod = p
-  const vars = prod ? variantesValidas(prod) : []
+  const vars = prod ? variantesPublicas(prod) : []
+  usePublicProductViewTracking(
+    productId,
+    prod?.nombre,
+    prod?.imageUrl ?? prod?.galeriaImagenes?.[0],
+  )
+  const tallas = prod ? tallasValidas(prod) : []
   const hasVariants = vars.length > 0
-  const selected = hasVariants ? vars.find((v) => v.id === selectedVid) ?? vars[0] : undefined
+  const hasTallas = !!(prod?.esRopa && tallas.length > 0)
+  const selected =
+    hasVariants && typeof selectedOption === 'string' && selectedOption !== 'original' && selectedOption !== 'none'
+      ? vars.find((v) => v.id === selectedOption)
+      : undefined
+  const selectedTalla = hasTallas && selectedTid ? tallas.find((t) => t.id === selectedTid) : undefined
+  const isOriginalSelection = hasVariants && selectedOption === 'original'
+  const actsAsOriginal = hasVariants && (selectedOption === 'none' || selectedOption === 'original')
 
   useEffect(() => {
     if (!prod) return
-    const vs = variantesValidas(prod)
-    if (vs.length > 0) {
-      setSelectedVid((prev) => {
-        if (prev && vs.some((v) => v.id === prev)) return prev
-        const conStock = vs.find((v) => stockVarianteUi(prod, v, lines) > 0)
-        return (conStock ?? vs[0])!.id
-      })
+    const vs = variantesPublicas(prod)
+    if (vs.length === 0) {
+      setSelectedOption('none')
     } else {
-      setSelectedVid(null)
+      setSelectedOption((prev) => {
+        if (prev === 'none' || prev === 'original') return prev
+        return vs.some((v) => v.id === prev) ? prev : 'none'
+      })
     }
-    setGalleryPick(null)
-  }, [prod?.id, prod?.updatedAt, lines])
+    const ts = tallasValidas(prod)
+    if (prod.esRopa && ts.length > 0) {
+      setSelectedTid((prev) => (prev && ts.some((t) => t.id === prev) ? prev : null))
+    } else {
+      setSelectedTid(null)
+    }
+  }, [prod?.id, prod?.updatedAt, prod?.esRopa])
 
-  const mainSrc = useMemo(() => {
-    if (!prod) return null
-    if (galleryPick) return galleryPick
-    if (selected?.imageUrl) return selected.imageUrl
-    return prod.imageUrl ?? null
-  }, [prod, selected?.imageUrl, galleryPick])
+  const galeriaUrls = useMemo(
+    () => (prod ? buildGalleryUrls(prod, selected) : []),
+    [prod, selected],
+  )
 
-  const effectivePrice = selected && prod ? variantePrecioEfectivo(selected, prod) : prod?.precioCop ?? 0
+  const listaPrice =
+    selected && prod ? productoPrecioLista(prod, selected) : prod ? productoPrecioLista(prod) : 0
+  const effectivePrice =
+    selected && prod ? productoPrecioVenta(prod, selected) : prod ? productoPrecioVenta(prod) : 0
+  const enOferta = prod ? productoTieneDescuento(prod) : false
 
   const enCarrito = useMemo(() => {
     if (!prod) return 0
     let n = 0
     for (const l of lines) {
       if (l.productId !== prod.id) continue
+      if (hasTallas && l.tallaId !== selectedTalla?.id) continue
       if (hasVariants) {
-        if (l.varianteId === selected?.id) n += l.cantidad
+        if (actsAsOriginal && !l.varianteId) n += l.cantidad
+        else if (selected && l.varianteId === selected.id) n += l.cantidad
       } else if (!l.varianteId) {
         n += l.cantidad
       }
     }
     return n
-  }, [lines, prod?.id, hasVariants, selected?.id])
+  }, [lines, prod?.id, hasVariants, hasTallas, actsAsOriginal, selected?.id, selectedTalla?.id])
 
   const totalEnCarritoProducto = useMemo(() => {
     if (!prod) return 0
@@ -117,21 +189,27 @@ export function PublicProductDetailPage() {
 
   useEffect(() => {
     setQtyToAdd(1)
-  }, [selected?.id, prod?.id])
+  }, [selectedOption, selectedTalla?.id, prod?.id])
 
   useEffect(() => {
     if (!prod) return
     const totalCart = lines.filter((l) => l.productId === prod.id).reduce((s, l) => s + l.cantidad, 0)
-    const d =
-      hasVariants && selected
-        ? stockDisponibleVariante(prod, selected, enCarrito, totalCart)
-        : Math.max(0, Math.floor(prod.stock ?? 0) - totalCart)
+    let d = 0
+    if (hasTallas && selectedTalla) {
+      d = stockDisponibleTalla(prod, selectedTalla, tallaEnCarrito(lines, prod.id, selectedTalla.id))
+    } else if (hasVariants && selected) {
+      d = stockDisponibleVariante(prod, selected, enCarrito, totalCart)
+    } else if (hasVariants && actsAsOriginal) {
+      d = stockOriginalUi(prod, lines)
+    } else {
+      d = Math.max(0, Math.floor(prod.stock ?? 0) - totalCart)
+    }
     if (d <= 0) {
       setQtyToAdd(1)
       return
     }
     setQtyToAdd((q) => Math.max(1, Math.min(q, d)))
-  }, [prod?.id, prod?.stock, enCarrito, selected?.id, hasVariants, lines])
+  }, [prod?.id, prod?.stock, enCarrito, selected?.id, selectedTalla?.id, hasVariants, hasTallas, actsAsOriginal, lines])
 
   if (!firebaseConfigured) {
     return <p className="mc-pc-text">Configurá Firebase.</p>
@@ -154,40 +232,57 @@ export function PublicProductDetailPage() {
   }
 
   const product = prod
-  const disp =
-    hasVariants && selected
-      ? stockDisponibleVariante(product, selected, enCarrito, totalEnCarritoProducto)
-      : Math.max(0, Math.floor(product.stock ?? 0) - totalEnCarritoProducto)
+  const disp = (() => {
+    if (hasTallas && selectedTalla) {
+      return stockDisponibleTalla(product, selectedTalla, tallaEnCarrito(lines, product.id, selectedTalla.id))
+    }
+    if (hasVariants && selected) {
+      return stockDisponibleVariante(product, selected, enCarrito, totalEnCarritoProducto)
+    }
+    if (hasVariants && actsAsOriginal) {
+      return stockOriginalUi(product, lines)
+    }
+    return Math.max(0, Math.floor(product.stock ?? 0) - totalEnCarritoProducto)
+  })()
 
   const gruposVariantes = agruparVariantesPorTipo(vars)
   const usaStockPorVariante = productoUsaStockPorVariante(product)
 
-  const galeriaUrls = (() => {
-    const u = new Set<string>()
-    const out: string[] = []
-    for (const x of [product.imageUrl, ...(product.galeriaImagenes ?? [])]) {
-      if (!x || u.has(x)) continue
-      u.add(x)
-      out.push(x)
-    }
-    return out
-  })()
+  function pulseAddButton(el: HTMLElement) {
+    el.classList.add('mc-pc-add-btn-pulse')
+    el.addEventListener(
+      'animationend',
+      () => el.classList.remove('mc-pc-add-btn-pulse'),
+      { once: true },
+    )
+  }
 
-  function sumar(cant: number) {
-    if (hasVariants && !selected) return
+  function sumar(cant: number, sourceEl?: HTMLElement) {
+    if (hasTallas && !selectedTalla) return
     if (cant > disp) {
       window.alert(`Máximo ${disp} unidades disponibles.`)
       return
     }
-    const titulo = hasVariants ? `${product.nombre} · ${selected!.nombre}` : product.nombre
-    add({
-      productId: product.id,
-      varianteId: hasVariants ? selected!.id : undefined,
-      titulo,
-      subtitulo: formatCop(effectivePrice),
-      precioUnitarioCop: effectivePrice,
-      cantidad: cant,
-    })
+    const partes = [product.nombre]
+    if (hasVariants && selected) partes.push(selected.nombre)
+    if (hasTallas && selectedTalla) partes.push(selectedTalla.nombre)
+    const titulo = partes.join(' · ')
+    if (sourceEl) {
+      pulseAddButton(sourceEl)
+      playAddToCartFly({ sourceEl, imageUrl: galeriaUrls[0] })
+    }
+    add(
+      {
+        productId: product.id,
+        varianteId: hasVariants && selected ? selected.id : undefined,
+        tallaId: hasTallas ? selectedTalla!.id : undefined,
+        titulo,
+        subtitulo: formatCop(effectivePrice),
+        precioUnitarioCop: effectivePrice,
+        cantidad: cant,
+      },
+      sourceEl ? { deferBadgeMs: Math.round(CART_FLY_DURATION_MS * 0.88) } : undefined,
+    )
   }
 
   const isBold = preset === 'bold'
@@ -208,21 +303,68 @@ export function PublicProductDetailPage() {
     </nav>
   )
 
+  const OriginalChip = () => {
+    const active = isOriginalSelection
+    const dispO = stockOriginalUi(product, lines)
+    const agotada = dispO < 1
+    const precioListaO = productoPrecioLista(product)
+    const precioO = productoPrecioVenta(product)
+    const pctO = productoPorcentajeDescuentoDisplay(product)
+
+    return (
+      <button
+        type="button"
+        disabled={agotada}
+        onClick={() => setSelectedOption('original')}
+        className={clsx(
+          'inline-flex min-h-[48px] max-w-full items-center gap-2.5 rounded-2xl border px-3.5 py-2.5 text-left text-[13px] font-medium transition',
+          agotada && 'cursor-not-allowed opacity-45',
+          active && !agotada
+            ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_12%,var(--cat-surface)_88%)] text-[var(--cat-text)] ring-1 ring-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)] shadow-sm'
+            : !agotada &&
+                'mc-pc-border bg-[var(--cat-surface)] text-[var(--cat-text)] hover:border-[color-mix(in_srgb,var(--cat-text)_22%,transparent)] hover:shadow-sm',
+        )}
+      >
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border mc-pc-border bg-[color-mix(in_srgb,var(--cat-text)_4%,var(--cat-surface)_96%)] text-[11px] font-bold mc-pc-muted">
+          ★
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block leading-tight">Original</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-semibold tabular-nums text-[var(--cat-muted)]">
+            {precioO < precioListaO ? (
+              <>
+                <span className="text-[var(--cat-accent)]">{formatCop(precioO)}</span>
+                <span className="line-through opacity-70">{formatCop(precioListaO)}</span>
+                {pctO != null && <span className="text-red-600">−{pctO}%</span>}
+              </>
+            ) : (
+              <span>{formatCop(precioO)}</span>
+            )}
+            {usaStockPorVariante ? (
+              <span className={clsx('font-medium', agotada ? 'text-red-600/90' : 'text-emerald-700/90')}>
+                {agotada ? 'Agotado' : `${dispO} disp.`}
+              </span>
+            ) : null}
+          </span>
+        </span>
+      </button>
+    )
+  }
+
   const VariantChip = ({ v }: { v: McProductoVariante }) => {
-    const active = v.id === selected?.id
+    const active = v.id === selectedOption
     const dispV = stockVarianteUi(product, v, lines)
     const agotada = dispV < 1
-    const precioV = variantePrecioEfectivo(v, product)
+    const precioListaV = productoPrecioLista(product, v)
+    const precioV = productoPrecioVenta(product, v)
+    const pctV = productoPorcentajeDescuentoDisplay(product, v)
 
     return (
       <button
         key={v.id}
         type="button"
         disabled={agotada}
-        onClick={() => {
-          setSelectedVid(v.id)
-          setGalleryPick(null)
-        }}
+        onClick={() => setSelectedOption(v.id)}
         className={clsx(
           'inline-flex min-h-[48px] max-w-full items-center gap-2.5 rounded-2xl border px-3.5 py-2.5 text-left text-[13px] font-medium transition',
           agotada && 'cursor-not-allowed opacity-45',
@@ -246,7 +388,15 @@ export function PublicProductDetailPage() {
         <span className="min-w-0 flex-1">
           <span className="block leading-tight">{v.nombre}</span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-semibold tabular-nums text-[var(--cat-muted)]">
-            <span>{formatCop(precioV)}</span>
+            {precioV < precioListaV ? (
+              <>
+                <span className="text-[var(--cat-accent)]">{formatCop(precioV)}</span>
+                <span className="line-through opacity-70">{formatCop(precioListaV)}</span>
+                {pctV != null && <span className="text-red-600">−{pctV}%</span>}
+              </>
+            ) : (
+              <span>{formatCop(precioV)}</span>
+            )}
             {usaStockPorVariante ? (
               <span className={clsx('font-medium', agotada ? 'text-red-600/90' : 'text-emerald-700/90')}>
                 {agotada ? 'Agotado' : `${dispV} disp.`}
@@ -266,18 +416,68 @@ export function PublicProductDetailPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
               Elegí {gruposVariantes[0]!.tipo.toLowerCase()}
             </p>
-            <div className="flex flex-wrap gap-2">{gruposVariantes[0]!.items.map((v) => <VariantChip key={v.id} v={v} />)}</div>
+            <div className="flex flex-wrap gap-2">
+              <OriginalChip />
+              {gruposVariantes[0]!.items.map((v) => (
+                <VariantChip key={v.id} v={v} />
+              ))}
+            </div>
           </div>
         ) : (
-          gruposVariantes.map((g) => (
-            <div key={g.tipo} className="space-y-2.5">
+          <>
+            <div className="space-y-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
-                {g.tipo}
+                Versión
               </p>
-              <div className="flex flex-wrap gap-2">{g.items.map((v) => <VariantChip key={v.id} v={v} />)}</div>
+              <div className="flex flex-wrap gap-2">
+                <OriginalChip />
+              </div>
             </div>
-          ))
+            {gruposVariantes.map((g) => (
+              <div key={g.tipo} className="space-y-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
+                  {g.tipo}
+                </p>
+                <div className="flex flex-wrap gap-2">{g.items.map((v) => <VariantChip key={v.id} v={v} />)}</div>
+              </div>
+            ))}
+          </>
         )}
+      </div>
+    ) : null
+
+  const TallaChip = ({ t }: { t: McProductoTalla }) => {
+    const active = t.id === selectedTalla?.id
+    const dispT = stockTallaUi(product, t, lines)
+    const agotada = dispT < 1
+
+    return (
+      <button
+        key={t.id}
+        type="button"
+        disabled={agotada}
+        onClick={() => setSelectedTid(t.id)}
+        className={clsx(
+          'inline-flex min-h-[44px] min-w-[3rem] items-center justify-center rounded-xl border px-3.5 py-2 text-[13px] font-bold transition',
+          agotada && 'cursor-not-allowed opacity-40',
+          active && !agotada
+            ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_12%,var(--cat-surface)_88%)] text-[var(--cat-text)] ring-1 ring-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)] shadow-sm'
+            : !agotada &&
+                'mc-pc-border bg-[var(--cat-surface)] text-[var(--cat-text)] hover:border-[color-mix(in_srgb,var(--cat-text)_22%,transparent)] hover:shadow-sm',
+        )}
+      >
+        <span className="leading-none">{t.nombre}</span>
+      </button>
+    )
+  }
+
+  const TallaSelectors = ({ className }: { className?: string }) =>
+    hasTallas ? (
+      <div className={clsx('space-y-2.5', className)}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
+          Elegí tu talla
+        </p>
+        <div className="flex flex-wrap gap-2">{tallas.map((t) => <TallaChip key={t.id} t={t} />)}</div>
       </div>
     ) : null
 
@@ -330,17 +530,17 @@ export function PublicProductDetailPage() {
       </div>
       <button
         type="button"
-        className="min-h-[52px] w-full rounded-2xl bg-[#0a0a0a] px-4 py-3.5 text-[15px] font-semibold text-white shadow-sm transition duration-200 ease-in-out hover:bg-neutral-800 disabled:opacity-40 sm:min-h-[48px] sm:text-base"
-        disabled={disp < 1}
-        onClick={() => sumar(qtyToAdd)}
+        className="mc-pc-add-to-cart-btn min-h-[52px] w-full rounded-2xl bg-[#0a0a0a] px-4 py-3.5 text-[15px] font-semibold text-white shadow-sm transition duration-200 ease-in-out hover:bg-neutral-800 disabled:opacity-40 sm:min-h-[48px] sm:text-base"
+        disabled={disp < 1 || (hasTallas && !selectedTalla)}
+        onClick={(e) => sumar(qtyToAdd, e.currentTarget)}
       >
         Añadir al carrito
       </button>
       {disp >= DOCENA ? (
         <button
           type="button"
-          className="min-h-[48px] w-full rounded-2xl border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out"
-          onClick={() => sumar(DOCENA)}
+          className="mc-pc-add-to-cart-btn min-h-[48px] w-full rounded-2xl border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out"
+          onClick={(e) => sumar(DOCENA, e.currentTarget)}
         >
           Añadir 1 docena
         </button>
@@ -365,56 +565,14 @@ export function PublicProductDetailPage() {
           )}
         >
           <Breadcrumb />
-          <div
-            className={clsx(
-              'relative mt-4 overflow-hidden mc-pc-surface',
-              isBold
-                ? 'mc-pc-rey-card aspect-[5/3] w-full min-h-[220px] sm:aspect-[2/1] sm:min-h-0'
-                : 'mc-pc-rey-card aspect-square w-full max-w-xl md:max-w-none',
-            )}
-          >
-            {mainSrc ? (
-              <button
-                type="button"
-                className="group/img relative h-full w-full cursor-zoom-in focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
-                onClick={() => setFullscreen({ src: mainSrc, alt: product.nombre })}
-                aria-label={`Ver ${product.nombre} en pantalla completa`}
-              >
-                <img
-                  src={mainSrc}
-                  alt=""
-                  className="h-full w-full object-cover transition duration-500 group-hover/img:brightness-[0.98]"
-                />
-                <span className="pointer-events-none absolute bottom-3 right-3 rounded-full border border-white/30 bg-[color-mix(in_srgb,var(--cat-text)_40%,transparent)] px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm sm:bottom-4 sm:right-4 sm:text-[11px]">
-                  Ampliar
-                </span>
-              </button>
-            ) : (
-              <div className="flex h-full items-center justify-center mc-pc-muted">Sin imagen</div>
-            )}
+          <div className="mt-4">
+            <ProductImageGallery
+              urls={galeriaUrls}
+              alt={product.nombre}
+              isBold={isBold}
+              onOpenFullscreen={(index) => setFullscreen({ index, alt: product.nombre })}
+            />
           </div>
-          {galeriaUrls.length > 1 ? (
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-              {galeriaUrls.map((url) => {
-                const thumbActive = galleryPick != null ? galleryPick === url : url === mainSrc
-                return (
-                  <button
-                    key={url}
-                    type="button"
-                    onClick={() => setGalleryPick(url)}
-                    className={clsx(
-                      'relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition sm:h-16 sm:w-16',
-                      thumbActive
-                        ? 'border-[var(--cat-accent)] ring-1 ring-[color-mix(in_srgb,var(--cat-accent)_30%,transparent)]'
-                        : 'border-transparent opacity-85 hover:opacity-100',
-                    )}
-                  >
-                    <img src={url} alt="" className="h-full w-full object-cover" />
-                  </button>
-                )
-              })}
-            </div>
-          ) : null}
         </div>
 
         <div
@@ -463,19 +621,62 @@ export function PublicProductDetailPage() {
           >
             {product.nombre}
           </h1>
-          <p
+          <div
             className={clsx(
-              'mt-2 font-semibold tabular-nums text-[var(--cat-text)] sm:mt-3',
-              isBold && 'text-center text-2xl sm:text-3xl',
-              isBoutique && 'text-center text-xl md:text-left',
-              preset === 'minimal' && 'text-left text-lg',
-              (preset === 'ios' || preset === 'morning') && 'text-left text-lg sm:text-xl',
+              'mt-2 sm:mt-3',
+              isBold && 'text-center',
+              isBoutique && 'text-center md:text-left',
+              preset === 'minimal' && 'text-left',
+              (preset === 'ios' || preset === 'morning') && 'text-left',
             )}
           >
-            {formatCop(effectivePrice)}
-          </p>
+            {enOferta && listaPrice > effectivePrice ? (
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <p className="text-2xl font-bold tabular-nums text-[var(--cat-accent)] sm:text-3xl">
+                  {formatCop(effectivePrice)}
+                </p>
+                <p className="text-base font-medium tabular-nums text-[var(--cat-muted)] line-through sm:text-lg">
+                  {formatCop(listaPrice)}
+                </p>
+                {productoPorcentajeDescuentoDisplay(product, selected ?? undefined) != null && (
+                  <span className="rounded-md bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                    −{productoPorcentajeDescuentoDisplay(product, selected ?? undefined)}%
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-2xl font-semibold tabular-nums text-[var(--cat-text)] sm:text-3xl">
+                {formatCop(effectivePrice)}
+              </p>
+            )}
+            {enOferta && (
+              <p className="mt-2 inline-flex items-center rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                Oferta especial
+              </p>
+            )}
+          </div>
+
+          {product.descripcion?.trim() ? (
+            <div
+              className={clsx(
+                'mt-4 rounded-2xl border border-[color-mix(in_srgb,var(--cat-muted)_14%,transparent)] bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] px-4 py-3.5 sm:mt-5 sm:px-5 sm:py-4',
+                (isBold || isBoutique) && 'text-center md:text-left',
+              )}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--cat-muted)]">
+                Descripción
+              </p>
+              <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--cat-text)] sm:text-[15px]">
+                {product.descripcion.trim()}
+              </p>
+            </div>
+          ) : null}
 
           <VariantSelectors
+            className={clsx('mt-5', (isBold || isBoutique) && 'md:mx-auto md:max-w-md')}
+          />
+
+          <TallaSelectors
             className={clsx('mt-5', (isBold || isBoutique) && 'md:mx-auto md:max-w-md')}
           />
 
@@ -487,11 +688,25 @@ export function PublicProductDetailPage() {
               (isBold || isBoutique) && 'text-center md:text-left',
             )}
           >
-            {hasVariants && selected ? (
+            {hasTallas && selectedTalla ? (
+              <>
+                Talla {selectedTalla.nombre}
+                <> · {disp > 0 ? `${disp} disponibles` : 'Sin stock en esta talla'}</>
+              </>
+            ) : hasVariants && selected ? (
               <>
                 {selected.tipo ? `${selected.tipo}: ${selected.nombre}` : selected.nombre}
                 {usaStockPorVariante ? (
                   <> · {disp > 0 ? `${disp} disponibles` : 'Sin stock en esta opción'}</>
+                ) : (
+                  <> · stock general {product.stock}</>
+                )}
+              </>
+            ) : hasVariants && actsAsOriginal ? (
+              <>
+                {selectedOption === 'original' ? 'Original' : 'Producto base'}
+                {usaStockPorVariante ? (
+                  <> · {disp > 0 ? `${disp} disponibles` : 'Sin stock'}</>
                 ) : (
                   <> · stock general {product.stock}</>
                 )}
@@ -501,19 +716,19 @@ export function PublicProductDetailPage() {
             )}
           </p>
 
-          {mainSrc && (
+          {galeriaUrls.length > 0 && product.mostrarDescargaImagen ? (
             <button
               type="button"
               className="mt-5 w-full rounded-full border mc-pc-border bg-transparent px-4 py-2.5 text-xs font-medium text-[var(--cat-text)] transition duration-200 ease-in-out hover:opacity-80 sm:mt-6 sm:max-w-xs sm:py-2"
               onClick={() =>
-                void downloadCatalogImage(mainSrc, `${product.nombre.replace(/\s+/g, '_')}.jpg`, {
+                void downloadCatalogImage(galeriaUrls[0]!, `${product.nombre.replace(/\s+/g, '_')}.jpg`, {
                   getFirebaseStorage: () => (firebaseStorageConfigured ? getStorageApp() : null),
                 })
               }
             >
               Descargar imagen
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -531,15 +746,34 @@ export function PublicProductDetailPage() {
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       >
         <div className="mx-auto flex max-w-lg items-end justify-between gap-3 pb-1">
-          <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-medium text-[var(--cat-text)]">{product.nombre}</p>
-            {hasVariants && selected ? (
+            {(hasVariants && (selected || selectedOption === 'original')) || (hasTallas && selectedTalla) ? (
               <p className="truncate text-[11px] text-[var(--cat-muted)]">
-                {selected.tipo ? `${selected.tipo}: ${selected.nombre}` : selected.nombre}
+                {[
+                  hasVariants && selectedOption === 'original' ? 'Original' : null,
+                  hasVariants && selected
+                    ? selected.tipo
+                      ? `${selected.tipo}: ${selected.nombre}`
+                      : selected.nombre
+                    : null,
+                  hasTallas && selectedTalla ? `Talla ${selectedTalla.nombre}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </p>
             ) : null}
             <p className="text-[15px] font-semibold tabular-nums text-[var(--cat-text)]">
-              {formatCop(effectivePrice)}
+              {enOferta && listaPrice > effectivePrice ? (
+                <>
+                  <span className="text-[var(--cat-accent)]">{formatCop(effectivePrice)}</span>{' '}
+                  <span className="text-[12px] font-medium text-[var(--cat-muted)] line-through">
+                    {formatCop(listaPrice)}
+                  </span>
+                </>
+              ) : (
+                formatCop(effectivePrice)
+              )}
             </p>
           </div>
         </div>
@@ -547,7 +781,8 @@ export function PublicProductDetailPage() {
       </div>
 
       <FullscreenImageOverlay
-        src={fullscreen?.src ?? null}
+        urls={galeriaUrls}
+        initialIndex={fullscreen?.index ?? 0}
         alt={fullscreen?.alt ?? ''}
         open={fullscreen != null}
         onClose={() => setFullscreen(null)}

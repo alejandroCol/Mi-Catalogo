@@ -7,6 +7,7 @@ import { canAddProductos, maxProductosForTenant, resolvePlanConfig } from '@/lib
 import { formatIntegerEsCo } from '@/lib/formatCop'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { mcCreateProducto, ProductLimitError } from '@/lib/mcWrites'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 
 type DraftRow = {
@@ -43,6 +44,7 @@ export function BulkAddProductsModal({
   const [progress, setProgress] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const rowsRef = useRef(rows)
+  const { showSaveSuccess } = useSaveSuccess()
   rowsRef.current = rows
 
   useEffect(() => {
@@ -173,6 +175,14 @@ export function BulkAddProductsModal({
         await updateDoc(doc(getDb(), mcProductosCollection(tenantId), productId), { imageUrl })
       }
 
+      const total = rows.length
+      showSaveSuccess({
+        title: total === 1 ? 'Producto agregado' : 'Productos cargados',
+        message:
+          total === 1
+            ? 'Ya está en tu inventario y visible según la configuración del catálogo.'
+            : `Se agregaron ${total} productos a tu inventario.`,
+      })
       onClose()
     } catch (e) {
       if (e instanceof ProductLimitError) {

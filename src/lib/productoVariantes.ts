@@ -13,6 +13,53 @@ export const VARIANTE_TIPOS_SUGERIDOS = [
 
 export type VarianteTipoSugerido = (typeof VARIANTE_TIPOS_SUGERIDOS)[number]
 
+/** Valor interno del `<select>` cuando el tipo o color no está en la lista predefinida. */
+export const VARIANTE_SELECT_OTRO = 'Otro' as const
+
+/** Colores frecuentes con hex asociado para variantes de tipo Color. */
+export const COLORES_VARIANTE_SUGERIDOS = [
+  { nombre: 'Negro', hex: '#171717' },
+  { nombre: 'Blanco', hex: '#fafafa' },
+  { nombre: 'Gris', hex: '#737373' },
+  { nombre: 'Rojo', hex: '#dc2626' },
+  { nombre: 'Azul', hex: '#2563eb' },
+  { nombre: 'Verde', hex: '#16a34a' },
+  { nombre: 'Amarillo', hex: '#ca8a04' },
+  { nombre: 'Naranja', hex: '#ea580c' },
+  { nombre: 'Rosa', hex: '#ec4899' },
+  { nombre: 'Morado', hex: '#9333ea' },
+  { nombre: 'Beige', hex: '#d4c4a8' },
+  { nombre: 'Marrón', hex: '#78350f' },
+] as const
+
+export type ColorVarianteSugerido = (typeof COLORES_VARIANTE_SUGERIDOS)[number]
+
+export function esTipoColorVariante(tipo: string): boolean {
+  return tipo.trim().toLowerCase() === 'color'
+}
+
+export function resolveVarianteTipoSelect(tipo: string): { selectValue: string; customTipo: string } {
+  const t = tipo.trim()
+  if (!t) return { selectValue: '', customTipo: '' }
+  if ((VARIANTE_TIPOS_SUGERIDOS as readonly string[]).includes(t)) {
+    return { selectValue: t, customTipo: '' }
+  }
+  return { selectValue: VARIANTE_SELECT_OTRO, customTipo: t }
+}
+
+export function resolveVarianteColorNombreSelect(nombre: string): { selectValue: string; customNombre: string } {
+  const n = nombre.trim()
+  if (!n) return { selectValue: '', customNombre: '' }
+  const found = COLORES_VARIANTE_SUGERIDOS.find((c) => c.nombre.toLowerCase() === n.toLowerCase())
+  if (found) return { selectValue: found.nombre, customNombre: '' }
+  return { selectValue: VARIANTE_SELECT_OTRO, customNombre: n }
+}
+
+export function hexColorVarianteSugerido(nombre: string): string | undefined {
+  const found = COLORES_VARIANTE_SUGERIDOS.find((c) => c.nombre.toLowerCase() === nombre.trim().toLowerCase())
+  return found?.hex
+}
+
 export function variantesValidas(prod: McProducto): McProductoVariante[] {
   return (prod.variantes ?? []).filter((v) => v.nombre?.trim())
 }
@@ -31,7 +78,13 @@ export function varianteStockRaw(v: McProductoVariante): number {
 
 /** Stock total del producto para listados y filtros. */
 export function productoStockEfectivo(prod: McProducto): number {
-  const vs = variantesValidas(prod)
+  if (prod.esRopa && (prod.tallas?.length ?? 0) > 0) {
+    return (prod.tallas ?? []).reduce(
+      (s, t) => s + Math.max(0, Math.floor(t.stock ?? 0)),
+      0,
+    )
+  }
+  const vs = variantesValidas(prod).filter((v) => !prod.esRopa || v.tipo?.trim().toLowerCase() !== 'talla')
   if (vs.length === 0) return Math.max(0, Math.floor(prod.stock ?? 0))
   if (productoUsaStockPorVariante(prod)) {
     return vs.reduce((s, v) => s + varianteStockRaw(v), 0)
@@ -132,9 +185,9 @@ export function createVarianteDraft(partial?: Partial<VarianteDraftBase>): Varia
   return {
     id: crypto.randomUUID(),
     nombre: '',
-    tipo: 'Color',
+    tipo: '',
     hex: '#525252',
-    mostrarColor: true,
+    mostrarColor: false,
     stock: '',
     precio: '',
     ...partial,
@@ -156,14 +209,18 @@ export function varianteDraftFromSaved(v: McProductoVariante): VarianteDraftBase
 
 export function buildVarianteFromDraft(draft: VarianteDraftBase): McProductoVariante | null {
   const nombre = draft.nombre.trim()
-  if (!nombre) return null
+  if (!nombre || nombre === VARIANTE_SELECT_OTRO) return null
 
   const item: McProductoVariante = { id: draft.id, nombre }
   const tipo = draft.tipo.trim()
-  if (tipo && tipo !== 'Opción') item.tipo = tipo
+  if (tipo && tipo !== 'Opción' && tipo !== VARIANTE_SELECT_OTRO) item.tipo = tipo
 
-  if (draft.mostrarColor && draft.hex?.trim()) {
-    item.hex = draft.hex.trim()
+  const esColor = esTipoColorVariante(draft.tipo)
+  const hexEfectivo =
+    draft.hex?.trim() || (esColor ? hexColorVarianteSugerido(nombre) : undefined)
+
+  if ((draft.mostrarColor || esColor) && hexEfectivo) {
+    item.hex = hexEfectivo
   }
 
   const stockRaw = draft.stock.trim()

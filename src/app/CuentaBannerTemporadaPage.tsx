@@ -5,6 +5,7 @@ import { deleteField, doc, updateDoc } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ExpertStar } from '@/components/billing/ExpertStar'
+import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { hasExpertFeatureAccess } from '@/lib/billingAccess'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
 import { firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
@@ -45,6 +46,7 @@ export function CuentaBannerTemporadaPage() {
   const expertAccess = hasExpertFeatureAccess(tenant)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const { showSaveSuccess } = useSaveSuccess()
   const [enabled, setEnabled] = useState(false)
   const [eyebrow, setEyebrow] = useState<string>(SEASON_BANNER_DEFAULTS.eyebrow)
   const [headline, setHeadline] = useState<string>(SEASON_BANNER_DEFAULTS.headline)
@@ -134,7 +136,12 @@ export function CuentaBannerTemporadaPage() {
         seasonBanner: hasPayload ? banner : deleteField(),
       })
       setPreviewKey((k) => k + 1)
-      setMsg(enabled ? 'Banner publicado en tu catálogo.' : 'Banner desactivado.')
+      showSaveSuccess({
+        title: enabled ? 'Banner publicado' : 'Banner desactivado',
+        message: enabled
+          ? 'Ya se muestra al entrar a tu catálogo público.'
+          : 'El banner de temporada ya no aparece en el catálogo.',
+      })
     } catch {
       setMsg('No se pudo guardar.')
     } finally {

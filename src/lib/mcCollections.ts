@@ -23,3 +23,27 @@ export function mcOrdenesCatalogoCollection(tenantId: string) {
 export function mcCarritosIniciadosCollection(tenantId: string) {
   return `mc_tenants/${tenantId}/carritos_iniciados` as const
 }
+
+export function mcAnalyticsDailyCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/analytics_daily` as const
+}
+
+export function mcAnalyticsProductsCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/analytics_products` as const
+}
+
+export function mcAnalyticsProductDailyCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/analytics_product_daily` as const
+}
+
+export function mcAnalyticsProductDailyDocId(dateKey: string, productId: string) {
+  return `${dateKey}__${productId}` as const
+}
+
+export function mcLegalAcceptanceDoc(tenantId: string, termsVersion: string) {
+  return `mc_tenants/${tenantId}/legal_acceptances/${termsVersion}` as const
+}
+
+export function mcPasarelaRetirosCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/pasarela_retiros` as const
+}

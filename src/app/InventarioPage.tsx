@@ -5,6 +5,7 @@ import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { mcProductosCollection, MC } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
+import { productoPrecioVentaDesde, productoTieneDescuento } from '@/lib/productoDescuento'
 import { productoStockEfectivo, variantesValidas } from '@/lib/productoVariantes'
 import type { McPlatformSettings, McProducto } from '@/types/mc'
 import { BulkAddProductsModal } from '@/app/BulkAddProductsModal'
@@ -26,7 +27,7 @@ import {
   mcToggleProductoNovedad,
 } from '@/lib/mcWrites'
 import { isProductNovedad } from '@/lib/catalogNovedad'
-import { IconPhotoStack, IconPlus } from '@/icons/McIcons'
+import { IconPlus } from '@/icons/McIcons'
 
 export function InventarioPage() {
   const { profile, tenant } = useMcAuth()
@@ -175,10 +176,9 @@ export function InventarioPage() {
         {expertAccess && (
           <button
             type="button"
-            className="mc-btn-secondary inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-[15px] sm:w-auto"
+            className="mc-btn-secondary inline-flex w-full items-center justify-center px-5 py-3 text-[15px] sm:w-auto"
             onClick={() => openBulkModal()}
           >
-            <IconPhotoStack size={18} />
             Carga masiva de fotos
           </button>
         )}
@@ -197,7 +197,18 @@ export function InventarioPage() {
             <div className="min-w-0 flex-1">
               <p className="ios-headline">{p.nombre}</p>
               <p className="ios-subhead tabular-nums">
-                {formatCop(p.precioCop)} · stock {productoStockEfectivo(p)}
+                {productoTieneDescuento(p) ? (
+                  <>
+                    <span className="font-semibold text-red-700">{formatCop(productoPrecioVentaDesde(p))}</span>
+                    <span className="ml-1.5 text-mc-500 line-through">{formatCop(p.precioCop)}</span>
+                    <span className="ml-1.5 inline-block rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
+                      Oferta
+                    </span>
+                  </>
+                ) : (
+                  formatCop(p.precioCop)
+                )}
+                {' · '}stock {productoStockEfectivo(p)}
                 {variantesValidas(p).length > 0 ? (
                   <span className="text-mc-500"> · {variantesValidas(p).length} variantes</span>
                 ) : null}

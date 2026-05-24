@@ -21,6 +21,7 @@ import {
 import {
   advancePeriodEndMs,
   computeFirstPeriodEndMs,
+  computeFreeMonthsEndMs,
   idempotencyKeyForBillingDebit,
   nextDebitDueFromPeriodEnd,
   type McBillingPeriod,
@@ -153,11 +154,14 @@ export async function mcBillingResolvePrice(
   db: Firestore,
   period: McBillingPeriod,
   discountCodeRaw?: string,
+  tenantId?: string,
 ): Promise<{
   basePriceCop: number
   finalPriceCop: number
   discountCodeId?: string
+  freeMonths?: number
   freeTrialDays?: number
+  requiresPaymentMethod?: boolean
 }> {
   const settingsSnap = await db.doc('mc_platform/settings').get()
   const s = settingsSnap.data() as {
@@ -172,7 +176,7 @@ export async function mcBillingResolvePrice(
   if (!discountCodeRaw?.trim()) {
     return { basePriceCop, finalPriceCop: basePriceCop }
   }
-  const resolved = await resolveBillingDiscountCode(db, discountCodeRaw, period, basePriceCop)
+  const resolved = await resolveBillingDiscountCode(db, discountCodeRaw, period, basePriceCop, tenantId)
   if (!resolved.ok) {
     throw new Error(resolved.error)
   }
@@ -180,7 +184,9 @@ export async function mcBillingResolvePrice(
     basePriceCop,
     finalPriceCop: resolved.finalPriceCop,
     discountCodeId: resolved.codeId,
+    freeMonths: resolved.freeMonths,
     freeTrialDays: resolved.freeTrialDays,
+    requiresPaymentMethod: resolved.requiresPaymentMethod,
   }
 }
 
@@ -191,11 +197,12 @@ export async function mcBillingApplyPaidPeriod(params: {
   period: McBillingPeriod
   amountCop: number
   discountCodeId?: string
+  freeMonths?: number
   freeTrialDays?: number
   chargeId?: string
   isRenewal?: boolean
 }): Promise<void> {
-  const { db, tenantId, period, amountCop, discountCodeId, freeTrialDays, chargeId, isRenewal } =
+  const { db, tenantId, period, amountCop, discountCodeId, freeMonths, freeTrialDays, chargeId, isRenewal } =
     params
   const tenantRef = db.doc(`mc_tenants/${tenantId}`)
   const tenantSnap = await tenantRef.get()
@@ -223,7 +230,9 @@ export async function mcBillingApplyPaidPeriod(params: {
   ) {
     periodEnd = advancePeriodEndMs(tenant.subscriptionEndsAt, period)
     periodStart = sub?.currentPeriodStartMs ?? now
-  } else if (freeTrialDays && freeTrialDays > 0 && amountCop === 0) {
+  } else if (freeMonths && freeMonths > 0 && !isRenewal) {
+    periodEnd = computeFreeMonthsEndMs(now, freeMonths)
+  } else if (freeTrialDays && freeTrialDays > 0 && !isRenewal) {
     periodEnd = now + freeTrialDays * 24 * 60 * 60 * 1000
   } else {
     periodEnd = computeFirstPeriodEndMs(now, period)
@@ -350,8 +359,25 @@ export async function mcBillingActivateWithCharge(params: {
   pending: boolean
   message?: string
 }> {
-  const pricing = await mcBillingResolvePrice(params.db, params.period, params.discountCodeRaw)
+  const pricing = await mcBillingResolvePrice(
+    params.db,
+    params.period,
+    params.discountCodeRaw,
+    params.tenantId,
+  )
+
   if (pricing.finalPriceCop === 0) {
+    if (pricing.requiresPaymentMethod) {
+      return mcBillingActivatePromoWithPaymentMethod({
+        db: params.db,
+        tenantId: params.tenantId,
+        period: params.period,
+        method: params.method,
+        cardId: params.cardId,
+        accountId: params.accountId,
+        pricing,
+      })
+    }
     await mcBillingActivateFreeWithCode({
       db: params.db,
       tenantId: params.tenantId,
@@ -591,9 +617,17 @@ export async function mcBillingActivateFreeWithCode(params: {
   period: McBillingPeriod
   discountCodeRaw: string
 }): Promise<void> {
-  const pricing = await mcBillingResolvePrice(params.db, params.period, params.discountCodeRaw)
+  const pricing = await mcBillingResolvePrice(
+    params.db,
+    params.period,
+    params.discountCodeRaw,
+    params.tenantId,
+  )
   if (pricing.finalPriceCop > 0) {
     throw new Error('Este código no activa el plan gratis.')
+  }
+  if (pricing.requiresPaymentMethod) {
+    throw new Error('Este código requiere registrar un método de pago.')
   }
   await mcBillingApplyPaidPeriod({
     db: params.db,
@@ -601,8 +635,63 @@ export async function mcBillingActivateFreeWithCode(params: {
     period: params.period,
     amountCop: 0,
     discountCodeId: pricing.discountCodeId,
+    freeMonths: pricing.freeMonths,
     freeTrialDays: pricing.freeTrialDays ?? (params.period === 'yearly' ? 365 : 30),
   })
+}
+
+/** Primer período gratis con método de pago vinculado; renovaciones al precio base. */
+async function mcBillingActivatePromoWithPaymentMethod(params: {
+  db: Firestore
+  tenantId: string
+  period: McBillingPeriod
+  method: McBillingDebitMethod
+  cardId?: string
+  accountId?: string
+  pricing: Awaited<ReturnType<typeof mcBillingResolvePrice>>
+}): Promise<{ chargeId: string; status?: string; pending: boolean; message?: string }> {
+  const { db, tenantId, period, method, cardId, accountId, pricing } = params
+
+  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
+  const customerId = (tenantSnap.data() as { billingOnePayCustomerId?: string }).billingOnePayCustomerId?.trim()
+  if (!customerId) throw new Error('Primero completá tus datos de facturación.')
+  if (method === 'card' && !cardId?.trim()) {
+    throw new Error('Registrá tu tarjeta antes de activar.')
+  }
+  if (method === 'nequi' && !accountId?.trim()) {
+    throw new Error('Vinculá Nequi antes de activar.')
+  }
+
+  const pin: Record<string, unknown> = {
+    billingDebitMethod: method,
+    billingPinnedCardId: method === 'card' && cardId ? cardId : FieldValue.delete(),
+    billingPinnedAccountId: method === 'nequi' && accountId ? accountId : FieldValue.delete(),
+  }
+  await db.doc(`mc_tenants/${tenantId}`).set(pin, { merge: true })
+
+  await mcBillingApplyPaidPeriod({
+    db,
+    tenantId,
+    period,
+    amountCop: pricing.basePriceCop,
+    discountCodeId: pricing.discountCodeId,
+    freeMonths: pricing.freeMonths,
+    freeTrialDays: pricing.freeTrialDays,
+  })
+
+  await subRef(db, tenantId).set(
+    {
+      debitMethodKind: method === 'nequi' ? 'account' : 'card',
+    },
+    { merge: true },
+  )
+
+  return {
+    chargeId: 'promo-free',
+    status: 'paid',
+    pending: false,
+    message: 'Plan activado. El primer período es gratis; el cobro normal empieza en la renovación.',
+  }
 }
 
 /** Detiene renovaciones automáticas; el plan sigue vigente hasta subscriptionEndsAt. */

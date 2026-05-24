@@ -1,4 +1,5 @@
 import { isProductNovedad } from '@/lib/catalogNovedad'
+import { productoPrecioVentaDesde } from '@/lib/productoDescuento'
 import { productoStockEfectivo } from '@/lib/productoVariantes'
 import type { McProducto } from '@/types/mc'
 
@@ -47,7 +48,7 @@ function normalizeText(s: string): string {
 
 function matchesQuery(p: McProducto, q: string): boolean {
   if (!q.trim()) return true
-  const t = normalizeText(p.nombre)
+  const t = normalizeText(`${p.nombre} ${p.descripcion ?? ''}`)
   const words = normalizeText(q)
     .split(/\s+/)
     .filter(Boolean)
@@ -63,9 +64,14 @@ function parsePriceInput(raw: string): number | null {
   return Math.round(n)
 }
 
+function catalogPrecioFiltro(p: McProducto): number {
+  return productoPrecioVentaDesde(p)
+}
+
 function inPriceRange(p: McProducto, min: number | null, max: number | null): boolean {
-  if (min != null && p.precioCop < min) return false
-  if (max != null && p.precioCop > max) return false
+  const precio = catalogPrecioFiltro(p)
+  if (min != null && precio < min) return false
+  if (max != null && precio > max) return false
   return true
 }
 
@@ -75,9 +81,9 @@ function sortList(list: (McProducto & { id: string })[], sort: CatalogSortId): (
     case 'orden':
       return copy.sort((a, b) => a.orden - b.orden || b.createdAt - a.createdAt)
     case 'precio-asc':
-      return copy.sort((a, b) => a.precioCop - b.precioCop || a.nombre.localeCompare(b.nombre))
+      return copy.sort((a, b) => catalogPrecioFiltro(a) - catalogPrecioFiltro(b) || a.nombre.localeCompare(b.nombre))
     case 'precio-desc':
-      return copy.sort((a, b) => b.precioCop - a.precioCop || a.nombre.localeCompare(b.nombre))
+      return copy.sort((a, b) => catalogPrecioFiltro(b) - catalogPrecioFiltro(a) || a.nombre.localeCompare(b.nombre))
     case 'nombre-az':
       return copy.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
     case 'nombre-za':
@@ -119,11 +125,12 @@ export function applyCatalogListFilters(
 
 export function priceRangeFromRows(rows: (McProducto & { id: string })[]): { min: number; max: number } {
   if (rows.length === 0) return { min: 0, max: 0 }
-  let min = rows[0].precioCop
-  let max = rows[0].precioCop
+  let min = catalogPrecioFiltro(rows[0])
+  let max = catalogPrecioFiltro(rows[0])
   for (const p of rows) {
-    if (p.precioCop < min) min = p.precioCop
-    if (p.precioCop > max) max = p.precioCop
+    const precio = catalogPrecioFiltro(p)
+    if (precio < min) min = precio
+    if (precio > max) max = precio
   }
   return { min, max }
 }

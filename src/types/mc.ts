@@ -109,8 +109,27 @@ export interface McTenant {
   envioUsarTarifasMicatalogo?: boolean
   /** Subtotal mínimo (solo productos, sin cupón) para envío gratis en checkout. */
   envioGratisDesdeCop?: number
+  /** Cotización en vivo vía Envia.com (Modelo A — cuenta plataforma). */
+  envioCotizarAutomatico?: boolean
+  /** Origen del despacho (requerido si `envioCotizarAutomatico`). */
+  envioOrigenDepartamento?: string
+  envioOrigenCiudad?: string
+  envioOrigenDireccion?: string
+  envioOrigenTelefono?: string
+  /** Empaque default para cotizar cuando el producto no tiene medidas propias. */
+  envioEmpaquePesoKg?: number
+  envioEmpaqueLargoCm?: number
+  envioEmpaqueAnchoCm?: number
+  envioEmpaqueAltoCm?: number
+  /**
+   * Código Envia: `coordinadora`, `servientrega` o `deprisa`.
+   * Vacío/ausente = en checkout se muestra la tarifa más barata.
+   */
+  envioTransportadoraFavorita?: string
   /** Cupones de descuento para el checkout del catálogo. */
   cuponesCatalogo?: McCuponTienda[]
+  /** Tab de ofertas en el listado público del catálogo. */
+  catalogDescuentosTab?: McCatalogDescuentosTab
   /** Textos del catálogo público: página Políticas (envíos, pagos, cambios). */
   politicasEnvios?: string
   politicasPagos?: string
@@ -163,6 +182,38 @@ export interface McTenant {
   /** Últimos dígitos de la cuenta (solo visualización). */
   onepayPayoutAccountHint?: string
   onepayPayoutSetupAt?: number
+  /** Millis UTC: checklist de tienda nueva completado (oculta banner y checklist). */
+  onboardingSetupCompletedAt?: number
+  /** Código Expert exclusivo emitido al completar la tienda (solo este tenant). */
+  onboardingExpertRewardCode?: string
+  onboardingExpertRewardCodeId?: string
+  /** Aceptación de T&C de la plataforma al registrarse. */
+  platformTermsAcceptedAt?: number
+  platformTermsVersion?: string
+  platformTermsAcceptedByUid?: string
+  platformTermsAcceptedByEmail?: string
+  /** Huella FNV-1a del texto de términos aceptado. */
+  platformTermsContentHash?: string
+  /** User-Agent del navegador al aceptar (registro de auditoría). */
+  platformTermsUserAgent?: string
+}
+
+/** Registro inmutable de aceptación legal (`mc_tenants/{tid}/legal_acceptances/{version}`). */
+export interface McLegalAcceptance {
+  acceptedAt: number
+  termsVersion: string
+  termsContentHash: string
+  acceptedByUid: string
+  acceptedByEmail: string
+  userAgent?: string
+  context: 'registration'
+}
+
+/** Tab opcional en el catálogo público con productos en oferta. */
+export interface McCatalogDescuentosTab {
+  enabled: boolean
+  /** Etiqueta visible en el tab; si vacía → «Descuento». */
+  label?: string
 }
 
 /** Cupón configurable desde Cuenta · checkout catálogo. */
@@ -183,6 +234,7 @@ export interface McCuponTienda {
 export interface McCarritoIniciadoLinea {
   productId: string
   varianteId?: string
+  tallaId?: string
   titulo: string
   subtitulo?: string
   precioUnitarioCop?: number
@@ -214,7 +266,15 @@ export interface McCarritoIniciado {
   recuperadoAt?: number
 }
 
-/** Variante vendible (color, olor, capacidad, talla, etc.). Precio, imagen y stock opcionales. */
+/** Talla de prenda con stock propio (independiente de variantes de color/tela). */
+export interface McProductoTalla {
+  id: string
+  /** Etiqueta visible: «XS», «M», «Talla única», etc. */
+  nombre: string
+  stock: number
+}
+
+/** Variante vendible (color, olor, capacidad, tela, etc.). Precio, imagen y stock opcionales. */
 export interface McProductoVariante {
   id: string
   /** Etiqueta visible: «Lavanda», «256 GB», «Negro / M», etc. */
@@ -234,13 +294,19 @@ export interface McProductoVariante {
 export interface McProducto {
   id: string
   nombre: string
+  /** Texto libre visible en la ficha pública del producto. */
+  descripcion?: string
   precioCop: number
   stock: number
   imageUrl?: string
   /** Fotos extra de galería (la principal sigue siendo `imageUrl`). */
   galeriaImagenes?: string[]
-  /** Variantes (colores, etc.). Si hay al menos una, el cliente elige antes de comprar. */
+  /** Variantes (colores, telas, etc.). Si hay al menos una, el cliente elige antes de comprar. */
   variantes?: McProductoVariante[]
+  /** Prenda de vestir: stock por talla y variantes limitadas a color/tela. */
+  esRopa?: boolean
+  /** Curva de tallas con stock individual (solo si `esRopa`). */
+  tallas?: McProductoTalla[]
   activo: boolean
   enCatalogo: boolean
   orden: number
@@ -248,6 +314,13 @@ export interface McProducto {
   updatedAt: number
   /** Si es true, el producto sigue mostrando badge/sección Novedades aunque pase el umbral por fecha. */
   marcarNovedad?: boolean
+  /** Muestra el botón «Descargar imagen» en el catálogo (útil para mayoristas). */
+  mostrarDescargaImagen?: boolean
+  /** Descuento visible en catálogo (sobre precio base o variante). */
+  descuentoActivo?: boolean
+  descuentoTipo?: 'porcentaje' | 'monto_fijo'
+  /** Porcentaje 0–100 o monto fijo en COP según `descuentoTipo`. */
+  descuentoValor?: number
 }
 
 export interface McPedido {
@@ -312,6 +385,12 @@ export interface McOrdenCatalogo {
   /** Suma de líneas (antes de envío y cupón). */
   subtotalCop?: number
   envioCop?: number
+  /** Transportadora elegida al cotizar (Envia.com). */
+  envioCotizacionCarrier?: string
+  envioCotizacionServicio?: string
+  envioCotizacionEntrega?: string
+  /** `envia` = tarifa en vivo; `estatico` = tabla/fallback. */
+  envioCotizacionFuente?: 'envia' | 'estatico'
   descuentoCop?: number
   cuponCodigo?: string
   /** Carrito abandonado vinculado (recuperación Expert). */
@@ -349,6 +428,64 @@ export interface McPlatformSettings {
   planExpertDisplayName?: string
   /** Ruta FTCaptures / OnePay Elements para tarjetas in-app. */
   onepayCaptureRouteId?: string
+  /** Correo que recibe aviso cuando se registra una tienda nueva. */
+  newStoreNotifyEmail?: string
+  /** Versión vigente de T&C para registro de tiendas (ej. `2026-05-23`). */
+  platformTermsVersion?: string
+  /** Texto completo editable de T&C plataforma → comerciante. */
+  platformTermsText?: string
+  /** Millis UTC de última publicación de T&C. */
+  platformTermsUpdatedAt?: number
+}
+
+/** Métricas diarias del catálogo público (`mc_tenants/{tid}/analytics_daily/{YYYY-MM-DD}`). */
+export interface McAnalyticsDaily {
+  dateKey: string
+  /** Visitantes únicos aproximados (1 sesión por día). */
+  visits: number
+  pageViews: number
+  productViews: number
+  checkoutStarts: number
+  checkoutCompletes: number
+  updatedAt?: number
+}
+
+export type McAnalyticsPeriod = '7d' | '14d' | '30d'
+
+export type McAnalyticsSummary = {
+  visits: number
+  pageViews: number
+  productViews: number
+  checkoutStarts: number
+  checkoutCompletes: number
+  daily: McAnalyticsDaily[]
+}
+
+/** Vistas agregadas por producto (`mc_tenants/{tid}/analytics_products/{productId}`). */
+export interface McAnalyticsProduct {
+  productId: string
+  productTitle: string
+  imageUrl?: string
+  viewsTotal: number
+  lastViewedAt?: number
+}
+
+/** Vistas diarias por producto (`mc_tenants/{tid}/analytics_product_daily/{dateKey}__{productId}`). */
+export interface McAnalyticsProductDaily {
+  dateKey: string
+  productId: string
+  productTitle: string
+  imageUrl?: string
+  views: number
+  updatedAt?: number
+}
+
+export type McTopProductRow = {
+  productId: string
+  productTitle: string
+  imageUrl?: string
+  views: number
+  sharePercent: number
 }
 
 /** Código de descuento SaaS (`mc_billing_discount_codes`). */
@@ -357,10 +494,16 @@ export interface McBillingDiscountCode {
   code: string
   codeNormalized: string
   active: boolean
-  /** Precio final COP (0 = activación gratis por `freeTrialDays`). */
+  /** Precio final COP (0 = primer período gratis con `freeMonths` o `freeTrialDays`). */
   priceCop: number
   billingPeriod?: 'monthly' | 'yearly'
+  /** Meses gratis al activar (1–3); requiere método de pago y cobra precio normal después. */
+  freeMonths?: number
   freeTrialDays?: number
+  /** Solo este tenant puede canjear el código. */
+  restrictedTenantId?: string
+  /** Si true (default con freeMonths), exige tarjeta/Nequi aunque el cobro inicial sea $0. */
+  requiresPaymentMethod?: boolean
   maxRedemptions?: number
   redemptionCount?: number
   validFromMs?: number

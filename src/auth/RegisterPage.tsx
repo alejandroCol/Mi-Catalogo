@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { createUserWithEmailAndPassword, deleteUser, updateProfile } from 'firebase/auth'
 import type { UserCredential } from 'firebase/auth'
-import { collection, deleteDoc, doc, setDoc, writeBatch } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, setDoc, writeBatch } from 'firebase/firestore'
+import { PlatformTermsModal } from '@/components/legal/PlatformTermsModal'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
-import { MC } from '@/lib/mcCollections'
+import { MC, mcLegalAcceptanceDoc } from '@/lib/mcCollections'
+import { hashTermsContent, resolvePlatformTerms } from '@/lib/platformTerms'
+import type { McLegalAcceptance, McPlatformSettings } from '@/types/mc'
 import { MC_TRIAL_DAYS, trialEndMs } from '@/lib/subscription'
 import { markPendingSellerOnboarding } from '@/lib/onboardingStorage'
 import { resolveAvailablePublicSlug, slugifyStoreName } from '@/lib/publicSlug'
 import { combineWaDigits, DEFAULT_WA_PREFIX, WA_COUNTRY_PREFIXES } from '@/lib/waPhonePrefixes'
 import { callMcSendAuthVerificationEmail } from '@/lib/mcSendAuthVerificationEmail'
+import { trackMcEvent, MC_ANALYTICS_EVENTS } from '@/lib/mcAnalytics'
 import { AuthBrandHeader } from '@/brand/AuthBrandHeader'
 
 const VERIFY_EMAIL_COOLDOWN_MS = 60_000
@@ -34,8 +38,35 @@ export function RegisterPage() {
   const [password, setPassword] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [termsModalOpen, setTermsModalOpen] = useState(false)
+  const [termsLoading, setTermsLoading] = useState(true)
+  const [platformTerms, setPlatformTerms] = useState(() => resolvePlatformTerms(null))
 
   const slugPreview = useMemo(() => slugifyStoreName(nombreTienda), [nombreTienda])
+
+  useEffect(() => {
+    if (!firebaseConfigured) {
+      setTermsLoading(false)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const snap = await getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc))
+        if (cancelled) return
+        const data = snap.exists() ? (snap.data() as McPlatformSettings) : null
+        setPlatformTerms(resolvePlatformTerms(data))
+      } catch {
+        if (!cancelled) setPlatformTerms(resolvePlatformTerms(null))
+      } finally {
+        if (!cancelled) setTermsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     setErr(null)
@@ -72,6 +103,9 @@ export function RegisterPage() {
     if (s === 'clave') {
       if (password.length < 6) {
         return 'La contraseña debe tener al menos 6 caracteres.'
+      }
+      if (!termsAccepted) {
+        return 'Debés aceptar los términos y condiciones para crear tu tienda.'
       }
     }
     return null
@@ -131,6 +165,10 @@ export function RegisterPage() {
       tid = newTenantRef.id
       /** Debe coincidir con `request.auth.token.email` (reglas Firestore); no normalizar a minúsculas. */
       const emailForFirestore = cred.user.email ?? email.trim()
+      const acceptedAt = Date.now()
+      const termsVersion = platformTerms.version
+      const termsContentHash = hashTermsContent(platformTerms.text)
+      const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 512) : undefined
 
       const batch = writeBatch(db)
       batch.set(newTenantRef, {
@@ -140,9 +178,25 @@ export function RegisterPage() {
         whatsappNumero: wa,
         mensajeIntro: '',
         subscriptionEndsAt: trialEndMs(),
-        createdAt: Date.now(),
+        createdAt: acceptedAt,
         billingPlan: 'free',
+        platformTermsAcceptedAt: acceptedAt,
+        platformTermsVersion: termsVersion,
+        platformTermsAcceptedByUid: cred.user.uid,
+        platformTermsAcceptedByEmail: emailForFirestore,
+        platformTermsContentHash: termsContentHash,
+        ...(userAgent ? { platformTermsUserAgent: userAgent } : {}),
       })
+      const acceptance: McLegalAcceptance = {
+        acceptedAt,
+        termsVersion,
+        termsContentHash,
+        acceptedByUid: cred.user.uid,
+        acceptedByEmail: emailForFirestore,
+        context: 'registration',
+        ...(userAgent ? { userAgent } : {}),
+      }
+      batch.set(doc(db, mcLegalAcceptanceDoc(tid, termsVersion)), acceptance)
       batch.set(doc(db, MC.users, cred.user.uid), {
         uid: cred.user.uid,
         email: emailForFirestore,
@@ -160,6 +214,11 @@ export function RegisterPage() {
       })
 
       markPendingSellerOnboarding(tid)
+
+      void trackMcEvent(MC_ANALYTICS_EVENTS.sellerRegistration, {
+        store_slug: sl,
+        billing_plan: 'free',
+      })
 
       let verifyNavState: { verifySendError?: string } | undefined
       const sent = await callMcSendAuthVerificationEmail()
@@ -181,8 +240,10 @@ export function RegisterPage() {
         e && typeof e === 'object' && e !== null && 'code' in e ? String((e as { code: string }).code) : ''
       if (cred?.user && tid) {
         try {
-          await deleteDoc(doc(getDb(), MC.users, cred.user.uid))
-          await deleteDoc(doc(getDb(), MC.tenants, tid))
+          const dbRollback = getDb()
+          await deleteDoc(doc(dbRollback, mcLegalAcceptanceDoc(tid, platformTerms.version)))
+          await deleteDoc(doc(dbRollback, MC.users, cred.user.uid))
+          await deleteDoc(doc(dbRollback, MC.tenants, tid))
         } catch {
           /* best-effort */
         }
@@ -330,18 +391,50 @@ export function RegisterPage() {
             )}
 
             {step === 'clave' && (
-              <div>
-                <label className="ios-footnote font-medium text-mc-700">Contraseña</label>
-                <input
-                  type="password"
-                  className="mc-input mt-1.5"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={6}
-                  autoComplete="new-password"
-                  autoFocus
-                />
-              </div>
+              <>
+                <div>
+                  <label className="ios-footnote font-medium text-mc-700">Contraseña</label>
+                  <input
+                    type="password"
+                    className="mc-input mt-1.5"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    minLength={6}
+                    autoComplete="new-password"
+                    autoFocus
+                  />
+                </div>
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-neutral-200/60 bg-mc-50/50 p-4 text-[14px] leading-relaxed text-mc-800">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    disabled={busy || termsLoading}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300"
+                  />
+                  <span>
+                    {termsLoading ? (
+                      'Cargando términos…'
+                    ) : (
+                      <>
+                        Acepto los{' '}
+                        <button
+                          type="button"
+                          className="font-medium text-mc-900 underline decoration-neutral-300 underline-offset-2 transition hover:opacity-70"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setTermsModalOpen(true)
+                          }}
+                        >
+                          términos y condiciones
+                        </button>{' '}
+                        de Mi Catálogo (versión {platformTerms.version}). Entiendo que rigen el uso de la
+                        plataforma como comerciante.
+                      </>
+                    )}
+                  </span>
+                </label>
+              </>
             )}
           </div>
 
@@ -360,8 +453,8 @@ export function RegisterPage() {
             ) : (
               <button
                 type="button"
-                disabled={busy}
-                className="mc-btn-primary flex-1 py-3.5"
+                disabled={busy || termsLoading || !termsAccepted}
+                className="mc-btn-primary flex-1 py-3.5 disabled:opacity-50"
                 onClick={() => void submitRegister()}
               >
                 {busy ? 'Creando…' : 'Crear mi catálogo'}
@@ -380,6 +473,13 @@ export function RegisterPage() {
           </Link>
         </p>
       </div>
+
+      <PlatformTermsModal
+        open={termsModalOpen}
+        version={platformTerms.version}
+        text={platformTerms.text}
+        onClose={() => setTermsModalOpen(false)}
+      />
     </div>
   )
 }

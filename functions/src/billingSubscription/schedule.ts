@@ -24,6 +24,11 @@ export function computeFirstPeriodEndMs(anchorMs: number, billing: McBillingPeri
     : addCalendarMonthsLocal(anchorMs, 1)
 }
 
+export function computeFreeMonthsEndMs(anchorMs: number, freeMonths: number): number {
+  const months = Math.min(3, Math.max(1, Math.round(freeMonths)))
+  return addCalendarMonthsLocal(anchorMs, months)
+}
+
 export function advancePeriodEndMs(currentPeriodEndMs: number, billing: McBillingPeriod): number {
   return billing === 'yearly'
     ? addCalendarYearsLocal(currentPeriodEndMs, 1)

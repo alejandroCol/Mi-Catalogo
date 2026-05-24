@@ -234,7 +234,18 @@ service cloud.firestore {
         'envioPorCiudad',
         'envioUsarTarifasMicatalogo',
         'envioGratisDesdeCop',
+        'envioCotizarAutomatico',
+        'envioOrigenDepartamento',
+        'envioOrigenCiudad',
+        'envioOrigenDireccion',
+        'envioOrigenTelefono',
+        'envioEmpaquePesoKg',
+        'envioEmpaqueLargoCm',
+        'envioEmpaqueAnchoCm',
+        'envioEmpaqueAltoCm',
+        'envioTransportadoraFavorita',
         'cuponesCatalogo',
+        'catalogDescuentosTab',
         'politicasEnvios',
         'politicasPagos',
         'politicasCambios',
@@ -255,7 +266,18 @@ service cloud.firestore {
         'envioPorCiudad',
         'envioUsarTarifasMicatalogo',
         'envioGratisDesdeCop',
+        'envioCotizarAutomatico',
+        'envioOrigenDepartamento',
+        'envioOrigenCiudad',
+        'envioOrigenDireccion',
+        'envioOrigenTelefono',
+        'envioEmpaquePesoKg',
+        'envioEmpaqueLargoCm',
+        'envioEmpaqueAnchoCm',
+        'envioEmpaqueAltoCm',
+        'envioTransportadoraFavorita',
         'cuponesCatalogo',
+        'catalogDescuentosTab',
         'politicasEnvios',
         'politicasPagos',
         'politicasCambios',
@@ -279,6 +301,24 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt
               > request.time)
         );
+    }
+    /** Versión vigente de T&C plataforma (default = src/lib/platformTerms.ts). */
+    function mcCurrentPlatformTermsVersion() {
+      return exists(/databases/$(database)/documents/mc_platform/settings)
+        && get(/databases/$(database)/documents/mc_platform/settings).data.platformTermsVersion is string
+        && get(/databases/$(database)/documents/mc_platform/settings).data.platformTermsVersion.size() > 0
+        ? get(/databases/$(database)/documents/mc_platform/settings).data.platformTermsVersion
+        : '2026-05-23';
+    }
+    function mcPlatformTermsAcceptanceFieldsOk(data) {
+      return data.platformTermsAcceptedAt is int
+        && data.platformTermsVersion is string
+        && data.platformTermsVersion == mcCurrentPlatformTermsVersion()
+        && data.platformTermsAcceptedByUid == request.auth.uid
+        && data.platformTermsAcceptedByEmail == request.auth.token.email
+        && data.platformTermsContentHash is string
+        && data.platformTermsContentHash.size() > 0
+        && (!('platformTermsUserAgent' in data) || data.platformTermsUserAgent is string);
     }
 
     match /mc_users/{uid} {
@@ -310,7 +350,8 @@ service cloud.firestore {
         && request.resource.data.subscriptionEndsAt is int
         && request.resource.data.subscriptionEndsAt > request.time.toMillis()
         && request.resource.data.createdAt is int
-        && (!('billingPlan' in request.resource.data) || request.resource.data.billingPlan == 'free');
+        && (!('billingPlan' in request.resource.data) || request.resource.data.billingPlan == 'free')
+        && mcPlatformTermsAcceptanceFieldsOk(request.resource.data);
       allow update: if mcIsSuperAdmin()
         || (
           mcSignedIn()
@@ -386,6 +427,25 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /** Registro inmutable de aceptación de T&C plataforma. */
+    match /mc_tenants/{tid}/legal_acceptances/{version} {
+      allow read: if mcIsSuperAdmin()
+        || (mcSignedIn() && mcBelongsToTenant(tid));
+      allow create: if mcSignedIn()
+        && request.auth.uid
+          == get(/databases/$(database)/documents/mc_tenants/$(tid)).data.ownerUid
+        && request.resource.data.acceptedAt is int
+        && request.resource.data.termsVersion is string
+        && request.resource.data.termsVersion == version
+        && request.resource.data.termsVersion == mcCurrentPlatformTermsVersion()
+        && request.resource.data.termsContentHash is string
+        && request.resource.data.acceptedByUid == request.auth.uid
+        && request.resource.data.acceptedByEmail == request.auth.token.email
+        && request.resource.data.context == 'registration'
+        && (!('userAgent' in request.resource.data) || request.resource.data.userAgent is string);
+      allow update, delete: if false;
+    }
+
     /** Enrutamiento y deduplicación de webhooks OnePay: solo Admin / Functions. */
     match /mc_onpay_webhook_routes/{key} {
       allow read, write: if false;
@@ -416,6 +476,25 @@ service cloud.firestore {
 
     match /mc_tenants/{tid}/billingSubscription/{docId} {
       allow read: if mcSignedIn() && mcBelongsToTenant(tid);
+      allow write: if false;
+    }
+
+    match /mc_tenants/{tid}/analytics_daily/{dateKey} {
+      allow read: if mcBelongsToTenant(tid);
+      allow write: if false;
+    }
+
+    match /mc_tenants/{tid}/analytics_sessions/{sessionId} {
+      allow read, write: if false;
+    }
+
+    match /mc_tenants/{tid}/analytics_products/{productId} {
+      allow read: if mcBelongsToTenant(tid);
+      allow write: if false;
+    }
+
+    match /mc_tenants/{tid}/analytics_product_daily/{docId} {
+      allow read: if mcBelongsToTenant(tid);
       allow write: if false;
     }
 

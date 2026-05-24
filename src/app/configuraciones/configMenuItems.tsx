@@ -1,11 +1,12 @@
 import {
   IconBankCard,
   IconChartBars,
-  IconClipboard,
-  IconGear,
   IconLink,
-  IconPhotoStack,
-  IconSliders,
+  IconLogo,
+  IconPerson,
+  IconShipping,
+  IconSwatches,
+  IconWhatsApp,
 } from '@/icons/McIcons'
 import type { ConfigMenuItem } from '@/app/configuraciones/types'
 import type { McTenant } from '@/types/mc'
@@ -54,7 +55,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       description: 'Número y mensaje de pedidos',
       to: '/app/cuenta/whatsapp',
       size: 'normal',
-      icon: <IconClipboard size={20} />,
+      icon: <IconWhatsApp size={20} />,
     },
     {
       id: 'envio',
@@ -62,7 +63,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       description: 'Tarifas por ciudad',
       to: '/app/cuenta/envio',
       size: 'normal',
-      icon: <IconSliders size={20} />,
+      icon: <IconShipping size={20} />,
     },
     {
       id: 'estilo',
@@ -71,7 +72,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       to: '/app/cuenta/estilo',
       size: 'normal',
       expert: true,
-      icon: <IconPhotoStack size={20} />,
+      icon: <IconSwatches size={20} />,
     },
     {
       id: 'logo',
@@ -79,7 +80,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       to: '/app/cuenta/logo',
       size: 'compact',
       expert: true,
-      icon: <IconPhotoStack size={18} />,
+      icon: <IconLogo size={18} />,
     },
     {
       id: 'banner',
@@ -133,7 +134,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       description: 'Nombre en el panel',
       to: '/app/cuenta/perfil',
       size: 'compact',
-      icon: <IconGear size={18} />,
+      icon: <IconPerson size={18} />,
     },
   ]
 }

@@ -6,6 +6,7 @@ export function lineasToCarritoIniciado(lines: LineaCarritoSimple[]): McCarritoI
   return lines.map((l) => ({
     productId: l.productId,
     ...(l.varianteId ? { varianteId: l.varianteId } : {}),
+    ...(l.tallaId ? { tallaId: l.tallaId } : {}),
     titulo: l.titulo,
     ...(l.subtitulo ? { subtitulo: l.subtitulo } : {}),
     ...(l.precioUnitarioCop != null ? { precioUnitarioCop: l.precioUnitarioCop } : {}),
@@ -17,6 +18,7 @@ export function carritoIniciadoToSimpleLines(lineas: McCarritoIniciadoLinea[]): 
   return lineas.map((l) => ({
     productId: l.productId,
     ...(l.varianteId ? { varianteId: l.varianteId } : {}),
+    ...(l.tallaId ? { tallaId: l.tallaId } : {}),
     titulo: l.titulo,
     ...(l.subtitulo ? { subtitulo: l.subtitulo } : {}),
     ...(l.precioUnitarioCop != null ? { precioUnitarioCop: l.precioUnitarioCop } : {}),

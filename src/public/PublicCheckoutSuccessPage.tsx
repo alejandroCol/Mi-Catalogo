@@ -6,12 +6,14 @@ import { normalizeOrderIdInput, publicCatalogTrackingPath } from '@/lib/catalogO
 import { CatalogOrderTrackingTimeline } from '@/public/CatalogOrderTrackingTimeline'
 import { useCatalogOrderTracking } from '@/public/useCatalogOrderTracking'
 import { usePublicTenant } from '@/public/usePublicTenant'
+import { usePublicCheckoutCompleteTracking } from '@/public/usePublicCatalogAnalytics'
 
 export function PublicCheckoutSuccessPage() {
   const { slug } = useParams<{ slug: string }>()
   const [searchParams] = useSearchParams()
   const orderIdParam = searchParams.get('o') ?? searchParams.get('ref') ?? ''
   const orderId = normalizeOrderIdInput(orderIdParam)
+  usePublicCheckoutCompleteTracking(orderId || undefined)
   const { tenant } = usePublicTenant(slug)
   const { clear } = useCatalogoSimpleCart()
   const { order, loading, error, fetchTracking } = useCatalogOrderTracking()

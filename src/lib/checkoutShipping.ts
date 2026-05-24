@@ -1,4 +1,5 @@
 import type { McPlatformSettings, McTenant } from '@/types/mc'
+import { isEnvioCotizacionAutomaticaConfigured } from '@/lib/envioCotizacion'
 
 /** Comparar ciudades sin importar mayúsculas ni tildes. */
 export function normalizeCiudadKey(raw: string): string {
@@ -10,7 +11,7 @@ export function normalizeCiudadKey(raw: string): string {
     .replace(/\s+/g, ' ')
 }
 
-export type LineaEnvioCheckout = 'oculta' | 'cobro' | 'gratis_umbral' | 'gratis_ciudad'
+export type LineaEnvioCheckout = 'oculta' | 'cobro' | 'gratis_umbral' | 'gratis_ciudad' | 'cotizacion'
 
 export type EnvioTenantInput = Pick<
   McTenant,
@@ -24,38 +25,39 @@ export type EnvioMicatalogoTariffsPick = Pick<
 
 export type EnvioTenantConfigPick = Pick<
   McTenant,
-  'envioEstimadoCop' | 'envioPorCiudad' | 'envioUsarTarifasMicatalogo'
+  | 'envioEstimadoCop'
+  | 'envioPorCiudad'
+  | 'envioUsarTarifasMicatalogo'
+  | 'envioCotizarAutomatico'
+  | 'envioOrigenDepartamento'
+  | 'envioOrigenCiudad'
+  | 'envioOrigenDireccion'
+  | 'envioOrigenTelefono'
+  | 'envioEmpaquePesoKg'
+  | 'envioEmpaqueLargoCm'
+  | 'envioEmpaqueAnchoCm'
+  | 'envioEmpaqueAltoCm'
 >
 
-function platformHasEnvioTariffs(platform: EnvioMicatalogoTariffsPick | null | undefined): boolean {
-  if (!platform) return false
-  return (
-    (platform.envioMicatalogoPorCiudad?.length ?? 0) > 0 ||
-    (typeof platform.envioMicatalogoEstimadoCop === 'number' &&
-      Number.isFinite(platform.envioMicatalogoEstimadoCop) &&
-      platform.envioMicatalogoEstimadoCop > 0)
-  )
-}
-
 /**
- * El dueño ya definió envío para el checkout: tarifa por defecto guardada (incluye $0),
- * al menos una ciudad en la tabla, o tarifas Mi Catálogo activas con el toggle correspondiente.
+ * El dueño ya definió envío para el checkout: cotización automática completa
+ * o al menos una ciudad con tarifa manual.
  */
 export function isEnvioCheckoutConfigured(
   tenant: EnvioTenantConfigPick | null | undefined,
-  platformSettings: EnvioMicatalogoTariffsPick | null | undefined,
+  _platformSettings?: EnvioMicatalogoTariffsPick | null | undefined,
 ): boolean {
   if (!tenant) return false
 
-  if (tenant.envioUsarTarifasMicatalogo === true && platformHasEnvioTariffs(platformSettings)) {
+  if (isEnvioCotizacionAutomaticaConfigured(tenant)) {
     return true
   }
 
-  if (typeof tenant.envioEstimadoCop === 'number' && Number.isFinite(tenant.envioEstimadoCop)) {
-    return true
+  if (tenant.envioCotizarAutomatico !== true) {
+    return (tenant.envioPorCiudad ?? []).some((x) => Boolean(x?.ciudad?.trim()))
   }
 
-  return (tenant.envioPorCiudad ?? []).some((x) => Boolean(x?.ciudad?.trim()))
+  return false
 }
 
 /**

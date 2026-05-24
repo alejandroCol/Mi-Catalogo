@@ -7,7 +7,7 @@ import { setGlobalOptions } from 'firebase-functions/v2'
 import { defineSecret, defineString } from 'firebase-functions/params'
 import express from 'express'
 import { markCarritoIniciadoAfterOrderPaid } from './carritoIniciado.js'
-import { mergeTenantPlatformEnvio, resolveEnvioCopForCheckout } from './checkoutShipping.js'
+import { resolveCheckoutEnvioCop } from './shipping/resolveCheckoutEnvio.js'
 import {
   resolveEmailCatalogThemeColors,
   sendCatalogCustomerPurchaseConfirmationEmail,
@@ -24,8 +24,13 @@ import {
   onepayMetadataForApi,
   onepayPickExternalId,
 } from './onepayCatalogHelpers.js'
+import { productoPrecioVentaFromData } from './productoDescuento.js'
 import { mcBillingTryFinalizeFromChargeWebhook } from './billingSubscription/service.js'
 import { onepayGetCharge } from './billingSubscription/onepayBillingApi.js'
+import {
+  fetchPasarelaMicatalogoLedger,
+  recordPasarelaMicatalogoWithdrawal,
+} from './pasarelaMicatalogoLedger.js'
 import {
   mcBillingAddCard,
   mcBillingAddNequi,
@@ -128,6 +133,7 @@ const ONEPAY_ACCOUNTS_BANKS_API = 'https://api.onepay.la/v1/accounts/banks'
 const ONEPAY_BANKS_LEGACY_API = 'https://api.onepay.la/v1/banks'
 const onePayPlatformSk = defineSecret('ONEPAY_PLATFORM_SK')
 const resendApiKey = defineSecret('RESEND_API_KEY')
+const enviaApiToken = defineSecret('ENVIA_API_TOKEN')
 /** Mismo host que en la app (`VITE_MC_PUBLIC_ORIGIN`): debe estar en Dominios autorizados de Firebase Auth. */
 const mcPublicOrigin = defineString('MC_PUBLIC_ORIGIN', { default: 'https://micatalogo.io' })
 
@@ -414,7 +420,7 @@ function totalCheckoutCop(subtotalCop: number, envioCop: number, descuentoCop: n
 function formatCoPhone(raw: string): string | undefined {
   const d = raw.replace(/\D/g, '')
   if (d.length >= 10 && d.length <= 12) {
-    if (d.startsWith('57') && d.length >= 12) return `+${d}`
+    if (d.startsWith('57') && d.length >= 12) return `+${d.slice(0, 12)}`
     if (d.length === 10 && d.startsWith('3')) return `+57${d}`
   }
   return undefined
@@ -422,12 +428,42 @@ function formatCoPhone(raw: string): string | undefined {
 
 function phoneE164Co(raw: string): string {
   const t = raw.trim().replace(/\s/g, '')
-  if (t.startsWith('+')) {
-    if (/^\+[1-9]\d{7,14}$/.test(t)) return t
+  if (!t) {
+    throw new HttpsError('invalid-argument', 'El teléfono es obligatorio.')
+  }
+  const digits = (t.startsWith('+') ? t.slice(1) : t).replace(/\D/g, '')
+  if (digits.startsWith('57') && digits.length >= 12) {
+    return `+${digits.slice(0, 12)}`
+  }
+  if (digits.length === 10 && digits.startsWith('3')) {
+    return `+57${digits}`
+  }
+  if (t.startsWith('+') && /^\+[1-9]\d{7,14}$/.test(t.replace(/\s/g, ''))) {
+    return t.replace(/\s/g, '')
   }
   const co = formatCoPhone(raw)
   if (co) return co
-  throw new HttpsError('invalid-argument', 'Teléfono inválido. Usá formato E.164 o móvil colombiano (ej. 3001234567).')
+  throw new HttpsError('invalid-argument', 'Teléfono inválido. Usá un móvil colombiano (ej. 3001234567).')
+}
+
+function onepayApiErrorMessage(json: unknown, fallback: string): string {
+  if (!json || typeof json !== 'object') return fallback
+  const o = json as { message?: string; errors?: Record<string, string[] | string> }
+  const parts: string[] = []
+  if (typeof o.message === 'string' && o.message.trim()) parts.push(o.message.trim())
+  if (o.errors && typeof o.errors === 'object') {
+    for (const [k, v] of Object.entries(o.errors)) {
+      if (Array.isArray(v)) {
+        for (const x of v) {
+          if (typeof x === 'string' && x.trim()) parts.push(`${k}: ${x}`)
+        }
+      } else if (typeof v === 'string' && v.trim()) {
+        parts.push(`${k}: ${v}`)
+      }
+    }
+  }
+  const msg = [...new Set(parts)].join(' · ')
+  return msg || fallback
 }
 
 function trimField(v: unknown, min: number, max: number, label: string): string {
@@ -783,6 +819,39 @@ export const mcOnepaySellerSaldoSummary = onCall({ invoker: 'public' }, async (r
   const { tenantId, tenant } = await assertSellerSaldoAccess(request)
   const modo = tenant.checkoutVentasModo === 'pasarela_micatalogo' ? 'pasarela_micatalogo' : 'pasarela'
 
+  if (modo === 'pasarela_micatalogo') {
+    const ledger = await fetchPasarelaMicatalogoLedger(db, tenantId)
+    const payments = ledger.recentPayments.map((p) => ({
+      orderId: p.orderId,
+      createdAt: p.createdAt,
+      numeroReferencia: p.numeroReferencia,
+      clienteNombre: p.clienteNombre,
+      onepayPaymentId: p.onepayPaymentId,
+      grossCop: p.grossCop,
+      feeCop: p.feeCop,
+      netCop: p.netCop,
+    }))
+
+    return {
+      modo,
+      balance: null,
+      ledger: {
+        grossTotalCop: ledger.grossTotalCop,
+        feeTotalCop: ledger.feeTotalCop,
+        netTotalCop: ledger.netTotalCop,
+        withdrawnTotalCop: ledger.withdrawnTotalCop,
+        availableNetCop: ledger.availableNetCop,
+        paymentCount: ledger.paymentCount,
+        withdrawals: ledger.withdrawals,
+      },
+      grossTotalCop: ledger.grossTotalCop,
+      payments,
+      payoutConfigured: Boolean(tenant.onepayPayoutCustomerId && tenant.onepayPayoutAccountId),
+      payoutAccountHint: tenant.onepayPayoutAccountHint ?? null,
+      fundWithdrawalPeriod: null,
+    }
+  }
+
   const ordersSnap = await db
     .collection(`mc_tenants/${tenantId}/ordenes_catalogo`)
     .orderBy('createdAt', 'desc')
@@ -803,9 +872,7 @@ export const mcOnepaySellerSaldoSummary = onCall({ invoker: 'public' }, async (r
       }
       if (data.pagoOnePay !== true) return null
       if (data.estado === 'cancelado') return null
-      const viaMc = data.onepayViaMicatalogo === true
-      if (modo === 'pasarela_micatalogo' && !viaMc) return null
-      if (modo === 'pasarela' && viaMc) return null
+      if (data.onepayViaMicatalogo === true) return null
       return mapPasarelaPaymentRow({ id: docSnap.id, ...data })
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
@@ -814,18 +881,10 @@ export const mcOnepaySellerSaldoSummary = onCall({ invoker: 'public' }, async (r
 
   let balance: { balance?: number; balance_label?: string } | null = null
   try {
-    if (modo === 'pasarela_micatalogo') {
-      const sk = await readPlatformOnePaySecretKey()
-      const r = await onepayGetMerchantBalance(sk)
-      if (!('error' in r)) {
-        balance = { balance: r.balance, balance_label: r.balance_label }
-      }
-    } else {
-      const { secretKey } = await assertOnepayOwnerMerchantReady(request, request.data)
-      const r = await onepayGetMerchantBalance(secretKey)
-      if (!('error' in r)) {
-        balance = { balance: r.balance, balance_label: r.balance_label }
-      }
+    const { secretKey } = await assertOnepayOwnerMerchantReady(request, request.data)
+    const r = await onepayGetMerchantBalance(secretKey)
+    if (!('error' in r)) {
+      balance = { balance: r.balance, balance_label: r.balance_label }
     }
   } catch {
     balance = null
@@ -834,6 +893,7 @@ export const mcOnepaySellerSaldoSummary = onCall({ invoker: 'public' }, async (r
   return {
     modo,
     balance,
+    ledger: null,
     grossTotalCop,
     payments,
     payoutConfigured: Boolean(tenant.onepayPayoutCustomerId && tenant.onepayPayoutAccountId),
@@ -847,6 +907,54 @@ function kybAccountSubtypeToOnepay(subtype: string): string {
   if (s === 'checking') return 'CHECKING'
   if (s === 'electronic_deposit') return 'ELECTRONIC_DEPOSIT'
   return 'SAVINGS'
+}
+
+const ONEPAY_KYB_ACCOUNT_TYPES = new Set(['savings', 'checking', 'electronic_deposit'])
+
+function normalizeKybBankSupportedType(raw: string): string | null {
+  const s = raw.trim().toLowerCase().replace(/\s+/g, '_')
+  if (s === 'savings' || s === 'checking' || s === 'electronic_deposit') return s
+  if (s === 'electronicdeposit') return 'electronic_deposit'
+  return null
+}
+
+function buildOnepayNaturalCustomerBody(input: {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  documentType: string
+  documentNumber: string
+}): Record<string, unknown> {
+  return {
+    user_type: 'natural',
+    first_name: input.firstName.slice(0, 80),
+    last_name: input.lastName.slice(0, 80),
+    email: input.email.slice(0, 120),
+    phone: input.phone.slice(0, 20),
+    document_type: input.documentType,
+    document_number: input.documentNumber.slice(0, 30),
+    enable_notifications: false,
+    nationality: 'CO',
+    birthdate: '1990-01-01',
+  }
+}
+
+function buildOnepayPayoutAccountBody(input: {
+  accountSubtype: string
+  accountNumber: string
+  customerId: string
+  bankId: string
+}): Record<string, unknown> {
+  const subtype = kybAccountSubtypeToOnepay(input.accountSubtype)
+  return {
+    subtype,
+    authorization: true,
+    're-enrollment': false,
+    account_number: input.accountNumber,
+    customer_id: input.customerId,
+    bank_id: input.bankId,
+  }
 }
 
 export const mcOnepayMicatalogoSetupPayout = onCall(
@@ -885,19 +993,37 @@ export const mcOnepayMicatalogoSetupPayout = onCall(
     if (documentNumber.length < 5) {
       throw new HttpsError('invalid-argument', 'Número de documento inválido.')
     }
+    if (!['CC', 'CE', 'PASSPORT'].includes(documentType)) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Para retiros usá cédula de ciudadanía, extranjería o pasaporte.',
+      )
+    }
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bankId)
     ) {
       throw new HttpsError('invalid-argument', 'Elegí un banco de la lista.')
     }
-    if (accountNumber.length < 5) {
-      throw new HttpsError('invalid-argument', 'Número de cuenta inválido.')
+    if (!ONEPAY_KYB_ACCOUNT_TYPES.has(accountSubtype)) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Tipo de cuenta no válido. Elegí ahorros, corriente o depósito electrónico según el banco.',
+      )
+    }
+    if (accountNumber.length < 5 || accountNumber.length > 40) {
+      throw new HttpsError('invalid-argument', 'Número de cuenta: entre 5 y 40 caracteres.')
+    }
+    if (!/^[0-9A-Za-z@]+$/.test(accountNumber)) {
+      throw new HttpsError('invalid-argument', 'Número de cuenta: solo letras, números o @ (Bre-B).')
     }
     if (idemNonce.length < 8) {
       throw new HttpsError('invalid-argument', 'Recargá la página e intentá de nuevo.')
     }
 
     const platformSk = onePayPlatformSk.value().trim() || (await readPlatformOnePaySecretKey())
+    if (!platformSk) {
+      throw new HttpsError('failed-precondition', 'La pasarela Mi Catálogo no está configurada.')
+    }
     const tenantRef = db.doc(`mc_tenants/${tenantId}`)
 
     let customerId = tenant.onepayPayoutCustomerId
@@ -909,28 +1035,36 @@ export const mcOnepayMicatalogoSetupPayout = onCall(
           'Content-Type': 'application/json',
           'x-idempotency': `mc-payout-cust-${tenantId}-${idemNonce}`.slice(0, 120),
         },
-        body: JSON.stringify({
-          user_type: 'natural',
-          first_name: firstName.slice(0, 80),
-          last_name: lastName.slice(0, 80),
-          email: email.slice(0, 120),
-          phone,
-          document_type: documentType,
-          document_number: documentNumber.slice(0, 30),
-          enable_notifications: false,
-        }),
+        body: JSON.stringify(
+          buildOnepayNaturalCustomerBody({
+            firstName,
+            lastName,
+            email,
+            phone,
+            documentType,
+            documentNumber,
+          }),
+        ),
       })
       const custText = await custRes.text()
-      let custJson: { id?: string; message?: string }
+      let custJson: { id?: string; message?: string; errors?: Record<string, string[] | string> }
       try {
-        custJson = JSON.parse(custText) as { id?: string; message?: string }
+        custJson = JSON.parse(custText) as { id?: string; message?: string; errors?: Record<string, string[] | string> }
       } catch {
         throw new HttpsError('internal', `OnePay respondió ${custRes.status} al crear cliente.`)
       }
       if (!custRes.ok || !custJson.id) {
-        throw new HttpsError('invalid-argument', custJson.message || 'No se pudo crear el cliente en OnePay.')
+        console.error('[mcOnepayMicatalogoSetupPayout] customer', custRes.status, custText.slice(0, 500))
+        throw new HttpsError(
+          'invalid-argument',
+          onepayApiErrorMessage(custJson, 'No se pudo crear el cliente en OnePay.'),
+        )
       }
       customerId = custJson.id
+      await tenantRef.update({
+        onepayPayoutCustomerId: customerId,
+        updatedAt: Date.now(),
+      })
     }
 
     const accRes = await fetch(ONEPAY_ACCOUNTS_API, {
@@ -940,24 +1074,28 @@ export const mcOnepayMicatalogoSetupPayout = onCall(
         'Content-Type': 'application/json',
         'x-idempotency': `mc-payout-acc-${tenantId}-${idemNonce}`.slice(0, 120),
       },
-      body: JSON.stringify({
-        subtype: kybAccountSubtypeToOnepay(accountSubtype),
-        authorization: true,
-        're-enrollment': false,
-        account_number: accountNumber,
-        customer_id: customerId,
-        bank_id: bankId,
-      }),
+      body: JSON.stringify(
+        buildOnepayPayoutAccountBody({
+          accountSubtype,
+          accountNumber,
+          customerId,
+          bankId,
+        }),
+      ),
     })
     const accText = await accRes.text()
-    let accJson: { id?: string; message?: string }
+    let accJson: { id?: string; message?: string; errors?: Record<string, string[] | string> }
     try {
-      accJson = JSON.parse(accText) as { id?: string; message?: string }
+      accJson = JSON.parse(accText) as { id?: string; message?: string; errors?: Record<string, string[] | string> }
     } catch {
       throw new HttpsError('internal', `OnePay respondió ${accRes.status} al crear cuenta.`)
     }
     if (!accRes.ok || !accJson.id) {
-      throw new HttpsError('invalid-argument', accJson.message || 'No se pudo registrar la cuenta bancaria.')
+      console.error('[mcOnepayMicatalogoSetupPayout] account', accRes.status, accText.slice(0, 500))
+      throw new HttpsError(
+        'invalid-argument',
+        onepayApiErrorMessage(accJson, 'No se pudo registrar la cuenta bancaria.'),
+      )
     }
 
     const hint =
@@ -1013,17 +1151,14 @@ export const mcOnepayMicatalogoRequestCashout = onCall(
       amountCop = Math.round(raw)
     }
 
-    const balanceRes = await onepayGetMerchantBalance(platformSk)
-    if ('error' in balanceRes) {
-      throw new HttpsError('failed-precondition', balanceRes.error)
-    }
-    const available = Math.max(0, Math.round(balanceRes.balance))
+    const ledger = await fetchPasarelaMicatalogoLedger(db, tenantId)
+    const available = ledger.availableNetCop
     const withdrawAmount = amountCop ?? available
     if (withdrawAmount < 10_000) {
       throw new HttpsError('failed-precondition', 'El saldo disponible es menor al mínimo de retiro ($10.000).')
     }
     if (withdrawAmount > available) {
-      throw new HttpsError('failed-precondition', 'El monto supera tu saldo disponible en la pasarela.')
+      throw new HttpsError('failed-precondition', 'El monto supera tu saldo disponible según tus ventas registradas.')
     }
 
     const body: Record<string, unknown> = {
@@ -1062,6 +1197,10 @@ export const mcOnepayMicatalogoRequestCashout = onCall(
     }
 
     if (cashoutRes.status === 204) {
+      await recordPasarelaMicatalogoWithdrawal(db, tenantId, {
+        amountCop: withdrawAmount,
+        idempotencyNonce: idemNonce,
+      })
       return { ok: true as const, amountCop: withdrawAmount, via: 'balance' as const }
     }
 
@@ -1083,6 +1222,10 @@ export const mcOnepayMicatalogoRequestCashout = onCall(
       )
     }
 
+    await recordPasarelaMicatalogoWithdrawal(db, tenantId, {
+      amountCop: withdrawAmount,
+      idempotencyNonce: idemNonce,
+    })
     return { ok: true as const, amountCop: withdrawAmount, via: 'cashout' as const }
   },
 )
@@ -1394,8 +1537,6 @@ export const mcOnepayUnlinkPlatformPasarela = onCall({ invoker: 'public' }, asyn
 
 // --- Listado de bancos OnePay (KYB): GET /v1/banks con clave de plataforma
 
-const ONEPAY_KYB_ACCOUNT_TYPES = new Set(['savings', 'checking', 'electronic_deposit'])
-
 type OnePayBankListItem = { id: string; name: string; supported_types: string[] }
 
 async function onepayFetchBanksJson(platformSk: string): Promise<unknown> {
@@ -1462,7 +1603,10 @@ function normalizeOnePayBanksPayload(raw: unknown): OnePayBankListItem[] {
     if (name.length < 2) continue
     if ('available' in o && o.available === false) continue
     const st = Array.isArray(o.supported_types)
-      ? o.supported_types.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).map((x) => x.trim())
+      ? o.supported_types
+          .filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+          .map((x) => normalizeKybBankSupportedType(x))
+          .filter((x): x is string => x !== null)
       : []
     out.push({ id, name, supported_types: st })
   }
@@ -1859,7 +2003,9 @@ export const mcOnepaySubmitCompanyKyb = onCall(
 
 type LineaIn = { productId?: string; cantidad?: number }
 
-export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async (request) => {
+export const mcOnepayStartCatalogCheckout = onCall(
+  { invoker: 'public', secrets: [enviaApiToken] },
+  async (request) => {
   const data = request.data as {
     slug?: string
     lineas?: LineaIn[]
@@ -1947,6 +2093,15 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
     envioPorCiudad?: { ciudad?: string; cop?: number; departamento?: string }[]
     envioGratisDesdeCop?: number
     envioUsarTarifasMicatalogo?: boolean
+    envioCotizarAutomatico?: boolean
+    envioOrigenDepartamento?: string
+    envioOrigenCiudad?: string
+    envioOrigenDireccion?: string
+    envioOrigenTelefono?: string
+    envioEmpaquePesoKg?: number
+    envioEmpaqueLargoCm?: number
+    envioEmpaqueAnchoCm?: number
+    envioEmpaqueAltoCm?: number
     cuponesCatalogo?: McCupon[]
     checkoutVentasModo?: string
   }
@@ -2060,11 +2215,14 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
       stock?: number
       activo?: boolean
       enCatalogo?: boolean
+      descuentoActivo?: boolean
+      descuentoTipo?: 'porcentaje' | 'monto_fijo'
+      descuentoValor?: number
     }
     if (p.activo !== true || p.enCatalogo !== true) {
       throw new HttpsError('invalid-argument', 'Un producto no está a la venta.')
     }
-    const precio = Math.round(p.precioCop ?? 0)
+    const precio = Math.round(productoPrecioVentaFromData(p))
     if (precio < 1) {
       throw new HttpsError('invalid-argument', 'Precio faltante en un producto.')
     }
@@ -2085,8 +2243,20 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
     throw new HttpsError('invalid-argument', 'Subtotal inválido.')
   }
 
-  const envioTenantSlice = mergeTenantPlatformEnvio(tenant, platformSettings)
-  const envioCop = resolveEnvioCopForCheckout(envioTenantSlice, envioCiudad, subtotalCop, envioDepartamento)
+  const totalPiezas = lineasRes.reduce((s, l) => s + l.cantidad, 0)
+  const envioResolution = await resolveCheckoutEnvioCop({
+    tenant,
+    platform: platformSettings,
+    enviaToken: enviaApiToken.value(),
+    destinoDepartamento: envioDepartamento,
+    destinoCiudad: envioCiudad,
+    destinoDireccion: envioDireccion,
+    destinoNombre: nombre,
+    destinoTelefono: telefono,
+    subtotalCop,
+    totalPiezas,
+  })
+  const envioCop = envioResolution.envioCop
 
   const cuponIn = typeof data.cuponCodigo === 'string' ? data.cuponCodigo : ''
   const cuponV = cuponIn.trim() ? buscarCuponActivo(cuponIn, tenant.cuponesCatalogo) : null
@@ -2116,6 +2286,7 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
     lineas: lineasRes,
     subtotalCop,
     envioCop,
+    envioCotizacionFuente: envioResolution.fuente,
     descuentoCop: descFinal,
     totalCop: totalFinal,
     pagoSimulado: false,
@@ -2140,6 +2311,13 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public' }, async 
   if (envioDireccion) orderDoc.envioDireccion = envioDireccion.slice(0, 500)
   const eref = typeof data.envioReferencia === 'string' ? data.envioReferencia.trim() : ''
   if (eref) orderDoc.envioReferencia = eref.slice(0, 300)
+  if (envioResolution.seleccionada) {
+    orderDoc.envioCotizacionCarrier = envioResolution.seleccionada.carrier
+    orderDoc.envioCotizacionServicio = envioResolution.seleccionada.service
+    if (envioResolution.seleccionada.deliveryEstimate) {
+      orderDoc.envioCotizacionEntrega = envioResolution.seleccionada.deliveryEstimate
+    }
+  }
   if (cuponV) orderDoc.cuponCodigo = normalizeCuponCodigo(cuponV.codigo)
   const carritoIniciadoId =
     typeof data.carritoIniciadoId === 'string' ? data.carritoIniciadoId.trim().slice(0, 128) : ''
@@ -2747,6 +2925,11 @@ export const mcOnepayCatalogWebhook = onRequest(
   { cors: false, invoker: 'public', secrets: [resendApiKey] },
   webhookApp,
 )
+
+export { mcRecordStoreAnalytics } from './storeAnalytics.js'
+export { mcOnTenantCreatedNotify } from './newStoreRegistrationEmail.js'
+export { mcFinalizeNewStoreOnboarding } from './onboardingExpertReward.js'
+export { mcQuoteEnvioCheckout } from './shipping/mcQuoteEnvioCheckout.js'
 
 export {
   mcBillingGetSdkContext,

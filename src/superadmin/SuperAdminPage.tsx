@@ -31,6 +31,7 @@ import {
 import { billingPlanOf } from '@/lib/catalogTheme'
 import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 import type { McBillingPlan, McTenant } from '@/types/mc'
+import { formatPlatformTermsVersionLabel } from '@/lib/platformTerms'
 import { fetchTenantsOverview, type TenantOverviewRow } from './fetchTenantsOverview'
 
 function formatShortDate(ms: number) {
@@ -312,6 +313,20 @@ export function SuperAdminPage() {
       </div>
 
       <Link
+        to="/superadmin/analytics"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-gradient-to-br from-mc-50/80 to-white px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:border-mc-300/90 hover:bg-mc-50 sm:w-auto sm:justify-start"
+      >
+        Analíticas por tienda
+      </Link>
+
+      <Link
+        to="/superadmin/terminos"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-mc-50/60 px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:bg-mc-100/70 sm:w-auto sm:justify-start"
+      >
+        Términos y condiciones (registro de tiendas)
+      </Link>
+
+      <Link
         to="/superadmin/planes"
         className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-mc-50/60 px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:bg-mc-100/70 sm:w-auto sm:justify-start"
       >
@@ -498,6 +513,18 @@ export function SuperAdminPage() {
                               Pasarela
                             </span>
                           ) : null}
+                          {t.platformTermsAcceptedAt ? (
+                            <span
+                              className="border border-violet-200/90 bg-violet-50/80 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-violet-950"
+                              title={`Aceptó T&C ${formatPlatformTermsVersionLabel(t.platformTermsVersion)}`}
+                            >
+                              T&C {formatPlatformTermsVersionLabel(t.platformTermsVersion)}
+                            </span>
+                          ) : (
+                            <span className="border border-neutral-200/70 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-mc-500">
+                              Sin T&C
+                            </span>
+                          )}
                           <span className="ios-footnote text-mc-600">
                             {r.productCount} prod. · {r.pedidosCount} ped.
                           </span>
@@ -553,6 +580,60 @@ export function SuperAdminPage() {
                   <div className="flex justify-between gap-3">
                     <dt className="text-mc-500">Alta</dt>
                     <dd className="text-right text-mc-900">{formatShortDate(selected.tenant.createdAt)}</dd>
+                  </div>
+                  <div className="flex flex-col gap-1 border-t border-mc-100 pt-3">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-mc-500">Términos y condiciones</dt>
+                      <dd className="text-right text-mc-900">
+                        {selected.tenant.platformTermsAcceptedAt ? (
+                          <span className="font-medium text-emerald-900">Aceptados</span>
+                        ) : (
+                          <span className="text-mc-500">Sin registro</span>
+                        )}
+                      </dd>
+                    </div>
+                    {selected.tenant.platformTermsAcceptedAt ? (
+                      <dl className="space-y-2 rounded-lg border border-violet-200/60 bg-violet-50/40 px-3 py-3 text-[13px]">
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-mc-600">Versión</dt>
+                          <dd className="text-right font-mono text-mc-900">
+                            {formatPlatformTermsVersionLabel(selected.tenant.platformTermsVersion)}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-mc-600">Fecha y hora</dt>
+                          <dd className="text-right text-mc-900">
+                            {formatShortDate(selected.tenant.platformTermsAcceptedAt)}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-mc-600">Correo</dt>
+                          <dd className="max-w-[58%] text-right break-all text-mc-900">
+                            {selected.tenant.platformTermsAcceptedByEmail ?? '—'}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-mc-600">UID</dt>
+                          <dd className="max-w-[58%] text-right break-all font-mono text-[11px] text-mc-800">
+                            {selected.tenant.platformTermsAcceptedByUid ?? '—'}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-mc-600">Hash contenido</dt>
+                          <dd className="font-mono text-[11px] text-mc-900">
+                            {selected.tenant.platformTermsContentHash ?? '—'}
+                          </dd>
+                        </div>
+                        {selected.tenant.platformTermsUserAgent ? (
+                          <div className="border-t border-violet-200/50 pt-2">
+                            <dt className="text-mc-600">User-Agent</dt>
+                            <dd className="mt-1 break-all text-[11px] leading-relaxed text-mc-700">
+                              {selected.tenant.platformTermsUserAgent}
+                            </dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                    ) : null}
                   </div>
                   <div className="flex justify-between gap-3">
                     <dt className="text-mc-500">Vence</dt>

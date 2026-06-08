@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { usePublicStoreSlug } from '@/public/PublicStoreContext'
 import { getMcAnalyticsSessionId } from '@/lib/mcAnalyticsDates'
 import { recordStoreAnalytics } from '@/lib/mcRecordStoreAnalytics'
 
 /** Registra visita al catálogo público (1 por sesión/día + page view). */
 export function usePublicCatalogVisitTracking() {
-  const { slug } = useParams<{ slug: string }>()
+  const slug = usePublicStoreSlug()
 
   useEffect(() => {
     if (!slug) return
@@ -19,7 +19,7 @@ export function usePublicProductViewTracking(
   productTitle?: string,
   productImageUrl?: string,
 ) {
-  const { slug } = useParams<{ slug: string }>()
+  const slug = usePublicStoreSlug()
 
   useEffect(() => {
     if (!slug || !productId || !productTitle?.trim()) return
@@ -33,7 +33,7 @@ export function usePublicProductViewTracking(
 
 /** Registra inicio de checkout en catálogo público. */
 export function usePublicCheckoutStartTracking() {
-  const { slug } = useParams<{ slug: string }>()
+  const slug = usePublicStoreSlug()
 
   useEffect(() => {
     if (!slug) return
@@ -43,7 +43,7 @@ export function usePublicCheckoutStartTracking() {
 
 /** Registra checkout completado (WhatsApp o pago aprobado). */
 export function usePublicCheckoutCompleteTracking(orderId?: string) {
-  const { slug } = useParams<{ slug: string }>()
+  const slug = usePublicStoreSlug()
 
   useEffect(() => {
     if (!slug) return

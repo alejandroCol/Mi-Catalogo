@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { Link } from 'react-router-dom'
 import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
+import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { explicitCheckoutVentasModo, isCheckoutVentasConfigured } from '@/lib/checkoutVentasModo'
 import { checkoutVentasModoDisplay } from '@/lib/checkoutVentasModoDisplay'
@@ -12,6 +13,7 @@ import type { McPlatformSettings } from '@/types/mc'
 
 export function CuentaCheckoutVentasPage() {
   const { tenant } = useMcAuth()
+  const { returnTo, returnLabel, navState } = useConfigSubpageNav()
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
 
   useEffect(() => {
@@ -25,7 +27,7 @@ export function CuentaCheckoutVentasPage() {
   const configurado = isCheckoutVentasConfigured(tenant, platformSettings)
 
   return (
-    <ConfiguracionesSubpageLayout title="Método de pago">
+    <ConfiguracionesSubpageLayout title="Método de pago" backTo={returnTo} backLabel={returnLabel}>
       <div className="mc-card space-y-5">
         <p className="ios-footnote leading-relaxed text-[var(--cat-muted)]">
           Definí cómo cobrás en tu catálogo: pasarela en línea con OnePay, pasarela de Mi Catálogo sin registro propio,
@@ -94,6 +96,7 @@ export function CuentaCheckoutVentasPage() {
 
         <Link
           to="/app/cuenta/checkout-ventas/seleccion"
+          state={navState}
           className="mc-btn-primary inline-flex w-full items-center justify-center py-3 text-[15px]"
         >
           Seleccionar método de pago

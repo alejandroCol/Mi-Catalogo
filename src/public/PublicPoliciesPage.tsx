@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { usePublicTenant } from '@/public/usePublicTenant'
+import { usePublicStore } from '@/public/PublicStoreContext'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 
 type PanelKey = 'envios' | 'pagos' | 'cambios'
@@ -49,7 +50,7 @@ function PolicyPanel({
 }
 
 export function PublicPoliciesPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug, to } = usePublicStore()
   const { tenant, loading, error } = usePublicTenant(slug)
   const [openKey, setOpenKey] = useState<PanelKey | null>(null)
 
@@ -84,7 +85,7 @@ export function PublicPoliciesPage() {
       <div>
         <nav className="text-[12px] sm:text-[13px] mc-pc-muted" aria-label="Políticas">
           <Link
-            to={`/c/${slug}`}
+            to={to('/')}
             className="font-medium text-[var(--cat-text)] transition hover:opacity-80"
           >
             {tenant.nombreTienda}

@@ -1,1 +1,0 @@
-var e=2e-4,t=.0349,n=.19;function r(t){return Math.ceil(Math.max(0,Math.round(t))*e)}function i(e){return r(e)+900}export{t as n,i as r,n as t};

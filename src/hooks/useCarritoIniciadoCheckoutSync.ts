@@ -84,6 +84,9 @@ export function useCarritoIniciadoCheckoutSync(opts: {
   useEffect(() => {
     if (!expertTracking || !slug || !tenantId || lines.length === 0) return
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+    const emailLen = contacto.email?.trim().length ?? 0
+    /** Guardar correo casi al instante para recuperación por email en carritos abandonados. */
+    const syncDelayMs = emailLen >= 1 ? 280 : 900
     syncTimerRef.current = setTimeout(() => {
       void (async () => {
         try {
@@ -111,7 +114,7 @@ export function useCarritoIniciadoCheckoutSync(opts: {
           /* ignore sync errors */
         }
       })()
-    }, 900)
+    }, syncDelayMs)
     return () => {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
     }

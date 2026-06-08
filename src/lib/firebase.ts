@@ -39,7 +39,7 @@ if (firebaseConfigured) {
     storage = getStorage(app)
   }
   const fnRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION as string | undefined
-  functions = fnRegion ? getFunctions(app, fnRegion) : getFunctions(app)
+  functions = getFunctions(app, fnRegion?.trim() || 'us-central1')
 }
 
 export function getDb(): Firestore {

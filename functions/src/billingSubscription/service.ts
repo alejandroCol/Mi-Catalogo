@@ -329,6 +329,7 @@ export async function mcBillingDowngradeToFree(db: Firestore, tenantId: string):
     {
       billingPlan: 'free',
       billingSubStatus: 'canceled',
+      subscriptionEndsAt: FieldValue.delete(),
       subscriptionPlan: FieldValue.delete(),
       billingGraceUntilMs: FieldValue.delete(),
       billingPastDueSinceMs: FieldValue.delete(),

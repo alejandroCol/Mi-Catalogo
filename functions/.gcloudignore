@@ -1,0 +1,16 @@
+# Código fuente TypeScript (solo se despliega lib/ compilado)
+src/
+tsconfig.json
+*.ts
+
+# Variables locales (Cloud Functions usa secrets / params en producción)
+.env
+.env.*
+!.env.example
+
+# Dev / cache — node_modules se reinstala en Cloud Build
+node_modules/
+.git/
+*.log
+.DS_Store
+

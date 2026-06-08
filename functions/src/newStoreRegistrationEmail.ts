@@ -3,6 +3,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { defineSecret } from 'firebase-functions/params'
 import { Resend } from 'resend'
 import { db } from './firebaseAdmin.js'
+import { buildStorePublicUrl } from './storePublicUrl.js'
 import { MC_RESEND_FROM } from './mcResend.js'
 
 const resendApiKey = defineSecret('RESEND_API_KEY')
@@ -73,7 +74,7 @@ export const mcOnTenantCreatedNotify = onDocumentCreated(
 <p><strong>Nueva tienda registrada en Mi Catálogo</strong></p>
 <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
 <tr><td style="padding:8px 0;color:#64748b;width:38%">Tienda</td><td style="padding:8px 0"><strong>${escapeHtml(nombreTienda)}</strong></td></tr>
-<tr><td style="padding:8px 0;color:#64748b">Slug</td><td style="padding:8px 0"><code>/c/${escapeHtml(slug)}</code></td></tr>
+<tr><td style="padding:8px 0;color:#64748b">URL pública</td><td style="padding:8px 0"><code>${escapeHtml(slug ? buildStorePublicUrl('https://micatalogo.io', slug) : '—')}</code></td></tr>
 <tr><td style="padding:8px 0;color:#64748b">Dueño</td><td style="padding:8px 0">${escapeHtml(ownerName)}</td></tr>
 <tr><td style="padding:8px 0;color:#64748b">Correo</td><td style="padding:8px 0">${escapeHtml(ownerEmail || '—')}</td></tr>
 <tr><td style="padding:8px 0;color:#64748b">WhatsApp</td><td style="padding:8px 0">${escapeHtml(whatsapp || '—')}</td></tr>

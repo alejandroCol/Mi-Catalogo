@@ -4,6 +4,7 @@ import {
   IconLink,
   IconLogo,
   IconPerson,
+  IconPlayCircle,
   IconShipping,
   IconSwatches,
   IconWhatsApp,
@@ -72,6 +73,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       to: '/app/cuenta/estilo',
       size: 'normal',
       expert: true,
+      expertGateOnSave: true,
       icon: <IconSwatches size={20} />,
     },
     {
@@ -80,6 +82,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       to: '/app/cuenta/logo',
       size: 'compact',
       expert: true,
+      expertGateOnSave: true,
       icon: <IconLogo size={18} />,
     },
     {
@@ -88,6 +91,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       to: '/app/cuenta/banner-temporada',
       size: 'compact',
       expert: true,
+      expertGateOnSave: true,
     },
     {
       id: 'carritos',
@@ -127,6 +131,14 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       to: '/app/cuenta/resumen-ventas',
       size: 'compact',
       icon: <IconChartBars size={18} />,
+    },
+    {
+      id: 'tutoriales',
+      title: 'Tutoriales',
+      description: 'Videos paso a paso',
+      to: '/app/cuenta/tutoriales',
+      size: 'wide',
+      icon: <IconPlayCircle size={20} />,
     },
     {
       id: 'perfil',

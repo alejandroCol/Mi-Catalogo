@@ -7,6 +7,7 @@ import { useTenantAnalytics } from '@/hooks/useTenantAnalytics'
 import { useTenantTopProducts } from '@/hooks/useTenantTopProducts'
 import { TopProductsRanking } from '@/components/analytics/TopProductsRanking'
 import { mcAnalyticsDateKeyBogota } from '@/lib/mcAnalyticsDates'
+import { buildStorePublicUrl, formatStorePublicUrlLabel } from '@/lib/storePublicUrl'
 import { IconChartBars, IconChevronLeft, IconChevronRight } from '@/icons/McIcons'
 import type { McAnalyticsPeriod } from '@/types/mc'
 
@@ -22,15 +23,15 @@ function formatPercent(n: number, total: number): string {
 }
 
 export function EstadisticasPage() {
-  const { profile, tenant } = useMcAuth()
+  const { profile, tenant, effectiveTenantId } = useMcAuth()
   const [period, setPeriod] = useState<McAnalyticsPeriod>('14d')
-  const { summary, loading, err, reload } = useTenantAnalytics(profile?.tenantId, period)
+  const { summary, loading, err, reload } = useTenantAnalytics(effectiveTenantId, period)
   const {
     rows: topProducts,
     loading: topProductsLoading,
     err: topProductsErr,
     reload: reloadTopProducts,
-  } = useTenantTopProducts(profile?.tenantId, period)
+  } = useTenantTopProducts(effectiveTenantId, period)
 
   const todayKey = mcAnalyticsDateKeyBogota()
   const todayVisits = summary?.daily.find((d) => d.dateKey === todayKey)?.visits ?? 0
@@ -85,7 +86,8 @@ export function EstadisticasPage() {
               Visitas a tu catálogo
             </h1>
             <p className="mt-2 max-w-lg text-[13px] leading-relaxed text-[var(--cat-muted)]">
-              Personas que entraron a <strong className="font-medium text-[var(--cat-text)]">/c/{tenant.slug}</strong>.
+              Personas que entraron a{' '}
+              <strong className="font-medium text-[var(--cat-text)]">{formatStorePublicUrlLabel(tenant.slug)}</strong>.
               Cada visitante se cuenta una vez por día.
             </p>
           </div>
@@ -146,19 +148,27 @@ export function EstadisticasPage() {
       </AnalyticsStatGrid>
 
       <section className="border border-neutral-200/50 bg-[var(--cat-surface)] p-5 sm:p-7">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div className="mb-6 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-[15px] font-medium tracking-tight text-[var(--cat-text)]">Tendencia diaria</h2>
             <p className="mt-1 text-[13px] text-[var(--cat-muted)]">Visitantes únicos por día</p>
           </div>
           {!loading && summary ? (
-            <p className="text-[12px] text-[var(--cat-muted)]">
-              {summary.pageViews} vistas totales · {summary.checkoutStarts} checkouts iniciados
-            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-neutral-100 pt-3 text-[12px] text-[var(--cat-muted)] sm:border-0 sm:pt-0">
+              <span>
+                <span className="font-semibold tabular-nums text-[var(--cat-text)]">{summary.pageViews}</span>{' '}
+                vistas totales
+              </span>
+              <span className="hidden h-3 w-px bg-neutral-200 sm:block" aria-hidden />
+              <span>
+                <span className="font-semibold tabular-nums text-[var(--cat-text)]">{summary.checkoutStarts}</span>{' '}
+                checkouts iniciados
+              </span>
+            </div>
           ) : null}
         </div>
         {loading ? (
-          <div className="h-44 animate-pulse rounded-sm bg-neutral-100 sm:h-52" />
+          <div className="h-[168px] animate-pulse rounded-sm bg-neutral-100 sm:h-[196px]" />
         ) : summary && summary.daily.some((d) => d.visits > 0) ? (
           <VisitsBarChart daily={summary.daily} metric="visits" />
         ) : (
@@ -170,7 +180,7 @@ export function EstadisticasPage() {
               Todavía no hay visitas registradas. Cuando compartas tu catálogo, acá verás el gráfico.
             </p>
             <a
-              href={`${window.location.origin}/c/${tenant.slug}`}
+              href={buildStorePublicUrl(tenant.slug)}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-[14px] font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4"

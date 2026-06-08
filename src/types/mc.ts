@@ -32,12 +32,53 @@ export interface McSeasonBanner {
   updatedAt?: number
 }
 
+/** Dueño de tienda (default) o representante comercial de campo. */
+export type McUserRole = 'owner' | 'sales_rep'
+
+/** Resultado de una visita presencial registrada por un vendedor. */
+export type McSalesVisitOutcome = 'venta_exitosa' | 'pendiente' | 'rechazo'
+
 export interface McUser {
   uid: string
   email: string
   displayName: string
   tenantId: string
   isSuperAdmin: boolean
+  /** Ausente en usuarios legacy → se trata como `owner`. */
+  role?: McUserRole
+  createdAt: number
+  /** Solo vendedores: desactivar acceso sin borrar historial. */
+  active?: boolean
+}
+
+/** Visita presencial a una marca (`mc_sales_visits`). */
+export interface McSalesVisit {
+  id: string
+  salesRepUid: string
+  salesRepName: string
+  storeName: string
+  /** Dirección física, barrio, referencia u otro detalle de la tienda visitada. */
+  storeDetail?: string
+  /** Tienda real en la plataforma, si el vendedor la asoció al registrar. */
+  tenantId?: string
+  tenantSlug?: string
+  outcome: McSalesVisitOutcome
+  rejectionReason?: string
+  /** YYYY-MM-DD (zona local del vendedor al registrar). */
+  dateKey: string
+  createdAt: number
+}
+
+/** Tienda demo seleccionable por vendedores (`mc_demo_stores`). */
+export interface McDemoStore {
+  id: string
+  tenantId: string
+  /** Slug público de la tienda (para abrir catálogo). */
+  slug: string
+  displayName: string
+  description?: string
+  active: boolean
+  order: number
   createdAt: number
 }
 
@@ -60,8 +101,8 @@ export interface McTenant {
   nombreTienda: string
   whatsappNumero: string
   mensajeIntro?: string
-  /** Millis UTC: membresía activa si > now */
-  subscriptionEndsAt: number
+  /** Millis UTC: vencimiento Expert; plan Free no usa este campo. */
+  subscriptionEndsAt?: number
   createdAt: number
   /** Plan de producto: expert desbloquea temas y colores del catálogo. */
   billingPlan?: McBillingPlan
@@ -184,6 +225,8 @@ export interface McTenant {
   onepayPayoutSetupAt?: number
   /** Millis UTC: checklist de tienda nueva completado (oculta banner y checklist). */
   onboardingSetupCompletedAt?: number
+  /** Millis UTC: el dueño ya vio el CTA «listo para vender» en Inicio (no volver a mostrar). */
+  onboardingSharePromptSeenAt?: number
   /** Código Expert exclusivo emitido al completar la tienda (solo este tenant). */
   onboardingExpertRewardCode?: string
   onboardingExpertRewardCodeId?: string
@@ -291,6 +334,17 @@ export interface McProductoVariante {
   imageUrl?: string
 }
 
+/** Categoría de productos visible en el sidebar del catálogo público. */
+export interface McCategoria {
+  id: string
+  nombre: string
+  /** Orden de aparición en el sidebar (menor = primero). */
+  orden: number
+  activa: boolean
+  createdAt: number
+  updatedAt: number
+}
+
 export interface McProducto {
   id: string
   nombre: string
@@ -321,6 +375,8 @@ export interface McProducto {
   descuentoTipo?: 'porcentaje' | 'monto_fijo'
   /** Porcentaje 0–100 o monto fijo en COP según `descuentoTipo`. */
   descuentoValor?: number
+  /** IDs de categorías asociadas (`mc_tenants/{tid}/categorias`). */
+  categoriaIds?: string[]
 }
 
 export interface McPedido {
@@ -436,6 +492,12 @@ export interface McPlatformSettings {
   platformTermsText?: string
   /** Millis UTC de última publicación de T&C. */
   platformTermsUpdatedAt?: number
+  /**
+   * Banner de promo Expert 24 h en el dashboard para tiendas nuevas.
+   * El checklist de onboarding se muestra igual aunque esté desactivado.
+   * Default: activado (undefined = true).
+   */
+  newStoreExpertPromoBannerEnabled?: boolean
 }
 
 /** Métricas diarias del catálogo público (`mc_tenants/{tid}/analytics_daily/{YYYY-MM-DD}`). */

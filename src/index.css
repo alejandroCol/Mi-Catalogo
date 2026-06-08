@@ -117,6 +117,226 @@
     background-color: var(--cat-surface, #fff);
   }
 
+  /** Panel vendedor — alineado a landing (mc-landing + utilidades propias) */
+  .mc-vendedor {
+    @apply relative min-h-svh;
+  }
+  .mc-vendedor--pitch {
+    @apply fixed inset-0 z-50 overflow-hidden;
+    padding:
+      env(safe-area-inset-top, 0px)
+      env(safe-area-inset-right, 0px)
+      env(safe-area-inset-bottom, 0px)
+      env(safe-area-inset-left, 0px);
+  }
+  .mc-vendedor__bg {
+    @apply pointer-events-none absolute inset-0 -z-10;
+    background:
+      radial-gradient(ellipse 80% 60% at 70% 20%, rgba(197, 163, 103, 0.12) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 50% at 10% 80%, rgba(63, 61, 69, 0.06) 0%, transparent 50%),
+      linear-gradient(180deg, #faf9f7 0%, #f5f3ef 100%);
+  }
+  .mc-vendedor-nav {
+    @apply border-b border-[color-mix(in_srgb,var(--mc-landing-gold-dark)_18%,transparent)] bg-[#faf9f7]/90 backdrop-blur-xl;
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  .mc-vendedor-nav__inner {
+    @apply flex h-16 items-center justify-between gap-4 sm:h-[4.5rem];
+  }
+  .mc-vendedor-nav__back {
+    @apply inline-flex items-center gap-1.5 text-sm font-medium text-mc-600 no-underline transition hover:text-mc-brand-gray;
+  }
+  .mc-vendedor-nav__meta {
+    @apply min-w-0 text-right;
+  }
+  .mc-vendedor-nav__name {
+    @apply truncate text-sm font-semibold text-mc-brand-gray;
+  }
+  .mc-vendedor-nav__role {
+    @apply truncate text-xs text-mc-500;
+  }
+  .mc-vendedor-main {
+    @apply pb-16 pt-8 sm:pb-20 sm:pt-10;
+  }
+  .mc-vendedor-page {
+    @apply flex flex-col gap-10 sm:gap-12 lg:gap-14;
+  }
+  .mc-vendedor-hero {
+    @apply max-w-3xl;
+  }
+  .mc-vendedor-stats {
+    @apply grid grid-cols-2 gap-3 sm:gap-4 lg:max-w-xl;
+  }
+  .mc-vendedor-stat {
+    @apply flex flex-col gap-2 rounded-2xl border border-neutral-200/50 bg-white p-5 sm:p-6;
+  }
+  .mc-vendedor-stat__label {
+    @apply text-xs font-semibold uppercase tracking-[0.14em] text-mc-brand-gold;
+  }
+  .mc-vendedor-stat__value {
+    @apply text-[2rem] font-semibold leading-none tracking-tighter text-mc-brand-gray sm:text-[2.25rem];
+  }
+  .mc-vendedor-section-head {
+    @apply mb-6 max-w-2xl sm:mb-8;
+  }
+  .mc-vendedor-bento {
+    @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:grid-rows-2 lg:gap-4;
+  }
+  .mc-vendedor-bento__tile {
+    @apply flex min-h-[8.5rem] flex-col rounded-2xl border border-neutral-200/50 p-5 text-left no-underline transition duration-300 hover:border-neutral-300/80 sm:min-h-[9rem] sm:p-6;
+  }
+  .mc-vendedor-bento__tile--interactive {
+    @apply w-full cursor-pointer active:scale-[0.99];
+  }
+  .mc-vendedor-bento__tile--large {
+    @apply sm:col-span-2 lg:row-span-2 lg:min-h-0 lg:p-8;
+  }
+  .mc-vendedor-bento__tile--medium {
+    @apply sm:col-span-2 lg:col-span-2;
+  }
+  .mc-vendedor-bento__tile--small {
+    @apply lg:col-span-1;
+  }
+  .mc-vendedor-bento__tile--gold {
+    @apply border-[color-mix(in_srgb,var(--mc-landing-gold)_35%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_8%,white)];
+  }
+  .mc-vendedor-bento__tile--neutral {
+    @apply bg-white;
+  }
+  .mc-vendedor-bento__tile--dark {
+    @apply border-mc-brand-gray/20 bg-mc-brand-gray text-white hover:border-mc-brand-gray/35;
+  }
+  .mc-vendedor-bento__icon {
+    @apply mb-4 flex h-10 w-10 items-center justify-center rounded-full text-mc-brand-gray;
+    background: color-mix(in srgb, var(--mc-landing-gold) 18%, white);
+  }
+  .mc-vendedor-bento__tile--dark .mc-vendedor-bento__icon {
+    @apply text-[var(--mc-landing-gold)];
+    background: color-mix(in srgb, var(--mc-landing-gold) 22%, transparent);
+  }
+  .mc-vendedor-bento__title {
+    @apply text-lg font-semibold tracking-tight text-mc-brand-gray;
+  }
+  .mc-vendedor-bento__tile--dark .mc-vendedor-bento__title {
+    @apply text-white;
+  }
+  .mc-vendedor-bento__tile--large .mc-vendedor-bento__title {
+    @apply text-xl sm:text-2xl;
+  }
+  .mc-vendedor-bento__desc {
+    @apply mt-2 text-sm leading-relaxed text-mc-600;
+  }
+  .mc-vendedor-bento__tile--dark .mc-vendedor-bento__desc {
+    @apply text-[#e8e6eb] opacity-80;
+  }
+  .mc-vendedor-bento__tile--large .mc-vendedor-bento__desc {
+    @apply mt-3 text-base;
+  }
+  .mc-vendedor-panel {
+    @apply rounded-2xl border border-neutral-200/50 bg-white p-5 sm:p-6;
+  }
+  .mc-vendedor-panel--dark {
+    @apply relative overflow-hidden border-mc-brand-gray/20 bg-[var(--mc-landing-dark)] text-[#e8e6eb];
+  }
+  .mc-vendedor-panel--dark::before {
+    @apply pointer-events-none absolute inset-0 opacity-30;
+    content: '';
+    background: radial-gradient(ellipse 50% 80% at 90% 50%, rgba(197, 163, 103, 0.25) 0%, transparent 60%);
+  }
+  .mc-vendedor-tip {
+    @apply flex gap-4 rounded-2xl border border-[color-mix(in_srgb,var(--mc-landing-gold)_35%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_8%,white)] p-5 sm:p-6;
+  }
+  .mc-vendedor-tip__icon {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-mc-brand-gray;
+    background: color-mix(in srgb, var(--mc-landing-gold) 25%, white);
+  }
+  .mc-vendedor-back {
+    @apply mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-mc-600 no-underline transition hover:text-mc-brand-gray;
+  }
+  .mc-vendedor-modal__backdrop {
+    @apply fixed inset-0 z-50 flex items-end justify-center bg-mc-brand-gray/40 p-4 backdrop-blur-sm sm:items-center;
+  }
+  .mc-vendedor-modal {
+    @apply w-full max-w-md rounded-2xl border border-neutral-200/50 bg-white p-6 shadow-[0_24px_48px_-12px_rgba(28,27,31,0.18)] sm:p-7;
+  }
+  .mc-vendedor-modal__title {
+    @apply text-xl font-semibold tracking-tight text-mc-brand-gray;
+  }
+  .mc-vendedor-modal__sub {
+    @apply mt-1 text-sm leading-relaxed text-mc-600;
+  }
+  .mc-vendedor-pitch {
+    @apply relative flex h-full min-h-[100svh] w-full flex-col;
+  }
+  .mc-vendedor-pitch__header {
+    @apply relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-[color-mix(in_srgb,var(--mc-landing-gold-dark)_18%,transparent)] bg-[#faf9f7]/90 px-5 py-3 backdrop-blur-xl sm:px-8;
+  }
+  .mc-vendedor-pitch__slide {
+    @apply relative z-10 flex min-h-0 flex-1 flex-col justify-center px-5 py-6 sm:px-8 md:px-12 lg:px-16;
+  }
+  .mc-vendedor-pitch__slide-inner {
+    @apply mx-auto w-full max-w-6xl;
+  }
+  .mc-vendedor-pitch__nav {
+    @apply relative z-10 flex shrink-0 items-center justify-between gap-4 border-t border-[color-mix(in_srgb,var(--mc-landing-gold-dark)_18%,transparent)] bg-[#faf9f7]/90 px-5 py-4 backdrop-blur-xl sm:px-8;
+  }
+  .mc-vendedor-pitch__dots {
+    @apply flex items-center gap-2;
+  }
+  .mc-vendedor-pitch__dot {
+    @apply h-2 rounded-full bg-neutral-300/80 transition-all duration-300;
+  }
+  .mc-vendedor-pitch__dot--active {
+    @apply w-7 bg-mc-brand-gold;
+  }
+  .mc-vendedor-pitch__price-card {
+    @apply rounded-2xl border border-[color-mix(in_srgb,var(--mc-landing-gold)_35%,white)] bg-white p-8 sm:p-10;
+    box-shadow: 0 12px 40px -16px rgba(197, 163, 103, 0.35);
+  }
+  .mc-vendedor-pitch__price-value {
+    @apply text-[clamp(2.5rem,6vw,4.5rem)] font-semibold leading-none tracking-tighter text-mc-brand-gray;
+  }
+  .mc-vendedor-pitch__compare {
+    @apply overflow-hidden rounded-2xl border border-neutral-200/50 bg-white;
+  }
+  .mc-vendedor-pitch__compare-head {
+    @apply grid grid-cols-[1.1fr_1fr_1fr] border-b border-neutral-200/50 bg-[#f5f3ef] text-[11px] font-semibold uppercase tracking-[0.12em] text-mc-600 md:text-xs;
+  }
+  .mc-vendedor-pitch__compare-row {
+    @apply grid grid-cols-[1.1fr_1fr_1fr] border-b border-neutral-100 last:border-0;
+  }
+  .mc-vendedor-pitch__compare-row--highlight {
+    @apply bg-[color-mix(in_srgb,var(--mc-landing-gold)_8%,white)];
+  }
+  .mc-vendedor-pitch__slide-enter {
+    animation: mc-vendedor-slide-in 0.32s ease-out both;
+  }
+  @keyframes mc-vendedor-slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  .mc-vendedor-cap-card {
+    @apply overflow-hidden rounded-2xl border border-neutral-200/50 bg-white;
+  }
+  .mc-vendedor-cap-card__head {
+    @apply border-b border-neutral-200/50 bg-[#f5f3ef] px-5 py-5 sm:px-6;
+  }
+  .mc-vendedor-cap-card__body {
+    @apply space-y-3 px-5 py-5 sm:px-6;
+  }
+  .mc-vendedor-demo-stat {
+    @apply rounded-2xl border border-neutral-200/50 bg-white p-5;
+  }
+  .mc-vendedor-demo-stat--featured {
+    @apply border-[color-mix(in_srgb,var(--mc-landing-gold)_35%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_8%,white)];
+  }
+
   /** Tile de configuraciones */
   .mc-config-tile {
     @apply rounded-md border border-neutral-200/50 bg-[var(--cat-surface)] transition duration-200 ease-in-out;
@@ -139,6 +359,56 @@
     position: relative;
     z-index: 1;
   }
+
+  /** Personalizar tienda — fondo suave, tiles elevados */
+  .mc-personalizar-page {
+    position: relative;
+    isolation: isolate;
+    min-height: calc(100dvh - 5.25rem - env(safe-area-inset-bottom, 0px));
+  }
+  .mc-personalizar-page::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    top: -1rem;
+    bottom: 0;
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    background:
+      radial-gradient(ellipse 120% 80% at 50% -20%, color-mix(in srgb, #c5a367 7%, transparent), transparent 55%),
+      var(--cat-bg, #faf9f7);
+  }
+  .mc-personalizar-tile {
+    @apply rounded-2xl border p-4 transition duration-200 ease-in-out active:scale-[0.995] sm:p-5;
+    border-color: color-mix(in srgb, var(--cat-text) 8%, white);
+    background: linear-gradient(
+      165deg,
+      color-mix(in srgb, white 98%, var(--cat-bg)) 0%,
+      color-mix(in srgb, var(--cat-surface) 96%, white) 100%
+    );
+    box-shadow:
+      0 1px 0 color-mix(in srgb, white 80%, transparent),
+      0 8px 24px -12px color-mix(in srgb, var(--cat-text) 14%, transparent),
+      0 2px 6px -2px color-mix(in srgb, var(--cat-text) 6%, transparent);
+  }
+  .mc-personalizar-tile:hover {
+    border-color: color-mix(in srgb, #c5a367 28%, var(--cat-text) 8%);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, white 80%, transparent),
+      0 14px 32px -14px color-mix(in srgb, #8b6d42 22%, transparent),
+      0 4px 10px -4px color-mix(in srgb, var(--cat-text) 8%, transparent);
+  }
+  .mc-personalizar-tile__icon {
+    border: 1px solid color-mix(in srgb, #c5a367 22%, transparent);
+    background: linear-gradient(
+      145deg,
+      color-mix(in srgb, #c5a367 10%, white) 0%,
+      color-mix(in srgb, #c5a367 4%, var(--cat-surface)) 100%
+    );
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 70%, transparent);
+  }
+
   /** «Eres Expert» en Tu plan / Configuraciones */
   .mc-plan-elegance {
     font-family: var(--font-sans);
@@ -370,6 +640,19 @@
   .mc-reg-step-animate {
     animation: none;
   }
+  .mc-ptr-spinner-active {
+    animation: none;
+  }
+}
+
+@keyframes mc-ptr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mc-ptr-spinner-active {
+  animation: mc-ptr-spin 0.75s linear infinite;
 }
 
 /* Contenedor app admin: tab bar en desktop más ancho */
@@ -696,6 +979,14 @@
     @apply pt-3 sm:pt-4 md:pt-6 lg:pt-8;
   }
 
+  /** Catálogo con sidebar de categorías */
+  .mc-cat-layout {
+    @apply pt-2 sm:pt-4;
+  }
+  .mc-cat-sidebar {
+    @apply pt-1;
+  }
+
   /** Checkout público: paneles desplegables */
   .mc-checkout-panel > summary {
     list-style: none;
@@ -953,6 +1244,29 @@
   }
   .mc-landing-btn-light {
     @apply border border-white/20 bg-white text-mc-brand-gray hover:bg-white/95 hover:shadow-[0_8px_24px_-8px_rgba(255,255,255,0.25)];
+  }
+  .mc-landing-btn__label {
+    @apply inline-flex items-center gap-2;
+  }
+  .mc-landing-btn__badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase leading-none tracking-[0.1em];
+  }
+  .mc-landing-btn-primary .mc-landing-btn__badge,
+  .mc-landing-btn-nav .mc-landing-btn__badge {
+    @apply bg-mc-brand-gold text-mc-brand-gray shadow-[inset_0_1px_0_rgba(255,255,255,0.28)];
+  }
+  .mc-landing-btn-secondary .mc-landing-btn__badge,
+  .mc-landing-btn-ghost .mc-landing-btn__badge {
+    @apply bg-[color-mix(in_srgb,var(--mc-landing-gold)_20%,white)] text-[var(--mc-landing-gold-dark)];
+  }
+  .mc-landing-btn-light .mc-landing-btn__badge {
+    @apply bg-mc-brand-gold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)];
+  }
+  .mc-landing-btn-nav .mc-landing-btn__label {
+    @apply gap-1.5;
+  }
+  .mc-landing-btn-nav .mc-landing-btn__badge {
+    @apply px-1.5 py-0.5 text-[9px];
   }
 
   /* Nav */

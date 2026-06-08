@@ -3,6 +3,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { CheckoutVentasModoOptions } from '@/app/CheckoutVentasModoOptions'
 import { CheckoutVentasModoSuccessModal } from '@/app/CheckoutVentasModoSuccessModal'
 import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
+import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { explicitCheckoutVentasModo, type McCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
@@ -10,7 +11,8 @@ import { MC } from '@/lib/mcCollections'
 import type { McPlatformSettings } from '@/types/mc'
 
 export function CuentaCheckoutVentasSeleccionPage() {
-  const { profile, tenant } = useMcAuth()
+  const { tenant, effectiveTenantId } = useMcAuth()
+  const { returnTo, returnLabel, navState, fromOutsideConfig } = useConfigSubpageNav()
   const [checkoutVentasModo, setCheckoutVentasModo] = useState<McCheckoutVentasModo | null>(null)
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [busy, setBusy] = useState(false)
@@ -33,11 +35,11 @@ export function CuentaCheckoutVentasSeleccionPage() {
   const pasarelaMicatalogoOk = platformSettings?.pasarelaMicatalogoActiva === true
 
   async function handleSelect(modo: McCheckoutVentasModo) {
-    if (!profile?.tenantId || busy) return
+    if (!effectiveTenantId || busy) return
     setBusy(true)
     setErrMsg(null)
     try {
-      await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), { checkoutVentasModo: modo })
+      await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), { checkoutVentasModo: modo })
       setCheckoutVentasModo(modo)
       setSuccessModo(modo)
     } catch {
@@ -51,28 +53,27 @@ export function CuentaCheckoutVentasSeleccionPage() {
     <>
       <ConfiguracionesSubpageLayout
         title="Seleccionar método de pago"
-        backTo="/app/cuenta/checkout-ventas"
-        backLabel="← Método de pago"
+        backTo={fromOutsideConfig ? returnTo : '/app/cuenta/checkout-ventas'}
+        backLabel={fromOutsideConfig ? returnLabel : '← Método de pago'}
       >
-        <div className="mc-card space-y-5">
-          <p className="ios-footnote leading-relaxed text-[var(--cat-muted)]">
-            Tocá una opción para guardarla al instante. Cada método tiene ventajas distintas según cómo quieras cobrar.
-          </p>
-          <CheckoutVentasModoOptions
-            variant="detailed"
-            value={checkoutVentasModo}
-            disabled={busy}
-            pasarelaLista={pasarelaLista}
-            pasarelaMicatalogoOk={pasarelaMicatalogoOk}
-            onSelect={(modo) => void handleSelect(modo)}
-          />
-          {errMsg ? <p className="text-[15px] text-red-700">{errMsg}</p> : null}
-        </div>
+        <p className="text-[13px] leading-relaxed text-[var(--cat-muted)] sm:text-[14px]">
+          Tocá una opción para guardarla al instante. Cada método tiene ventajas distintas según cómo quieras cobrar.
+        </p>
+        <CheckoutVentasModoOptions
+          variant="detailed"
+          value={checkoutVentasModo}
+          disabled={busy}
+          pasarelaLista={pasarelaLista}
+          pasarelaMicatalogoOk={pasarelaMicatalogoOk}
+          onSelect={(modo) => void handleSelect(modo)}
+        />
+        {errMsg ? <p className="text-[15px] text-red-700">{errMsg}</p> : null}
       </ConfiguracionesSubpageLayout>
 
       <CheckoutVentasModoSuccessModal
         open={successModo !== null}
         modo={successModo}
+        navState={navState}
         onClose={() => setSuccessModo(null)}
       />
     </>

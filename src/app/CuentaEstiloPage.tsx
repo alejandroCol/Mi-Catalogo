@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
+import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ExpertStar } from '@/components/billing/ExpertStar'
+import { ExpertUpgradeSheet } from '@/components/billing/ExpertUpgradeSheet'
 import { hasExpertFeatureAccess } from '@/lib/billingAccess'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
+import { buildStorePublicUrl } from '@/lib/storePublicUrl'
 import { buildCatalogThemeForSave, defaultColorsForPreset } from '@/lib/catalogTheme'
 import { CatalogPresetPickerGrid } from '@/app/CatalogPresetPickerGrid'
 import { PublicCatalogThemePreview } from '@/app/PublicCatalogThemePreview'
@@ -16,11 +19,12 @@ import type { McCatalogThemePreset } from '@/types/mc'
 const HEX = /^#[0-9A-Fa-f]{6}$/
 
 export function CuentaEstiloPage() {
-  const { profile, tenant } = useMcAuth()
-  const nav = useNavigate()
+  const { tenant, effectiveTenantId } = useMcAuth()
+  const { returnTo, returnLabel, navState } = useConfigSubpageNav()
   const expertAccess = hasExpertFeatureAccess(tenant)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [expertSheetOpen, setExpertSheetOpen] = useState(false)
   const { showSaveSuccess } = useSaveSuccess()
 
   const [preset, setPreset] = useState<McCatalogThemePreset>('morning')
@@ -45,9 +49,9 @@ export function CuentaEstiloPage() {
   }, [tenant])
 
   async function guardarTema() {
-    if (!profile?.tenantId || !tenant) return
+    if (!effectiveTenantId || !tenant) return
     if (!expertAccess) {
-      nav('/app/plan')
+      setExpertSheetOpen(true)
       return
     }
     setBusy(true)
@@ -61,7 +65,7 @@ export function CuentaEstiloPage() {
         ...(HEX.test(cText) ? { text: cText } : {}),
         ...(HEX.test(cMuted) ? { muted: cMuted } : {}),
       }
-      await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), {
+      await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), {
         catalogTheme: buildCatalogThemeForSave(preset, colors),
       })
       showSaveSuccess({
@@ -89,8 +93,11 @@ export function CuentaEstiloPage() {
   return (
     <div className="mc-shell mc-config-subpage">
       <div>
-        <ConfiguracionesBackLink />
-        <h1 className="ios-large-title mt-3">Estilo del portal de venta</h1>
+        <ConfiguracionesBackLink to={returnTo} label={returnLabel} state={navState} />
+        <h1 className="ios-large-title mt-3 inline-flex items-center gap-2">
+          <ExpertStar />
+          Estilo del portal de venta
+        </h1>
         <p className="ios-subhead mt-2 max-w-xl leading-relaxed text-[var(--cat-muted)]">
           Definí cómo se ve tu catálogo público: plantilla, colores y vista previa antes de publicar.
         </p>
@@ -112,12 +119,14 @@ export function CuentaEstiloPage() {
               Elegí <strong className="font-medium text-[var(--cat-text)]">cómo se ve el catálogo</strong>: cada plantilla
               tiene un layout distinto (lista, cuadrícula, vidriera, fotos grandes…). Los colores del panel siguen el tema.
               Guardá para publicar en{' '}
-              <Link
-                to={`/c/${tenant.slug}`}
+              <a
+                href={buildStorePublicUrl(tenant.slug)}
+                target="_blank"
+                rel="noreferrer"
                 className="font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4"
               >
                 tu URL pública
-              </Link>
+              </a>
               .
             </p>
           </div>
@@ -179,6 +188,12 @@ export function CuentaEstiloPage() {
           </button>
         </div>
       )}
+
+      <ExpertUpgradeSheet
+        open={expertSheetOpen}
+        onClose={() => setExpertSheetOpen(false)}
+        title="Estilo del catálogo — Plan Expert"
+      />
     </div>
   )
 }

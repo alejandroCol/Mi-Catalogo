@@ -14,12 +14,20 @@ export function mcAnalyticsDateKeysForPeriod(days: number, endMs = Date.now()): 
 }
 
 export function mcAnalyticsShortDayLabel(dateKey: string): string {
+  const { weekday, day } = mcAnalyticsDayLabelParts(dateKey)
+  return day ? `${weekday} ${day}` : weekday
+}
+
+/** Partes del eje X para apilar día y fecha sin solaparse. */
+export function mcAnalyticsDayLabelParts(dateKey: string): { weekday: string; day: string } {
   const [y, m, d] = dateKey.split('-').map(Number)
-  if (!y || !m || !d) return dateKey
-  return new Date(y, m - 1, d).toLocaleDateString('es-CO', {
-    weekday: 'short',
-    day: 'numeric',
-  })
+  if (!y || !m || !d) return { weekday: dateKey, day: '' }
+  const date = new Date(y, m - 1, d)
+  const weekday = date
+    .toLocaleDateString('es-CO', { weekday: 'short' })
+    .replace(/\./g, '')
+    .toUpperCase()
+  return { weekday, day: String(d) }
 }
 
 const SESSION_STORAGE_KEY = 'mc_analytics_session_id'

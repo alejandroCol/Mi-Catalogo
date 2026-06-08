@@ -15,6 +15,17 @@ export const SEASON_BANNER_LIMITS = {
   ctaLabel: 32,
 } as const
 
+/** Medidas recomendadas para la imagen de campaña (pantalla completa, object-cover). */
+export const SEASON_BANNER_IMAGE_SPECS = {
+  vertical: { width: 1080, height: 1920, ratio: '9:16', label: 'Vertical (ideal en celular)' },
+  horizontal: { width: 1920, height: 1080, ratio: '16:9', label: 'Horizontal (ideal en escritorio)' },
+  minimum: { width: 1200, height: 1600 },
+} as const
+
+export function formatSeasonBannerDimensions(width: number, height: number): string {
+  return `${width.toLocaleString('es')} × ${height.toLocaleString('es')} px`
+}
+
 export function seasonBannerStoragePath(tenantId: string): string {
   return `mc_tenants/${tenantId}/season_banner/hero.jpg`
 }

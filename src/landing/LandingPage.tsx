@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
+import { isMcSuperAdminUser, resolveMcHomePath } from '@/lib/mcUserFromFirestore'
 import { LandingNav } from '@/landing/components/LandingNav'
 import { LandingHero } from '@/landing/components/LandingHero'
 import { LandingStoreShowcase } from '@/landing/components/LandingStoreShowcase'
@@ -12,7 +13,7 @@ import { LandingFooter } from '@/landing/components/LandingFooter'
 import { LandingMobileDock } from '@/landing/components/LandingMobileDock'
 
 export function LandingPage() {
-  const { firebaseUser, loading } = useMcAuth()
+  const { firebaseUser, profile, profileReady, loading, isImpersonating } = useMcAuth()
 
   useEffect(() => {
     document.title = 'Mi Catálogo — Creá tu tienda online y empezá a vender'
@@ -25,8 +26,13 @@ export function LandingPage() {
     }
   }, [])
 
-  if (!loading && firebaseUser?.emailVerified) {
-    return <Navigate to="/app" replace />
+  if (!loading && profileReady && firebaseUser) {
+    if (isImpersonating) {
+      return <Navigate to="/app" replace />
+    }
+    if (profile && (firebaseUser.emailVerified || isMcSuperAdminUser(profile))) {
+      return <Navigate to={resolveMcHomePath(profile)} replace />
+    }
   }
 
   return (

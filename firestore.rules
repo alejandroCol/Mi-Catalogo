@@ -189,6 +189,12 @@ service cloud.firestore {
         && exists(mcUserPath())
         && mcUserData().isSuperAdmin == true;
     }
+    function mcIsSalesRep() {
+      return mcSignedIn()
+        && exists(mcUserPath())
+        && mcUserData().role == 'sales_rep'
+        && (!('active' in mcUserData()) || mcUserData().active != false);
+    }
     function mcTenantIsExpert(data) {
       return 'billingPlan' in data && data.billingPlan == 'expert';
     }
@@ -250,6 +256,7 @@ service cloud.firestore {
         'politicasPagos',
         'politicasCambios',
         'checkoutVentasModo',
+        'onboardingSharePromptSeenAt',
       ];
     }
     /** Incluye `catalogTheme` para plan Expert. */
@@ -282,6 +289,7 @@ service cloud.firestore {
         'politicasPagos',
         'politicasCambios',
         'checkoutVentasModo',
+        'onboardingSharePromptSeenAt',
       ];
     }
     function mcBelongsToTenant(tid) {
@@ -290,35 +298,30 @@ service cloud.firestore {
         && (mcUserData().tenantId == tid || mcUserData().isSuperAdmin == true);
     }
     /** exists() primero: un get() a doc inexistente tumba toda la condición de la regla. */
+    function mcTenantIsFreePlan(data) {
+      return !('billingPlan' in data) || data.billingPlan == 'free';
+    }
     /** subscriptionEndsAt es ms (number). En Firestore puede almacenarse como double; is int fallaba → permission-denied en catálogo público. */
+    function mcTenantSubscriptionEndsOk(data) {
+      return (data.subscriptionEndsAt is number && data.subscriptionEndsAt > request.time.toMillis())
+        || (data.subscriptionEndsAt is timestamp && data.subscriptionEndsAt > request.time);
+    }
+    /** Plan Free: acceso sin vencimiento. Expert: requiere subscriptionEndsAt vigente. */
     function mcTenantSubActive(tid) {
+      let data = get(/databases/$(database)/documents/mc_tenants/$(tid)).data;
       return exists(/databases/$(database)/documents/mc_tenants/$(tid))
-        && (
-          (get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt is number
-            && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt
-              > request.time.toMillis())
-          || (get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt is timestamp
-            && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.subscriptionEndsAt
-              > request.time)
-        );
+        && (mcTenantIsFreePlan(data) || mcTenantSubscriptionEndsOk(data));
     }
     /** Versión vigente de T&C plataforma (default = src/lib/platformTerms.ts). */
     function mcCurrentPlatformTermsVersion() {
-      return exists(/databases/$(database)/documents/mc_platform/settings)
+      return (
+        exists(/databases/$(database)/documents/mc_platform/settings)
+        && get(/databases/$(database)/documents/mc_platform/settings).data.keys().hasAny(['platformTermsVersion'])
         && get(/databases/$(database)/documents/mc_platform/settings).data.platformTermsVersion is string
         && get(/databases/$(database)/documents/mc_platform/settings).data.platformTermsVersion.size() > 0
+      )
         ? get(/databases/$(database)/documents/mc_platform/settings).data.platformTermsVersion
         : '2026-05-23';
-    }
-    function mcPlatformTermsAcceptanceFieldsOk(data) {
-      return data.platformTermsAcceptedAt is int
-        && data.platformTermsVersion is string
-        && data.platformTermsVersion == mcCurrentPlatformTermsVersion()
-        && data.platformTermsAcceptedByUid == request.auth.uid
-        && data.platformTermsAcceptedByEmail == request.auth.token.email
-        && data.platformTermsContentHash is string
-        && data.platformTermsContentHash.size() > 0
-        && (!('platformTermsUserAgent' in data) || data.platformTermsUserAgent is string);
     }
 
     match /mc_users/{uid} {
@@ -340,6 +343,7 @@ service cloud.firestore {
 
     match /mc_tenants/{tid} {
       allow read: if mcIsSuperAdmin()
+        || mcIsSalesRep()
         || mcTenantSubActive(tid)
         || (mcSignedIn() && mcBelongsToTenant(tid));
       allow create: if mcSignedIn()
@@ -347,11 +351,20 @@ service cloud.firestore {
         && request.resource.data.slug is string
         && request.resource.data.nombreTienda is string
         && request.resource.data.whatsappNumero is string
-        && request.resource.data.subscriptionEndsAt is int
-        && request.resource.data.subscriptionEndsAt > request.time.toMillis()
-        && request.resource.data.createdAt is int
+        && request.resource.data.createdAt is number
         && (!('billingPlan' in request.resource.data) || request.resource.data.billingPlan == 'free')
-        && mcPlatformTermsAcceptanceFieldsOk(request.resource.data);
+        && (!('subscriptionEndsAt' in request.resource.data)
+          || (request.resource.data.subscriptionEndsAt is number
+            && request.resource.data.subscriptionEndsAt > request.time.toMillis()))
+        && request.resource.data.platformTermsAcceptedAt is number
+        && request.resource.data.platformTermsVersion is string
+        && request.resource.data.platformTermsVersion == mcCurrentPlatformTermsVersion()
+        && request.resource.data.platformTermsAcceptedByUid == request.auth.uid
+        && request.resource.data.platformTermsAcceptedByEmail == request.auth.token.email
+        && request.resource.data.platformTermsContentHash is string
+        && request.resource.data.platformTermsContentHash.size() > 0
+        && (!('platformTermsUserAgent' in request.resource.data)
+          || request.resource.data.platformTermsUserAgent is string);
       allow update: if mcIsSuperAdmin()
         || (
           mcSignedIn()
@@ -401,12 +414,24 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function mcStoreSlugReserved(slug) {
+      return slug == 'www' || slug == 'app' || slug == 'api' || slug == 'admin'
+        || slug == 'mail' || slug == 'smtp' || slug == 'cdn' || slug == 'static'
+        || slug == 'assets' || slug == 'staging' || slug == 'dev' || slug == 'test'
+        || slug == 'beta' || slug == 'demo' || slug == 'help' || slug == 'support'
+        || slug == 'status' || slug == 'blog' || slug == 'docs' || slug == 'superadmin'
+        || slug == 'login' || slug == 'registro' || slug == 'firebase' || slug == 'auth'
+        || slug == 'ftp' || slug == 'ns' || slug == 'mx' || slug == 'c';
+    }
+
     match /mc_slugs/{slug} {
-      /** get: permitir doc inexistente (registro / comprobar URL) o slug activo (catálogo público). */
+      /** get: registro puede leer slugs libres/inactivos; catálogo público solo slugs activos. */
       allow get: if !exists(/databases/$(database)/documents/mc_slugs/$(slug))
-        || get(/databases/$(database)/documents/mc_slugs/$(slug)).data.active == true;
+        || resource.data.active == true
+        || resource.data.active == false;
       allow list: if false;
       allow create: if mcSignedIn()
+        && !mcStoreSlugReserved(slug)
         && request.resource.data.active == true
         && request.resource.data.tenantId is string
         && request.resource.data.updatedAt is int
@@ -434,7 +459,7 @@ service cloud.firestore {
       allow create: if mcSignedIn()
         && request.auth.uid
           == get(/databases/$(database)/documents/mc_tenants/$(tid)).data.ownerUid
-        && request.resource.data.acceptedAt is int
+        && request.resource.data.acceptedAt is number
         && request.resource.data.termsVersion is string
         && request.resource.data.termsVersion == version
         && request.resource.data.termsVersion == mcCurrentPlatformTermsVersion()
@@ -468,6 +493,16 @@ service cloud.firestore {
     match /mc_billing_discount_codes/{codeId} {
       allow read: if mcIsSuperAdmin();
       allow write: if mcIsSuperAdmin();
+    }
+
+    match /mc_tutorial_sections/{sectionId} {
+      allow read: if mcSignedIn();
+      allow write: if mcIsSuperAdmin();
+
+      match /tutorials/{tutorialId} {
+        allow read: if mcSignedIn();
+        allow write: if mcIsSuperAdmin();
+      }
     }
 
     match /mc_billing_checkouts/{checkoutId} {
@@ -512,6 +547,15 @@ service cloud.firestore {
         && mcBelongsToTenant(tid)
         && (mcTenantSubActive(tid) || mcIsSuperAdmin());
       allow delete: if mcSignedIn()
+        && mcBelongsToTenant(tid)
+        && (mcTenantSubActive(tid) || mcIsSuperAdmin());
+    }
+
+    match /mc_tenants/{tid}/categorias/{cid} {
+      allow read: if mcIsSuperAdmin()
+        || (resource.data.activa == true && mcTenantSubActive(tid))
+        || (mcSignedIn() && mcBelongsToTenant(tid));
+      allow create, update, delete: if mcSignedIn()
         && mcBelongsToTenant(tid)
         && (mcTenantSubActive(tid) || mcIsSuperAdmin());
     }
@@ -631,6 +675,66 @@ service cloud.firestore {
             'seguimientoEntregaAt'
           ]);
       allow delete: if false;
+    }
+
+    /** Auditoría de modo soporte (súper admin impersonando tienda). Escritura solo Admin SDK. */
+    match /mc_impersonation_sessions/{sessionId} {
+      allow read: if mcIsSuperAdmin();
+      allow write: if false;
+    }
+
+    /** Visitas presenciales registradas por vendedores de campo. */
+    match /mc_sales_visits/{visitId} {
+      allow read: if mcIsSuperAdmin()
+        || (mcIsSalesRep() && resource.data.salesRepUid == request.auth.uid);
+      allow create: if mcIsSalesRep()
+        && request.resource.data.salesRepUid == request.auth.uid
+        && request.resource.data.salesRepName is string
+        && request.resource.data.storeName is string
+        && request.resource.data.storeName.size() > 0
+        && request.resource.data.storeName.size() <= 200
+        && request.resource.data.outcome in ['venta_exitosa', 'pendiente', 'rechazo']
+        && request.resource.data.dateKey is string
+        && request.resource.data.dateKey.size() == 10
+        && request.resource.data.createdAt is int
+        && (
+          request.resource.data.outcome != 'rechazo'
+          || (
+            request.resource.data.rejectionReason is string
+            && request.resource.data.rejectionReason.size() > 0
+            && request.resource.data.rejectionReason.size() <= 500
+          )
+        )
+        && (
+          !('storeDetail' in request.resource.data)
+          || (
+            request.resource.data.storeDetail is string
+            && request.resource.data.storeDetail.size() <= 500
+          )
+        )
+        && (
+          !('tenantId' in request.resource.data)
+          || (
+            request.resource.data.tenantId is string
+            && request.resource.data.tenantId.size() > 0
+            && exists(/databases/$(database)/documents/mc_tenants/$(request.resource.data.tenantId))
+          )
+        )
+        && (
+          !('tenantSlug' in request.resource.data)
+          || (
+            request.resource.data.tenantSlug is string
+            && request.resource.data.tenantSlug.size() > 0
+            && request.resource.data.tenantSlug.size() <= 80
+          )
+        );
+      allow update, delete: if false;
+    }
+
+    /** Tiendas demo para mostrar a marcas (vendedores leen; súper admin escribe). */
+    match /mc_demo_stores/{demoId} {
+      allow read: if mcIsSuperAdmin() || mcIsSalesRep();
+      allow create, update, delete: if mcIsSuperAdmin();
     }
   }
 }

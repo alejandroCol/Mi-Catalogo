@@ -2,7 +2,18 @@
   "functions": {
     "source": "functions",
     "codebase": "default",
-    "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local"],
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
+      "*.local",
+      "src",
+      "tsconfig.json",
+      "*.ts",
+      ".env",
+      ".env.*"
+    ],
     "predeploy": [
       "node scripts/ensure-functions-lib.cjs",
       "npm --prefix \"$RESOURCE_DIR\" run build"

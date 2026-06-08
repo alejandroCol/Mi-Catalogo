@@ -1,13 +1,14 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
-import { LANDING_REGISTER_PATH } from '@/landing/landingContent'
+import { LANDING_REGISTER_PATH, landingRegisterCta } from '@/landing/landingContent'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'nav' | 'light'
 
 type Props = {
   variant?: Variant
   className?: string
-  children?: string
+  children?: ReactNode
   fullWidth?: boolean
 }
 
@@ -19,18 +20,33 @@ const VARIANT_CLASS: Record<Variant, string> = {
   light: 'mc-landing-btn-light',
 }
 
+function DefaultCtaLabel() {
+  return (
+    <span className="mc-landing-btn__label">
+      {landingRegisterCta.label}
+      <span className="mc-landing-btn__badge">{landingRegisterCta.highlight}</span>
+    </span>
+  )
+}
+
 export function LandingRegisterButton({
   variant = 'primary',
   className = '',
-  children = 'Registrar mi tienda',
+  children,
   fullWidth = false,
 }: Props) {
+  const ariaLabel =
+    typeof children === 'string'
+      ? children
+      : `${landingRegisterCta.label} ${landingRegisterCta.highlight}`
+
   return (
     <Link
       to={LANDING_REGISTER_PATH}
       className={clsx(VARIANT_CLASS[variant], fullWidth && 'w-full', className)}
+      aria-label={ariaLabel}
     >
-      {children}
+      {children ?? <DefaultCtaLabel />}
     </Link>
   )
 }

@@ -4,6 +4,7 @@ import { httpsCallable } from 'firebase/functions'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, firebaseStorageConfigured, getFirebaseFunctions, getStorageApp } from '@/lib/firebase'
+import { buildStorePublicUrl } from '@/lib/storePublicUrl'
 import { IconBankCard, IconChevronLeft, IconChevronRight } from '@/icons/McIcons'
 import {
   ONEPAY_KYB_ACCOUNT_TYPES_ORDER,
@@ -19,13 +20,9 @@ import {
   onepayFundWithdrawalPeriodLabel,
   type OnepayFundWithdrawalPeriod,
 } from '@/lib/onepayFundWithdrawalPeriod'
-import {
-  divipolaCodMpioToSuggestedCityId,
-  searchDivipolaMunicipios,
-  type DivipolaMunicipio,
-} from '@/lib/divipolaCities'
-import { isSubscriptionActive } from '@/lib/subscription'
+import { isTenantMembershipActive } from '@/lib/subscription'
 import { KybPdfUploadField, type KybPdfFieldKey } from '@/components/onepay/KybPdfUploadField'
+import { OnepayKybCityPicker } from '@/components/onepay/OnepayKybCityPicker'
 
 function callableErrorMessage(e: unknown): string {
   if (
@@ -44,7 +41,7 @@ type CompanyKind = 'organization' | 'individual'
 type KybBankRow = { id: string; name: string; supported_types: string[] }
 
 export function PagosPasarelaPage() {
-  const { profile, tenant, firebaseUser } = useMcAuth()
+  const { profile, tenant, firebaseUser, isActingAsStoreOwner } = useMcAuth()
   const idemNonceRef = useRef<string | null>(null)
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto && !idemNonceRef.current) {
     idemNonceRef.current = crypto.randomUUID()
@@ -72,13 +69,7 @@ export function PagosPasarelaPage() {
   const [retentionFuente, setRetentionFuente] = useState(false)
 
   const [cityId, setCityId] = useState('')
-  const [cityQuery, setCityQuery] = useState('')
-  const [cityHits, setCityHits] = useState<DivipolaMunicipio[]>([])
-  const [cityHitsOpen, setCityHitsOpen] = useState(false)
-  const [cityHitsLoading, setCityHitsLoading] = useState(false)
-  const [cityHitsErr, setCityHitsErr] = useState<string | null>(null)
-  const citySearchAbortRef = useRef<AbortController | null>(null)
-  const citySearchTimerRef = useRef<number | null>(null)
+  const [cityLabel, setCityLabel] = useState('')
   const [address, setAddress] = useState('')
   const [addressHint, setAddressHint] = useState('')
   const [zipcode, setZipcode] = useState('')
@@ -112,7 +103,7 @@ export function PagosPasarelaPage() {
 
   const publicCatalogUrl = useMemo(() => {
     if (!tenant?.slug) return ''
-    return `${window.location.origin}/c/${tenant.slug}`
+    return buildStorePublicUrl(tenant.slug)
   }, [tenant?.slug])
 
   /** true = persona jurídica; false = persona natural */
@@ -164,67 +155,8 @@ export function PagosPasarelaPage() {
     setStep((s) => Math.min(s, maxStep))
   }, [maxStep])
 
-  useEffect(() => {
-    return () => {
-      if (citySearchTimerRef.current) window.clearTimeout(citySearchTimerRef.current)
-      citySearchAbortRef.current?.abort()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (step !== 1) return
-
-    if (citySearchTimerRef.current) window.clearTimeout(citySearchTimerRef.current)
-    citySearchAbortRef.current?.abort()
-
-    const q = cityQuery.trim()
-    if (q.length < 3) {
-      setCityHits([])
-      setCityHitsLoading(false)
-      setCityHitsErr(null)
-      return
-    }
-
-    citySearchTimerRef.current = window.setTimeout(() => {
-      const ctrl = new AbortController()
-      citySearchAbortRef.current = ctrl
-      setCityHitsLoading(true)
-      setCityHitsErr(null)
-
-      searchDivipolaMunicipios(q, { limit: 12, signal: ctrl.signal })
-        .then((rows) => {
-          if (ctrl.signal.aborted) return
-          setCityHits(rows)
-          setCityHitsOpen(true)
-        })
-        .catch(() => {
-          if (ctrl.signal.aborted) return
-          setCityHitsErr('No pudimos cargar el listado municipal. Probá de nuevo.')
-          setCityHits([])
-        })
-        .finally(() => {
-          if (!ctrl.signal.aborted) setCityHitsLoading(false)
-        })
-    }, 340)
-
-    return () => {
-      if (citySearchTimerRef.current) window.clearTimeout(citySearchTimerRef.current)
-      citySearchAbortRef.current?.abort()
-    }
-  }, [cityQuery, step])
-
-  function pickCityFromDivipola(row: DivipolaMunicipio) {
-    const id = divipolaCodMpioToSuggestedCityId(row.cod_mpio)
-    if (id === null) return
-    setCityId(String(id))
-    setCityQuery(`${row.nom_mpio}, ${row.dpto}`)
-    setCityHits([])
-    setCityHitsOpen(false)
-    setErr(null)
-  }
-
-  const isOwner = Boolean(profile?.uid && tenant?.ownerUid && profile.uid === tenant.ownerUid)
-  const subActive = tenant ? isSubscriptionActive(tenant.subscriptionEndsAt) : false
+  const isOwner = isActingAsStoreOwner
+  const subActive = tenant ? isTenantMembershipActive(tenant) : false
 
   const kyb = tenant?.onepayKybStatus
   const pending = kyb === 'pending'
@@ -338,7 +270,9 @@ export function PagosPasarelaPage() {
         }
       }
       if (s === 1) {
-        if (!cityId.trim() || !/^\d+$/.test(cityId.trim())) return 'ID de ciudad (numérico). Buscala arriba o escribilo a mano.'
+        if (!cityId.trim() || !/^\d+$/.test(cityId.trim())) {
+          return 'Elegí departamento y ciudad del listado OnePay.'
+        }
         if (!address.trim()) return 'Completá la dirección.'
         if (!addressHint.trim()) return 'Completá complemento (piso, local, etc.).'
         if (!/^\d{5,9}$/.test(zipcode.trim())) return 'Código postal: 5 a 9 dígitos.'
@@ -866,86 +800,13 @@ export function PagosPasarelaPage() {
 
             {step === 1 && (
               <>
-                <div className="space-y-1">
-                  <label className="block space-y-1">
-                    <span className="text-[12px] font-medium text-[var(--cat-muted)]">Buscar ciudad o municipio</span>
-                    <div className="relative">
-                      <input
-                        className="mc-input w-full"
-                        value={cityQuery}
-                        disabled={busy}
-                        autoComplete="off"
-                        placeholder="Ej.: Medellín, Barranquilla, 11001…"
-                        onChange={(e) => {
-                          setCityQuery(e.target.value)
-                          setCityHitsOpen(true)
-                        }}
-                        onFocus={() => cityHits.length > 0 && setCityHitsOpen(true)}
-                      />
-                      {cityHitsOpen && cityHits.length > 0 ? (
-                        <div
-                          className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-neutral-200/80 bg-[var(--cat-surface)] shadow-sm"
-                          role="listbox"
-                        >
-                          {cityHits.map((row) => {
-                            const sug = divipolaCodMpioToSuggestedCityId(row.cod_mpio)
-                            const sub =
-                              sug === null ? `DIVIPOLA ${row.cod_mpio}` : `ID sugerido: ${sug} · DIVIPOLA ${row.cod_mpio}`
-                            return (
-                              <button
-                                key={`${row.cod_mpio}-${row.nom_mpio}`}
-                                type="button"
-                                role="option"
-                                className="flex w-full flex-col gap-0.5 border-b border-neutral-200/60 px-3 py-2 text-left text-[13px] last:border-b-0 hover:bg-neutral-100/70"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => pickCityFromDivipola(row)}
-                              >
-                                <span className="font-medium text-[var(--cat-text)]">{row.nom_mpio}</span>
-                                <span className="text-[11px] text-[var(--cat-muted)]">
-                                  {row.dpto} · {sub}
-                                </span>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  </label>
-                  {cityHitsLoading ? (
-                    <p className="text-[11px] text-[var(--cat-muted)]">Buscando en datos públicos DIVIPOLA…</p>
-                  ) : null}
-                  {cityHitsErr ? <p className="text-[11px] text-red-700">{cityHitsErr}</p> : null}
-                  {!cityHitsLoading && !cityHitsErr && cityQuery.trim().length >= 3 && cityHits.length === 0 ? (
-                    <p className="text-[11px] text-[var(--cat-muted)]">No encontramos coincidencias. Probá otro texto o cargá el ID a mano abajo.</p>
-                  ) : null}
-                  {cityQuery.trim().length > 0 && cityQuery.trim().length < 3 ? (
-                    <p className="text-[11px] text-[var(--cat-muted)]">Escribí al menos 3 caracteres (o 5 dígitos del código DANE).</p>
-                  ) : null}
-                </div>
-                <label className="block space-y-1">
-                  <span className="text-[12px] font-medium text-[var(--cat-muted)]">ID ciudad (OnePay, numérico)</span>
-                  <input
-                    className="mc-input w-full"
-                    value={cityId}
-                    onChange={(e) => setCityId(e.target.value)}
-                    disabled={busy}
-                    inputMode="numeric"
-                  />
-                  <span className="text-[11px] leading-relaxed text-[var(--cat-muted)]">
-                    OnePay espera{' '}
-                    <code className="rounded bg-neutral-500/15 px-1 py-0.5 text-[11px]">city_id</code> como entero en{' '}
-                    <a
-                      className="text-[var(--cat-accent)] underline"
-                      href="https://docs.onepay.la/client/companies/create"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Crear empresa
-                    </a>
-                    . Completamos un valor probable con la base oficial de municipios DIVIPOLA (código de 5 dígitos ↔ entero sin
-                    ceros a la izquierda). Si KYB rechaza ese número, verificá con soporte OnePay antes de repetir envío.
-                  </span>
-                </label>
+                <OnepayKybCityPicker
+                  cityId={cityId}
+                  cityLabel={cityLabel}
+                  onCityIdChange={setCityId}
+                  onCityLabelChange={setCityLabel}
+                  disabled={busy}
+                />
                 <label className="block space-y-1">
                   <span className="text-[12px] font-medium text-[var(--cat-muted)]">Dirección principal</span>
                   <input className="mc-input w-full" value={address} onChange={(e) => setAddress(e.target.value)} disabled={busy} />

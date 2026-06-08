@@ -114,6 +114,44 @@ export function IconLogo({ size, className }: McIconProps) {
   )
 }
 
+/** Personalizar tienda: varita mágica con destellos */
+export function IconMagicBrush({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M6.25 18.75 15.75 9.25"
+        stroke="currentColor"
+        strokeWidth={1.9}
+        strokeLinecap="round"
+      />
+      <path
+        d="M15.75 9.25 17.25 7.75"
+        stroke="currentColor"
+        strokeWidth={1.9}
+        strokeLinecap="round"
+      />
+      <path
+        d="M17.25 5.15 17.55 6.35 18.75 6.55 17.85 7.35 18.05 8.55 17.25 7.95 16.45 8.55 16.65 7.35 15.75 6.55 16.95 6.35Z"
+        fill="currentColor"
+      />
+      <path
+        d="M19.75 4.5v2.25M18.65 5.65h2.2"
+        stroke="currentColor"
+        strokeWidth={1.25}
+        strokeLinecap="round"
+      />
+      <path
+        d="M12.15 5.35v1.35M11.5 6.05h1.3"
+        stroke="currentColor"
+        strokeWidth={1.1}
+        strokeLinecap="round"
+        opacity={0.6}
+      />
+      <circle cx="19.1" cy="9.15" r="0.65" fill="currentColor" opacity={0.5} />
+    </Svg>
+  )
+}
+
 /** Envíos: paquete con cinta */
 export function IconShipping({ size, className }: McIconProps) {
   return (
@@ -375,6 +413,73 @@ export function IconLink({ size, className }: McIconProps) {
         strokeWidth={stroke}
         strokeLinecap="round"
       />
+    </Svg>
+  )
+}
+
+/** Video / tutoriales (círculo con play) */
+export function IconPlayCircle({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={stroke} />
+      <path
+        d="M10.25 8.75v6.5l5.5-3.25-5.5-3.25Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={0.5}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  )
+}
+
+/** Eliminar */
+export function IconTrash({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M5.5 7h13M9 7V5.5h6V7M8 7v10.5h8V7"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  )
+}
+
+/** Check / confirmación */
+export function IconCheck({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M5.5 12.5 9.5 16.5 18.5 7.5"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  )
+}
+
+/** Capacitación / formación */
+export function IconGraduationCap({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M3 9.5 12 5l9 4.5-9 4.5-9-4.5Z"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 11.25V15c0 1.2 2.7 2.25 6 2.25s6-1.05 6-2.25v-3.75"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+      />
+      <path d="M19.5 10v4.5" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
     </Svg>
   )
 }

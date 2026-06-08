@@ -32,6 +32,7 @@ import {
 import { buildProductShareData, canUseWebShare, shareSafe } from '@/lib/webShare'
 import type { McProducto, McProductoTalla, McProductoVariante } from '@/types/mc'
 import { usePublicTenant } from '@/public/usePublicTenant'
+import { usePublicStore } from '@/public/PublicStoreContext'
 import { usePublicProductViewTracking } from '@/public/usePublicCatalogAnalytics'
 import { useCartAddAnimation } from '@/public/cart-animation/CartAddAnimationContext'
 import { CART_FLY_DURATION_MS } from '@/public/cart-animation/flyBezier'
@@ -88,7 +89,8 @@ function buildGalleryUrls(prod: McProducto, variante?: McProductoVariante): stri
 }
 
 export function PublicProductDetailPage() {
-  const { slug, productId } = useParams<{ slug: string; productId: string }>()
+  const { productId } = useParams<{ productId: string }>()
+  const { slug, to, storePublicUrl } = usePublicStore()
   const { tenantId, tenant, loading, error } = usePublicTenant(slug)
   const { add, lines } = useCatalogoSimpleCart()
   const { playAddToCartFly } = useCartAddAnimation()
@@ -224,7 +226,7 @@ export function PublicProductDetailPage() {
     return (
       <div className="text-center">
         <p className="mc-pc-text">Artículo no disponible.</p>
-        <Link to={`/c/${slug ?? ''}`} className="mt-4 inline-block text-sm mc-pc-muted underline">
+        <Link to={to('/')} className="mt-4 inline-block text-sm mc-pc-muted underline">
           Volver al catálogo
         </Link>
       </div>
@@ -293,7 +295,7 @@ export function PublicProductDetailPage() {
       className="flex flex-wrap items-center gap-1.5 text-[12px] sm:text-[13px] mc-pc-muted"
       aria-label="Migas de pan"
     >
-      <Link to={`/c/${slug}`} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
+      <Link to={to('/')} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
         {tenant.nombreTienda}
       </Link>
       <span aria-hidden className="text-[color-mix(in_srgb,var(--cat-muted)_60%,transparent)]">
@@ -600,7 +602,7 @@ export function PublicProductDetailPage() {
                     buildProductShareData({
                       nombreTienda: tenant.nombreTienda,
                       productName: product.nombre,
-                      productUrl: `${window.location.origin}/c/${slug}/p/${product.id}`,
+                      productUrl: storePublicUrl(`/p/${product.id}`),
                     }),
                   )
                 }
@@ -734,7 +736,7 @@ export function PublicProductDetailPage() {
 
       <p className="mt-2 md:mt-8">
         <Link
-          to={`/c/${slug}`}
+          to={to('/')}
           className="text-sm font-medium text-[var(--cat-muted)] transition hover:text-[var(--cat-text)]"
         >
           ← Todos los productos

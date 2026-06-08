@@ -1,5 +1,5 @@
-import { collectionGroup, getDocs, query, where } from 'firebase/firestore'
 import type { Firestore } from 'firebase/firestore'
+import { fetchAnalyticsDailyDoc } from '@/hooks/useTenantAnalytics'
 import { mcAnalyticsDateKeysForPeriod } from '@/lib/mcAnalyticsDates'
 import type { McAnalyticsDaily } from '@/types/mc'
 
@@ -11,59 +11,41 @@ export type TenantAnalyticsRow = {
   checkoutStarts30d: number
 }
 
-function tenantIdFromAnalyticsPath(path: string): string | null {
-  const parts = path.split('/')
-  const idx = parts.indexOf('mc_tenants')
-  if (idx === -1 || !parts[idx + 1]) return null
-  return parts[idx + 1]!
-}
+const TENANT_BATCH_SIZE = 6
 
 function sumMetric(rows: McAnalyticsDaily[], key: keyof McAnalyticsDaily): number {
   return rows.reduce((acc, row) => acc + Number(row[key] ?? 0), 0)
 }
 
-async function fetchDailyByDateKeys(db: Firestore, dateKeys: string[]): Promise<Map<string, McAnalyticsDaily[]>> {
-  const byTenant = new Map<string, McAnalyticsDaily[]>()
-  if (dateKeys.length === 0) return byTenant
-
-  const chunks: string[][] = []
-  for (let i = 0; i < dateKeys.length; i += 10) {
-    chunks.push(dateKeys.slice(i, i + 10))
-  }
-
-  const snaps = await Promise.all(
-    chunks.map((chunk) => getDocs(query(collectionGroup(db, 'analytics_daily'), where('dateKey', 'in', chunk)))),
-  )
-
-  for (const snap of snaps) {
-    for (const docSnap of snap.docs) {
-      const tenantId = tenantIdFromAnalyticsPath(docSnap.ref.path)
-      if (!tenantId) continue
-      const row = docSnap.data() as McAnalyticsDaily
-      const list = byTenant.get(tenantId) ?? []
-      list.push(row)
-      byTenant.set(tenantId, list)
-    }
-  }
-
-  return byTenant
-}
-
-export async function fetchPlatformTenantAnalytics(db: Firestore): Promise<Map<string, TenantAnalyticsRow>> {
+async function fetchTenantAnalyticsWindow(tenantId: string): Promise<TenantAnalyticsRow> {
   const keys30 = mcAnalyticsDateKeysForPeriod(30)
   const keys7 = new Set(mcAnalyticsDateKeysForPeriod(7))
-  const byTenant = await fetchDailyByDateKeys(db, keys30)
-  const result = new Map<string, TenantAnalyticsRow>()
+  const rows = await Promise.all(keys30.map((dateKey) => fetchAnalyticsDailyDoc(tenantId, dateKey)))
+  const rows7 = rows.filter((row) => keys7.has(row.dateKey))
 
-  for (const [tenantId, rows] of byTenant) {
-    const rows7 = rows.filter((r) => keys7.has(r.dateKey))
-    result.set(tenantId, {
-      tenantId,
-      visits7d: sumMetric(rows7, 'visits'),
-      visits30d: sumMetric(rows, 'visits'),
-      pageViews30d: sumMetric(rows, 'pageViews'),
-      checkoutStarts30d: sumMetric(rows, 'checkoutStarts'),
-    })
+  return {
+    tenantId,
+    visits7d: sumMetric(rows7, 'visits'),
+    visits30d: sumMetric(rows, 'visits'),
+    pageViews30d: sumMetric(rows, 'pageViews'),
+    checkoutStarts30d: sumMetric(rows, 'checkoutStarts'),
+  }
+}
+
+/** Métricas de tráfico por tienda (getDoc por día; evita collectionGroup + `in`). */
+export async function fetchPlatformTenantAnalytics(
+  _db: Firestore,
+  tenantIds: string[],
+): Promise<Map<string, TenantAnalyticsRow>> {
+  const result = new Map<string, TenantAnalyticsRow>()
+  const uniqueIds = [...new Set(tenantIds.filter(Boolean))]
+
+  for (let i = 0; i < uniqueIds.length; i += TENANT_BATCH_SIZE) {
+    const batch = uniqueIds.slice(i, i + TENANT_BATCH_SIZE)
+    const rows = await Promise.all(batch.map((tenantId) => fetchTenantAnalyticsWindow(tenantId)))
+    for (const row of rows) {
+      result.set(row.tenantId, row)
+    }
   }
 
   return result

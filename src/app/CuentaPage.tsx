@@ -11,7 +11,7 @@ import { billingPlanOf } from '@/lib/catalogTheme'
 import { isCatalogoVendedorListo } from '@/lib/checkoutVentasModo'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
-import { isSubscriptionActive } from '@/lib/subscription'
+import { isTenantMembershipActive } from '@/lib/subscription'
 import type { McPlatformSettings } from '@/types/mc'
 
 export function CuentaPage() {
@@ -26,7 +26,7 @@ export function CuentaPage() {
     })
   }, [])
 
-  const active = tenant ? isSubscriptionActive(tenant.subscriptionEndsAt) : false
+  const active = tenant ? isTenantMembershipActive(tenant) : false
   const plan = tenant ? billingPlanOf(tenant) : 'free'
   const expertAccess = tenant ? hasExpertFeatureAccess(tenant) : false
   const catalogoListo = tenant ? isCatalogoVendedorListo(tenant, platformSettings) : false
@@ -62,15 +62,21 @@ export function CuentaPage() {
           <section className="mc-config-page__intro" aria-label="Tu plan">
             {expertAccess && <PlanEleganceBadge tenant={tenant} settings={platformSettings} />}
             {plan === 'free' ? (
-              <Link
-                to="/app/plan"
-                className="mc-config-page__plan-link flex flex-wrap items-center gap-3 no-underline transition duration-200 ease-in-out hover:opacity-[0.97]"
-              >
-                <span className="ios-footnote font-medium">Plan producto:</span>
-                <span className="border border-neutral-200/80 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-mc-600">
-                  Free
-                </span>
-              </Link>
+              <div className="space-y-2">
+                <Link
+                  to="/app/plan"
+                  className="mc-config-page__plan-link flex flex-wrap items-center gap-3 no-underline transition duration-200 ease-in-out hover:opacity-[0.97]"
+                >
+                  <span className="ios-footnote font-medium">Plan producto:</span>
+                  <span className="border border-neutral-200/80 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-mc-600">
+                    Free
+                  </span>
+                </Link>
+                <p className="inline-flex items-center gap-2 border border-emerald-200/70 bg-emerald-50/50 px-3 py-2 text-[12px] leading-relaxed text-emerald-900">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                  Acceso permanente · sin vencimiento
+                </p>
+              </div>
             ) : (
               <Link
                 to="/app/plan"

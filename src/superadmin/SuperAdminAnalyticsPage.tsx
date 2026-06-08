@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { AnalyticsStatCard, AnalyticsStatGrid } from '@/components/analytics/AnalyticsStatCard'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
-import { MC } from '@/lib/mcCollections'
+import { formatStorePublicUrlLabel } from '@/lib/storePublicUrl'
 import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 import { fetchTenantsOverview, type TenantOverviewRow } from '@/superadmin/fetchTenantsOverview'
 import {
@@ -12,10 +11,8 @@ import {
   sumPlatformAnalytics,
   type TenantAnalyticsRow,
 } from '@/superadmin/fetchPlatformAnalytics'
+import { NewStoreNotifyEmailSettings } from '@/superadmin/NewStoreNotifyEmailSettings'
 import { IconChartBars, IconChevronLeft, IconMagnifier } from '@/icons/McIcons'
-import type { McPlatformSettings } from '@/types/mc'
-
-const emailOk = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim())
 
 type StoreAnalyticsRow = TenantOverviewRow & {
   analytics: TenantAnalyticsRow | null
@@ -25,11 +22,8 @@ export function SuperAdminAnalyticsPage() {
   const { profile } = useMcAuth()
   const [stores, setStores] = useState<StoreAnalyticsRow[]>([])
   const [platformTotals, setPlatformTotals] = useState(() => sumPlatformAnalytics([]))
-  const [notifyEmail, setNotifyEmail] = useState('')
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [msg, setMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'visits30d' | 'visits7d' | 'nombre'>('visits30d')
 
@@ -39,13 +33,17 @@ export function SuperAdminAnalyticsPage() {
     setErr(null)
     try {
       const db = getDb()
-      const [tenants, analyticsMap, settingsSnap] = await Promise.all([
-        fetchTenantsOverview(db),
-        fetchPlatformTenantAnalytics(db),
-        getDoc(doc(db, MC.mcPlatform, MC.mcPlatformSettingsDoc)),
-      ])
-      const settings = settingsSnap.exists() ? (settingsSnap.data() as McPlatformSettings) : {}
-      setNotifyEmail(settings.newStoreNotifyEmail?.trim() ?? '')
+      const tenants = await fetchTenantsOverview(db)
+      let analyticsMap = new Map<string, TenantAnalyticsRow>()
+      try {
+        analyticsMap = await fetchPlatformTenantAnalytics(
+          db,
+          tenants.map((row) => row.tenant.id),
+        )
+      } catch (e) {
+        console.error('[SuperAdminAnalyticsPage] analytics', e)
+        setErr('No se pudieron cargar las métricas de tráfico. La lista de tiendas sí está disponible.')
+      }
 
       const merged: StoreAnalyticsRow[] = tenants.map((row) => ({
         ...row,
@@ -53,8 +51,11 @@ export function SuperAdminAnalyticsPage() {
       }))
       setStores(merged)
       setPlatformTotals(sumPlatformAnalytics(analyticsMap.values()))
-    } catch {
+    } catch (e) {
+      console.error('[SuperAdminAnalyticsPage]', e)
       setErr('No se pudieron cargar las analíticas.')
+      setStores([])
+      setPlatformTotals(sumPlatformAnalytics([]))
     } finally {
       setLoading(false)
     }
@@ -86,33 +87,6 @@ export function SuperAdminAnalyticsPage() {
     })
   }, [stores, search, sortBy])
 
-  async function guardarNotifyEmail() {
-    setBusy(true)
-    setMsg(null)
-    setErr(null)
-    const trimmed = notifyEmail.trim()
-    if (trimmed && !emailOk(trimmed)) {
-      setErr('Ingresá un correo válido o dejá el campo vacío.')
-      setBusy(false)
-      return
-    }
-    try {
-      await setDoc(
-        doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc),
-        {
-          newStoreNotifyEmail: trimmed || null,
-          updatedAt: Date.now(),
-        },
-        { merge: true },
-      )
-      setMsg(trimmed ? 'Correo de aviso guardado.' : 'Avisos de registro desactivados.')
-    } catch {
-      setErr('No se pudo guardar la configuración.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   if (!isMcSuperAdminUser(profile)) {
     return <Navigate to="/app" replace />
   }
@@ -139,44 +113,16 @@ export function SuperAdminAnalyticsPage() {
         <button
           type="button"
           className="mc-btn-secondary shrink-0 px-4 py-2.5 text-[15px]"
-          disabled={loading || busy}
+          disabled={loading}
           onClick={() => void load()}
         >
           Actualizar
         </button>
       </div>
 
-      <section className="mc-card space-y-4">
-        <div>
-          <h2 className="text-[15px] font-semibold text-mc-900">Correo de nuevas tiendas</h2>
-          <p className="mt-1 text-[13px] leading-relaxed text-mc-600">
-            Cada vez que alguien registre una tienda, enviamos un correo a esta dirección (vía Resend).
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1">
-            <label className="ios-footnote font-medium text-mc-700">Correo de notificación</label>
-            <input
-              type="email"
-              className="mc-input mt-1.5"
-              placeholder="admin@tudominio.com"
-              value={notifyEmail}
-              onChange={(e) => setNotifyEmail(e.target.value)}
-              disabled={busy}
-            />
-          </div>
-          <button
-            type="button"
-            className="mc-btn-primary shrink-0 px-5 py-3"
-            disabled={busy}
-            onClick={() => void guardarNotifyEmail()}
-          >
-            {busy ? 'Guardando…' : 'Guardar correo'}
-          </button>
-        </div>
-        {msg ? <p className="text-[13px] text-emerald-800">{msg}</p> : null}
-        {err ? <p className="text-[13px] text-red-800">{err}</p> : null}
-      </section>
+      <NewStoreNotifyEmailSettings />
+
+      {err ? <p className="text-[13px] text-red-800">{err}</p> : null}
 
       <AnalyticsStatGrid className="lg:grid-cols-4">
         <AnalyticsStatCard
@@ -267,7 +213,9 @@ export function SuperAdminAnalyticsPage() {
                         <p className="mt-0.5 text-[11px] text-mc-500">{row.ownerEmail}</p>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[12px] text-mc-700">/c/{row.tenant.slug}</td>
+                    <td className="px-4 py-3 font-mono text-[12px] text-mc-700">
+                      {formatStorePublicUrlLabel(row.tenant.slug)}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums font-medium text-mc-900">
                       {row.analytics?.visits7d ?? 0}
                     </td>

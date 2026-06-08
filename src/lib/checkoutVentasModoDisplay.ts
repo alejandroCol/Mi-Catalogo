@@ -11,18 +11,6 @@ export type CheckoutVentasModoDisplay = {
 
 export const CHECKOUT_VENTAS_MODOS: CheckoutVentasModoDisplay[] = [
   {
-    id: 'pasarela',
-    title: 'Pasarela (OnePay)',
-    shortLabel: 'Tu pasarela OnePay',
-    summary: 'El cliente paga en línea en el checkout con tu cuenta comercio OnePay.',
-    highlights: [
-      'Recibís pagos directo en tu cuenta OnePay.',
-      'Requiere registrar tu empresa y que el equipo vincule la pasarela a tu tienda.',
-      'Ideal si ya tenés o querés crear tu comercio en OnePay.',
-    ],
-    paymentMethods: ['Tarjeta', 'Nequi', 'PSE', 'Daviplata', 'Bre-B'],
-  },
-  {
     id: 'pasarela_micatalogo',
     title: 'Pasarela sin registro OnePay',
     shortLabel: 'Pasarela Mi Catálogo',
@@ -33,6 +21,18 @@ export const CHECKOUT_VENTAS_MODOS: CheckoutVentasModoDisplay[] = [
       'Al retirar se descuenta 0,02% + $900 COP si no tenés comercio OnePay propio.',
     ],
     paymentMethods: ['Bre-B', 'Nequi', 'Tarjeta', 'PSE'],
+  },
+  {
+    id: 'pasarela',
+    title: 'Pasarela (OnePay)',
+    shortLabel: 'Tu pasarela OnePay',
+    summary: 'El cliente paga en línea en el checkout con tu cuenta comercio OnePay.',
+    highlights: [
+      'Recibís pagos directo en tu cuenta OnePay.',
+      'Requiere registrar tu empresa y que el equipo vincule la pasarela a tu tienda.',
+      'Ideal si ya tenés o querés crear tu comercio en OnePay.',
+    ],
+    paymentMethods: ['Tarjeta', 'Nequi', 'PSE', 'Daviplata', 'Bre-B'],
   },
   {
     id: 'whatsapp',

@@ -22,12 +22,66 @@ const STEPS = [
 
 const TAB_PATHS = ['/app', '/app/inventario', '/app/pedidos', '/app/cuenta'] as const
 
+const TOOLTIP_MARGIN = 16
+const TOOLTIP_GAP = 12
+const TOOLTIP_MAX_WIDTH = 320
+
 type Hole = { top: number; left: number; right: number; bottom: number }
+
+type TooltipLayout = {
+  left: number
+  top: number
+  transform: string
+}
 
 type Props = {
   open: boolean
   onDismiss: () => void
   tabAnchorsRef: MutableRefObject<(HTMLElement | null)[]>
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function computeTooltipLayout(
+  hole: Hole,
+  viewportW: number,
+  viewportH: number,
+  tooltipW: number,
+  tooltipH: number,
+): TooltipLayout {
+  const tabCenterX = (hole.left + hole.right) / 2
+  const halfW = tooltipW / 2
+  const left = clamp(tabCenterX, TOOLTIP_MARGIN + halfW, viewportW - TOOLTIP_MARGIN - halfW)
+
+  const spaceAbove = hole.top - TOOLTIP_GAP
+  const spaceBelow = viewportH - hole.bottom - TOOLTIP_GAP
+  const preferAbove = spaceAbove >= spaceBelow
+
+  if (preferAbove && spaceAbove >= tooltipH + TOOLTIP_MARGIN) {
+    return {
+      left,
+      top: hole.top - TOOLTIP_GAP,
+      transform: 'translate(-50%, -100%)',
+    }
+  }
+
+  if (spaceBelow >= tooltipH + TOOLTIP_MARGIN) {
+    return {
+      left,
+      top: hole.bottom + TOOLTIP_GAP,
+      transform: 'translate(-50%, 0)',
+    }
+  }
+
+  // Fallback: centrado sobre la barra inferior en pantallas muy bajas.
+  const top = clamp(hole.top - TOOLTIP_GAP, TOOLTIP_MARGIN + tooltipH, viewportH - TOOLTIP_MARGIN)
+  return {
+    left: viewportW / 2,
+    top,
+    transform: 'translate(-50%, -100%)',
+  }
 }
 
 function SpotlightShade({ hole }: { hole: Hole }) {
@@ -47,6 +101,8 @@ export function SellerOnboardingOverlay({ open, onDismiss, tabAnchorsRef }: Prop
   const nav = useNavigate()
   const [step, setStep] = useState(0)
   const [hole, setHole] = useState<Hole | null>(null)
+  const [tooltipLayout, setTooltipLayout] = useState<TooltipLayout | null>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
     if (open) {
@@ -62,6 +118,7 @@ export function SellerOnboardingOverlay({ open, onDismiss, tabAnchorsRef }: Prop
   useLayoutEffect(() => {
     if (!open) {
       setHole(null)
+      setTooltipLayout(null)
       return
     }
     let raf = 0
@@ -69,25 +126,44 @@ export function SellerOnboardingOverlay({ open, onDismiss, tabAnchorsRef }: Prop
       const el = tabAnchorsRef.current[step]
       if (!el) {
         setHole(null)
+        setTooltipLayout(null)
         return
       }
       const r = el.getBoundingClientRect()
       const pad = 6
-      setHole({
+      const nextHole = {
         top: r.top - pad,
         left: r.left - pad,
         right: r.right + pad,
         bottom: r.bottom + pad,
-      })
+      }
+      setHole(nextHole)
+
+      const viewportW = window.innerWidth
+      const viewportH = window.innerHeight
+      const tooltipW = tooltipRef.current?.offsetWidth ?? Math.min(TOOLTIP_MAX_WIDTH, viewportW - TOOLTIP_MARGIN * 2)
+      const tooltipH = tooltipRef.current?.offsetHeight ?? 200
+      setTooltipLayout(computeTooltipLayout(nextHole, viewportW, viewportH, tooltipW, tooltipH))
     }
     measure()
     raf = requestAnimationFrame(measure)
     window.addEventListener('resize', measure)
+    window.addEventListener('scroll', measure, true)
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', measure, true)
     }
   }, [open, step, tabAnchorsRef])
+
+  useLayoutEffect(() => {
+    if (!open || !hole) return
+    const viewportW = window.innerWidth
+    const viewportH = window.innerHeight
+    const tooltipW = tooltipRef.current?.offsetWidth ?? Math.min(TOOLTIP_MAX_WIDTH, viewportW - TOOLTIP_MARGIN * 2)
+    const tooltipH = tooltipRef.current?.offsetHeight ?? 200
+    setTooltipLayout(computeTooltipLayout(hole, viewportW, viewportH, tooltipW, tooltipH))
+  }, [open, hole, step])
 
   useEffect(() => {
     if (!open) return
@@ -104,11 +180,21 @@ export function SellerOnboardingOverlay({ open, onDismiss, tabAnchorsRef }: Prop
 
   const last = step >= STEPS.length - 1
   const { title, body } = STEPS[step]
-  const w = typeof window !== 'undefined' ? window.innerWidth : 400
-  const h = typeof window !== 'undefined' ? window.innerHeight : 800
-  const cx = hole ? (hole.left + hole.right) / 2 : w / 2
-  const tooltipTop = hole ? hole.top - 12 : h / 2
-  const flipDown = hole ? hole.top < 140 : false
+  const layout =
+    tooltipLayout ??
+    (hole
+      ? computeTooltipLayout(
+          hole,
+          typeof window !== 'undefined' ? window.innerWidth : 400,
+          typeof window !== 'undefined' ? window.innerHeight : 800,
+          Math.min(TOOLTIP_MAX_WIDTH, (typeof window !== 'undefined' ? window.innerWidth : 400) - TOOLTIP_MARGIN * 2),
+          200,
+        )
+      : {
+          left: typeof window !== 'undefined' ? window.innerWidth / 2 : 200,
+          top: typeof window !== 'undefined' ? window.innerHeight / 2 : 400,
+          transform: 'translate(-50%, -50%)',
+        })
 
   function primary() {
     if (last) {
@@ -138,11 +224,12 @@ export function SellerOnboardingOverlay({ open, onDismiss, tabAnchorsRef }: Prop
       )}
 
       <div
-        className="pointer-events-auto fixed z-[2] w-[min(20rem,calc(100vw-2rem))] rounded-md border border-neutral-200/60 bg-[var(--cat-surface,#fff)] px-4 py-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]"
+        ref={tooltipRef}
+        className="pointer-events-auto fixed z-[2] w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-md border border-neutral-200/60 bg-[var(--cat-surface,#fff)] px-4 py-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]"
         style={{
-          left: cx,
-          top: flipDown ? (hole ? hole.bottom + 12 : h / 2) : tooltipTop,
-          transform: flipDown ? 'translateX(-50%)' : 'translate(-50%, -100%)',
+          left: layout.left,
+          top: layout.top,
+          transform: layout.transform,
           color: 'var(--cat-text)',
         }}
       >

@@ -4,7 +4,7 @@ import { httpsCallable } from 'firebase/functions'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
 import { IconBankCard, IconChevronLeft, IconChevronRight } from '@/icons/McIcons'
-import { isSubscriptionActive } from '@/lib/subscription'
+import { isTenantMembershipActive } from '@/lib/subscription'
 import { formatCop } from '@/lib/formatCop'
 
 function callableErrorMessage(e: unknown): string {
@@ -45,7 +45,7 @@ function statusLabel(s: string): string {
 }
 
 export function OnepayPasarelaResumenPage() {
-  const { profile, tenant } = useMcAuth()
+  const { profile, tenant, isActingAsStoreOwner } = useMcAuth()
   const [balanceLabel, setBalanceLabel] = useState<string | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(true)
   const [balanceErr, setBalanceErr] = useState<string | null>(null)
@@ -56,8 +56,8 @@ export function OnepayPasarelaResumenPage() {
   const [listLoading, setListLoading] = useState(true)
   const [listErr, setListErr] = useState<string | null>(null)
 
-  const isOwner = Boolean(profile?.uid && tenant?.ownerUid && profile.uid === tenant.ownerUid)
-  const subActive = tenant ? isSubscriptionActive(tenant.subscriptionEndsAt) : false
+  const isOwner = isActingAsStoreOwner
+  const subActive = tenant ? isTenantMembershipActive(tenant) : false
   const pasarelaOk = tenant?.onepayPaymentsEnabled === true
 
   const loadBalance = useCallback(async () => {

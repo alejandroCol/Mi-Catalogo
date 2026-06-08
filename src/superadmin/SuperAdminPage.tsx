@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { signOut } from 'firebase/auth'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   deleteField,
   doc,
@@ -16,16 +17,19 @@ import {
   IconHome,
   IconLink,
   IconMagnifier,
+  IconPerson,
 } from '@/icons/McIcons'
-import { getDb } from '@/lib/firebase'
+import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
+import { buildStorePublicUrl, formatStorePublicUrlLabel } from '@/lib/storePublicUrl'
 import {
   MC_TRIAL_DAYS,
   MS_MONTH,
   MS_TRIAL,
   MS_YEAR,
   extendSubscription,
-  isSubscriptionActive,
+  isTenantMembershipActive,
+  membershipExpiryLabel,
   setSubscriptionFromNow,
 } from '@/lib/subscription'
 import { billingPlanOf } from '@/lib/catalogTheme'
@@ -33,6 +37,8 @@ import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 import type { McBillingPlan, McTenant } from '@/types/mc'
 import { formatPlatformTermsVersionLabel } from '@/lib/platformTerms'
 import { fetchTenantsOverview, type TenantOverviewRow } from './fetchTenantsOverview'
+import { NewStoreNotifyEmailSettings } from './NewStoreNotifyEmailSettings'
+import { NewStoreExpertPromoSettings } from './NewStoreExpertPromoSettings'
 
 function formatShortDate(ms: number) {
   return new Date(ms).toLocaleString('es-CO', {
@@ -57,7 +63,8 @@ function planLabel(plan: McTenant['subscriptionPlan'] | undefined): string {
 }
 
 export function SuperAdminPage() {
-  const { profile } = useMcAuth()
+  const nav = useNavigate()
+  const { profile, isImpersonating, impersonation, startStoreImpersonation } = useMcAuth()
   const [rows, setRows] = useState<TenantOverviewRow[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -70,6 +77,19 @@ export function SuperAdminPage() {
   const [slugTenant, setSlugTenant] = useState<(McTenant & { id: string }) | null>(null)
   /** Filtro rápido de tiendas relacionadas con OnePay (KYB / pasarela). */
   const [onepayListFilter, setOnepayListFilter] = useState<'all' | 'kyb_pending' | 'pasarela_on'>('all')
+  const [impersonateBusy, setImpersonateBusy] = useState(false)
+  const [logoutBusy, setLogoutBusy] = useState(false)
+
+  async function cerrarSesion() {
+    if (!firebaseConfigured || logoutBusy) return
+    setLogoutBusy(true)
+    try {
+      await signOut(getAuthApp())
+      nav('/login', { replace: true })
+    } finally {
+      setLogoutBusy(false)
+    }
+  }
 
   const reload = useCallback(async () => {
     setErr(null)
@@ -115,7 +135,7 @@ export function SuperAdminPage() {
     let productos = 0
     let pedidos = 0
     for (const r of rows) {
-      if (isSubscriptionActive(r.tenant.subscriptionEndsAt)) activas++
+      if (isTenantMembershipActive(r.tenant)) activas++
       productos += r.productCount
       pedidos += r.pedidosCount
     }
@@ -159,7 +179,12 @@ export function SuperAdminPage() {
     setMsg(null)
     setErr(null)
     try {
-      await updateDoc(doc(getDb(), MC.tenants, tenantId), { billingPlan: plan })
+      await updateDoc(
+        doc(getDb(), MC.tenants, tenantId),
+        plan === 'free'
+          ? { billingPlan: plan, subscriptionEndsAt: deleteField() }
+          : { billingPlan: plan },
+      )
       await reload()
       setMsg(`Plan producto: ${plan === 'expert' ? 'Expert' : 'Free'}.`)
     } catch {
@@ -236,6 +261,29 @@ export function SuperAdminPage() {
     }
   }
 
+  async function entrarComoTienda(tenantId: string, nombreTienda: string) {
+    if (
+      !window.confirm(
+        `¿Entrar al panel como «${nombreTienda}»?\n\nVas a ver la app exactamente como la tienda. Queda registro de auditoría.`,
+      )
+    ) {
+      return
+    }
+    setImpersonateBusy(true)
+    setErr(null)
+    setMsg(null)
+    try {
+      const res = await startStoreImpersonation(tenantId)
+      if (!res.ok) {
+        setErr(res.message)
+        return
+      }
+      nav('/app', { replace: true })
+    } finally {
+      setImpersonateBusy(false)
+    }
+  }
+
   async function buscarPorSlug() {
     setErr(null)
     setMsg(null)
@@ -302,15 +350,35 @@ export function SuperAdminPage() {
           <h1 className="ios-large-title">Súper admin</h1>
           <p className="ios-subhead mt-1">Tiendas, métricas y planes</p>
         </div>
-        <button
-          type="button"
-          className="mc-btn-secondary shrink-0 px-4 py-2.5 text-[15px]"
-          disabled={loading || busy}
-          onClick={() => void reload()}
-        >
-          Actualizar datos
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="mc-btn-secondary px-4 py-2.5 text-[15px]"
+            disabled={loading || busy}
+            onClick={() => void reload()}
+          >
+            Actualizar datos
+          </button>
+          <button
+            type="button"
+            className="mc-btn-secondary px-4 py-2.5 text-[15px] text-mc-700"
+            disabled={logoutBusy || busy}
+            onClick={() => void cerrarSesion()}
+          >
+            {logoutBusy ? 'Saliendo…' : 'Cerrar sesión'}
+          </button>
+        </div>
       </div>
+
+      <NewStoreNotifyEmailSettings />
+      <NewStoreExpertPromoSettings />
+
+      <Link
+        to="/superadmin/vendedores"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-emerald-200/90 bg-gradient-to-br from-emerald-50/80 to-white px-4 py-3 text-[14px] font-semibold text-emerald-950 no-underline transition hover:border-emerald-300/90 hover:bg-emerald-50 sm:w-auto sm:justify-start"
+      >
+        Panel vendedores (equipo y visitas)
+      </Link>
 
       <Link
         to="/superadmin/analytics"
@@ -324,6 +392,13 @@ export function SuperAdminPage() {
         className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-mc-50/60 px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:bg-mc-100/70 sm:w-auto sm:justify-start"
       >
         Términos y condiciones (registro de tiendas)
+      </Link>
+
+      <Link
+        to="/superadmin/tutoriales"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-mc-50/60 px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:bg-mc-100/70 sm:w-auto sm:justify-start"
+      >
+        Administrar tutoriales
       </Link>
 
       <Link
@@ -461,7 +536,7 @@ export function SuperAdminPage() {
             <ul className="flex flex-col gap-2" role="list">
               {filtered.map((r) => {
                 const t = r.tenant
-                const active = isSubscriptionActive(t.subscriptionEndsAt)
+                const active = isTenantMembershipActive(t)
                 return (
                   <li key={t.id}>
                     <button
@@ -541,9 +616,41 @@ export function SuperAdminPage() {
             )}
           </section>
 
+          {isImpersonating && impersonation ? (
+            <section
+              className="rounded-xl border border-amber-300/70 bg-gradient-to-br from-amber-50/90 to-orange-50/50 px-4 py-3"
+              aria-label="Modo soporte activo"
+            >
+              <p className="text-[13px] font-semibold text-amber-950">
+                Modo soporte activo · {impersonation.tenantName || 'tienda'}
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-amber-900/85">
+                Estás viendo otra tienda desde el panel. Usá el banner superior en la app para salir.
+              </p>
+              <Link
+                to="/app"
+                className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-amber-950 underline decoration-amber-400/80 underline-offset-4"
+              >
+                Ir al panel impersonado
+                <IconChevronRight size={16} />
+              </Link>
+            </section>
+          ) : null}
+
           {selected && (
             <section className="space-y-4 border-t border-neutral-200/50 pt-8" aria-label="Detalle de tienda">
-              <h2 className="ios-headline">Detalle · {selected.tenant.nombreTienda}</h2>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <h2 className="ios-headline">Detalle · {selected.tenant.nombreTienda}</h2>
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-amber-400/80 bg-gradient-to-br from-amber-50 to-white px-4 py-2.5 text-[14px] font-semibold text-amber-950 shadow-sm transition hover:border-amber-500/80 hover:from-amber-100/80 disabled:opacity-60"
+                  disabled={busy || impersonateBusy || isImpersonating}
+                  onClick={() => void entrarComoTienda(selected.tenant.id, selected.tenant.nombreTienda)}
+                >
+                  <IconPerson size={18} />
+                  Entrar como esta tienda
+                </button>
+              </div>
               <div className="mc-card space-y-3">
                 <dl className="space-y-2.5 text-[15px]">
                   <div className="flex justify-between gap-3">
@@ -553,12 +660,14 @@ export function SuperAdminPage() {
                   <div className="flex justify-between gap-3">
                     <dt className="text-mc-500">Slug</dt>
                     <dd className="text-right">
-                      <Link
+                      <a
                         className="font-medium text-mc-900 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-70"
-                        to={`/c/${selected.tenant.slug}`}
+                        href={buildStorePublicUrl(selected.tenant.slug)}
+                        target="_blank"
+                        rel="noreferrer"
                       >
-                        /c/{selected.tenant.slug}
-                      </Link>
+                        {formatStorePublicUrlLabel(selected.tenant.slug)}
+                      </a>
                     </dd>
                   </div>
                   <div className="flex justify-between gap-3">
@@ -638,7 +747,13 @@ export function SuperAdminPage() {
                   <div className="flex justify-between gap-3">
                     <dt className="text-mc-500">Vence</dt>
                     <dd className="text-right font-medium text-mc-900">
-                      {formatShortDate(selected.tenant.subscriptionEndsAt)}
+                      {billingPlanOf(selected.tenant) === 'free' ? (
+                        <span className="inline-flex items-center gap-1.5 border border-emerald-200/80 bg-emerald-50/60 px-2 py-0.5 text-[12px] font-medium text-emerald-800">
+                          Sin vencimiento
+                        </span>
+                      ) : (
+                        membershipExpiryLabel(selected.tenant, formatShortDate)
+                      )}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-3">
@@ -792,7 +907,14 @@ export function SuperAdminPage() {
                 </div>
 
                 <div className="space-y-2 border-t border-mc-100 pt-3">
-                  <p className="ios-footnote font-medium text-mc-700">Extender (suma sobre el máximo entre hoy y vencimiento)</p>
+                  {billingPlanOf(selected.tenant) === 'free' ? (
+                    <p className="ios-footnote leading-relaxed text-mc-600">
+                      El plan <strong className="font-medium text-mc-900">Free</strong> no tiene vencimiento.
+                      Cambiá a Expert para gestionar fechas de membresía.
+                    </p>
+                  ) : (
+                    <>
+                  <p className="ios-footnote font-medium text-mc-700">Extender Expert (suma sobre el máximo entre hoy y vencimiento)</p>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -801,7 +923,7 @@ export function SuperAdminPage() {
                       onClick={() =>
                         void extender(
                           selected.tenant.id,
-                          selected.tenant.subscriptionEndsAt,
+                          selected.tenant.subscriptionEndsAt ?? Date.now(),
                           MS_TRIAL,
                           `${MC_TRIAL_DAYS} días`,
                         )
@@ -813,7 +935,7 @@ export function SuperAdminPage() {
                       type="button"
                       className="mc-btn-secondary px-3 py-2.5 text-[15px]"
                       disabled={busy}
-                      onClick={() => void extender(selected.tenant.id, selected.tenant.subscriptionEndsAt, MS_MONTH, '1 mes')}
+                      onClick={() => void extender(selected.tenant.id, selected.tenant.subscriptionEndsAt ?? Date.now(), MS_MONTH, '1 mes')}
                     >
                       +1 mes
                     </button>
@@ -821,14 +943,11 @@ export function SuperAdminPage() {
                       type="button"
                       className="mc-btn-secondary px-3 py-2.5 text-[15px]"
                       disabled={busy}
-                      onClick={() => void extender(selected.tenant.id, selected.tenant.subscriptionEndsAt, MS_YEAR, '1 año')}
+                      onClick={() => void extender(selected.tenant.id, selected.tenant.subscriptionEndsAt ?? Date.now(), MS_YEAR, '1 año')}
                     >
                       +1 año
                     </button>
                   </div>
-                </div>
-
-                <div className="space-y-2 border-t border-mc-100 pt-3">
                   <p className="ios-footnote font-medium text-mc-700">Alta desde hoy (reemplaza la fecha de vencimiento)</p>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -856,6 +975,8 @@ export function SuperAdminPage() {
                       1 año desde hoy
                     </button>
                   </div>
+                    </>
+                  )}
                 </div>
               </div>
             </section>

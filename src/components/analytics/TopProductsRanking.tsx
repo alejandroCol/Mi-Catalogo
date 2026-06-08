@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { buildStorePublicUrl } from '@/lib/storePublicUrl'
 import type { McTopProductRow } from '@/types/mc'
 
 type TopProductsRankingProps = {
@@ -51,7 +52,7 @@ export function TopProductsRanking({
           {rows.map((row, index) => (
             <li key={row.productId}>
               <a
-                href={`/c/${slug}/p/${row.productId}`}
+                href={buildStorePublicUrl(slug, `/p/${row.productId}`)}
                 target="_blank"
                 rel="noreferrer"
                 className="group flex items-center gap-3 border border-transparent px-2 py-2 transition hover:border-neutral-200/60 hover:bg-neutral-50/50 sm:gap-4 sm:px-3"

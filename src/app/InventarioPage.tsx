@@ -28,9 +28,11 @@ import {
 } from '@/lib/mcWrites'
 import { isProductNovedad } from '@/lib/catalogNovedad'
 import { IconPlus } from '@/icons/McIcons'
+import { InventarioCategoriasLink } from '@/public/CatalogCategorySidebar'
+import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 
 export function InventarioPage() {
-  const { profile, tenant } = useMcAuth()
+  const { tenant, effectiveTenantId } = useMcAuth()
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -40,6 +42,9 @@ export function InventarioPage() {
   const [limitHint, setLimitHint] = useState<string | null>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
   const syncRef = useRef(false)
+  const { categorias } = useTenantCategorias(effectiveTenantId)
+
+  const categoriaNombre = (id: string) => categorias.find((c) => c.id === id)?.nombre
 
   useEffect(() => {
     if (!firebaseConfigured) return
@@ -59,51 +64,51 @@ export function InventarioPage() {
   }, [])
 
   useEffect(() => {
-    if (!firebaseConfigured || !profile?.tenantId) return
+    if (!firebaseConfigured || !effectiveTenantId) return
     const db = getDb()
-    const q = query(collection(db, mcProductosCollection(profile.tenantId)), orderBy('orden', 'asc'))
+    const q = query(collection(db, mcProductosCollection(effectiveTenantId)), orderBy('orden', 'asc'))
     return onSnapshot(q, (snap) => {
       setRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<McProducto, 'id'>) })))
     })
-  }, [profile?.tenantId])
+  }, [effectiveTenantId])
 
   useEffect(() => {
-    if (!profile?.tenantId || !tenant || syncRef.current) return
+    if (!effectiveTenantId || !tenant || syncRef.current) return
     if (typeof tenant.productCount === 'number') return
     if (rows.length === 0) return
     syncRef.current = true
-    void mcSyncProductCount(profile.tenantId, rows.length).finally(() => {
+    void mcSyncProductCount(effectiveTenantId, rows.length).finally(() => {
       syncRef.current = false
     })
-  }, [profile?.tenantId, tenant, tenant?.productCount, rows.length])
+  }, [effectiveTenantId, tenant, tenant?.productCount, rows.length])
 
   async function toggleCatalogo(p: McProducto & { id: string }) {
-    if (!profile?.tenantId) return
-    await mcToggleProductoCatalogo(profile.tenantId, p)
+    if (!effectiveTenantId) return
+    await mcToggleProductoCatalogo(effectiveTenantId, p)
   }
 
   async function toggleActivo(p: McProducto & { id: string }) {
-    if (!profile?.tenantId) return
-    await mcToggleProductoActivo(profile.tenantId, p)
+    if (!effectiveTenantId) return
+    await mcToggleProductoActivo(effectiveTenantId, p)
   }
 
   async function toggleNovedad(p: McProducto & { id: string }) {
-    if (!profile?.tenantId) return
-    await mcToggleProductoNovedad(profile.tenantId, p)
+    if (!effectiveTenantId) return
+    await mcToggleProductoNovedad(effectiveTenantId, p)
   }
 
   async function removeProduct(p: McProducto & { id: string }) {
-    if (!profile?.tenantId || !window.confirm(`¿Eliminar «${p.nombre}»?`)) return
+    if (!effectiveTenantId || !window.confirm(`¿Eliminar «${p.nombre}»?`)) return
     if (firebaseStorageConfigured && p.imageUrl?.includes('firebasestorage')) {
       try {
         const storage = getStorageApp()
-        const pathRef = ref(storage, `mc_tenants/${profile.tenantId}/productos/${p.id}.jpg`)
+        const pathRef = ref(storage, `mc_tenants/${effectiveTenantId}/productos/${p.id}.jpg`)
         await deleteObject(pathRef)
       } catch {
         /* no file */
       }
     }
-    await mcDeleteProductoDoc(profile.tenantId, p.id)
+    await mcDeleteProductoDoc(effectiveTenantId, p.id)
   }
 
   const expert = tenant ? billingPlanOf(tenant) === 'expert' : false
@@ -159,10 +164,10 @@ export function InventarioPage() {
       {limitHint && !atLimit && (
         <p className="mt-3 text-[13px] text-[var(--cat-muted)]">{limitHint}</p>
       )}
-      <p className="ios-subhead mt-2 max-w-2xl leading-relaxed">
-        Cargá cada producto con foto, nombre, precio y stock.
-        {expertAccess && ' Con Expert también podés subir varias fotos a la vez desde la galería.'}
-      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <InventarioCategoriasLink />
+      </div>
 
       <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-stretch">
         <button
@@ -215,6 +220,22 @@ export function InventarioPage() {
                 {isProductNovedad(p) && (
                   <span className="ml-2 inline-block border border-neutral-200/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-mc-600">
                     Novedad
+                  </span>
+                )}
+                {(p.categoriaIds ?? []).length > 0 && (
+                  <span className="ml-2 inline-flex flex-wrap gap-1">
+                    {(p.categoriaIds ?? []).map((cid) => {
+                      const nom = categoriaNombre(cid)
+                      if (!nom) return null
+                      return (
+                        <span
+                          key={cid}
+                          className="inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-mc-700"
+                        >
+                          {nom}
+                        </span>
+                      )
+                    })}
                   </span>
                 )}
               </p>
@@ -274,9 +295,9 @@ export function InventarioPage() {
         <IconPlus size={24} className="text-[var(--cat-accent-text)]" />
       </button>
 
-      {modalOpen && profile?.tenantId && tenant && (
+      {modalOpen && effectiveTenantId && tenant && (
         <QuickAddProductModal
-          tenantId={profile.tenantId}
+          tenantId={effectiveTenantId}
           tenant={tenant}
           platformSettings={platformSettings}
           currentCount={rows.length}
@@ -285,17 +306,17 @@ export function InventarioPage() {
         />
       )}
 
-      {editProduct && profile?.tenantId && (
+      {editProduct && effectiveTenantId && (
         <EditProductModal
-          tenantId={profile.tenantId}
+          tenantId={effectiveTenantId}
           product={editProduct}
           onClose={() => setEditProduct(null)}
         />
       )}
 
-      {bulkOpen && profile?.tenantId && expertAccess && tenant && (
+      {bulkOpen && effectiveTenantId && expertAccess && tenant && (
         <BulkAddProductsModal
-          tenantId={profile.tenantId}
+          tenantId={effectiveTenantId}
           tenant={tenant}
           platformSettings={platformSettings}
           currentCount={rows.length}

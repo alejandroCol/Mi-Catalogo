@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
+import { McFileInputLabel } from '@/components/McFileInputLabel'
 
 type Props = {
   file: File | null
@@ -35,7 +36,6 @@ export function VarianteImagenPicker({
   disabled = false,
   label = 'Foto de esta variante',
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -59,6 +59,17 @@ export function VarianteImagenPicker({
     }
   }
 
+  function pickImage(files: FileList) {
+    const f = files[0]
+    if (f?.type.startsWith('image/')) onChange(f)
+  }
+
+  const pickProps = {
+    accept: 'image/*',
+    disabled,
+    onFiles: pickImage,
+  }
+
   return (
     <div>
       <p className="text-[11px] font-medium text-mc-600">{label}</p>
@@ -79,46 +90,32 @@ export function VarianteImagenPicker({
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => inputRef.current?.click()}
+          <McFileInputLabel
+            {...pickProps}
             className={clsx(
               'flex h-[72px] w-[72px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed transition',
               disabled
                 ? 'cursor-not-allowed border-neutral-200/60 bg-neutral-50/50 text-neutral-300'
-                : 'border-neutral-300/80 bg-white text-mc-600 hover:border-mc-900/30 hover:bg-neutral-50 hover:text-mc-900 active:scale-[0.98]',
+                : 'cursor-pointer border-neutral-300/80 bg-white text-mc-600 hover:border-mc-900/30 hover:bg-neutral-50 hover:text-mc-900 active:scale-[0.98]',
             )}
           >
             <IconPlus className="h-5 w-5" />
             <span className="text-[9px] font-semibold">Subir</span>
-          </button>
+          </McFileInputLabel>
         )}
 
         {hasImage ? (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => inputRef.current?.click()}
-            className="text-[12px] font-medium text-mc-700 underline decoration-mc-300 underline-offset-2 hover:text-mc-900"
+          <McFileInputLabel
+            {...pickProps}
+            className={clsx(
+              'text-[12px] font-medium text-mc-700 underline decoration-mc-300 underline-offset-2 hover:text-mc-900',
+              disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+            )}
           >
             Cambiar foto
-          </button>
+          </McFileInputLabel>
         ) : null}
       </div>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="sr-only"
-        disabled={disabled}
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f?.type.startsWith('image/')) onChange(f)
-          e.target.value = ''
-        }}
-      />
     </div>
   )
 }

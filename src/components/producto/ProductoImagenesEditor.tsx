@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import clsx from 'clsx'
+import { McFileInputLabel } from '@/components/McFileInputLabel'
 import {
   createImagenDraftFromFile,
   getImagenDraftSrc,
@@ -14,8 +15,6 @@ type Props = {
   disabled?: boolean
   label?: string
   hint?: string
-  /** Activa cámara trasera en móvil al primer upload (sin `multiple`). */
-  capture?: boolean | 'environment' | 'user'
 }
 
 function IconPlus({ className }: { className?: string }) {
@@ -49,9 +48,7 @@ export function ProductoImagenesEditor({
   disabled = false,
   label = 'Fotos del producto',
   hint = 'Tocá una miniatura para marcarla como portada.',
-  capture,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null)
   const itemsRef = useRef(items)
   itemsRef.current = items
 
@@ -160,15 +157,16 @@ export function ProductoImagenesEditor({
           )
         })}
 
-        <button
-          type="button"
+        <McFileInputLabel
+          accept="image/*"
+          multiple
           disabled={disabled}
-          onClick={() => inputRef.current?.click()}
+          onFiles={addFiles}
           className={clsx(
             'flex h-[88px] w-[88px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed transition sm:h-[96px] sm:w-[96px]',
             disabled
               ? 'cursor-not-allowed border-neutral-200/60 bg-neutral-50/50 text-neutral-300'
-              : 'border-neutral-300 bg-white text-mc-600 hover:border-mc-900/40 hover:bg-white hover:text-mc-900 active:scale-[0.98]',
+              : 'cursor-pointer border-neutral-300 bg-white text-mc-600 hover:border-mc-900/40 hover:bg-white hover:text-mc-900 active:scale-[0.98]',
           )}
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100">
@@ -177,23 +175,8 @@ export function ProductoImagenesEditor({
           <span className="text-[10px] font-semibold leading-tight">
             {items.length === 0 ? 'Subir foto' : 'Agregar'}
           </span>
-        </button>
+        </McFileInputLabel>
       </div>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple={items.length > 0 || capture === undefined}
-        capture={items.length === 0 && capture ? capture : undefined}
-        className="sr-only"
-        disabled={disabled}
-        onChange={(e) => {
-          const files = e.target.files
-          if (files?.length) addFiles(files)
-          e.target.value = ''
-        }}
-      />
     </div>
   )
 }

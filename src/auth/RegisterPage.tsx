@@ -4,13 +4,19 @@ import { createUserWithEmailAndPassword, deleteUser, updateProfile } from 'fireb
 import type { UserCredential } from 'firebase/auth'
 import { collection, deleteDoc, doc, getDoc, setDoc, writeBatch } from 'firebase/firestore'
 import { PlatformTermsModal } from '@/components/legal/PlatformTermsModal'
+import { PublicStoreSlugField } from '@/components/store/PublicStoreSlugField'
+import { StorePublicHostDisplay } from '@/components/store/StorePublicHostDisplay'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
 import { MC, mcLegalAcceptanceDoc } from '@/lib/mcCollections'
 import { hashTermsContent, resolvePlatformTerms } from '@/lib/platformTerms'
 import type { McLegalAcceptance, McPlatformSettings } from '@/types/mc'
-import { MC_TRIAL_DAYS, trialEndMs } from '@/lib/subscription'
 import { markPendingSellerOnboarding } from '@/lib/onboardingStorage'
-import { resolveAvailablePublicSlug, slugifyStoreName } from '@/lib/publicSlug'
+import {
+  assertPublicSlugAvailableForRegistration,
+  formatPublicSlugHostPreview,
+  publicSlugValidationMessage,
+} from '@/lib/publicSlug'
+import { useRegisterStoreSlug } from '@/auth/useRegisterStoreSlug'
 import { combineWaDigits, DEFAULT_WA_PREFIX, WA_COUNTRY_PREFIXES } from '@/lib/waPhonePrefixes'
 import { callMcSendAuthVerificationEmail } from '@/lib/mcSendAuthVerificationEmail'
 import { trackMcEvent, MC_ANALYTICS_EVENTS } from '@/lib/mcAnalytics'
@@ -43,7 +49,8 @@ export function RegisterPage() {
   const [termsLoading, setTermsLoading] = useState(true)
   const [platformTerms, setPlatformTerms] = useState(() => resolvePlatformTerms(null))
 
-  const slugPreview = useMemo(() => slugifyStoreName(nombreTienda), [nombreTienda])
+  const db = useMemo(() => (firebaseConfigured ? getDb() : null), [])
+  const slugState = useRegisterStoreSlug(db, nombreTienda)
 
   useEffect(() => {
     if (!firebaseConfigured) {
@@ -79,8 +86,33 @@ export function RegisterPage() {
       if (t.length < 2) {
         return 'Escribí el nombre de tu tienda.'
       }
-      if (slugPreview.length < 3) {
+      if (slugState.slugFromName.length < 3) {
         return 'El nombre debe generar una URL de al menos 3 letras o números. Agregá palabras o números.'
+      }
+      if (slugState.effectiveProbe.status === 'checking') {
+        return 'Estamos comprobando tu enlace. Esperá un segundo.'
+      }
+      if (slugState.needsCustomSlug) {
+        if (!slugState.customSlugInput.trim()) {
+          return 'Elegí otro enlace para tu catálogo.'
+        }
+        if (slugState.effectiveProbe.status === 'taken') {
+          return 'Ese enlace ya está en uso. Probá con otro.'
+        }
+        if (slugState.effectiveProbe.status === 'reserved') {
+          return publicSlugValidationMessage('reserved')
+        }
+        if (slugState.effectiveProbe.status === 'invalid' && slugState.effectiveProbe.issue) {
+          return publicSlugValidationMessage(slugState.effectiveProbe.issue)
+        }
+        if (slugState.effectiveProbe.status !== 'available') {
+          return 'Revisá el enlace de tu catálogo antes de continuar.'
+        }
+      } else if (slugState.autoSlugProbe.status !== 'available') {
+        if (slugState.autoSlugProbe.status === 'checking') {
+          return 'Estamos comprobando tu enlace. Esperá un segundo.'
+        }
+        return 'Esperá a que validemos tu enlace.'
       }
     }
     if (s === 'whatsapp') {
@@ -151,9 +183,22 @@ export function RegisterPage() {
     setBusy(true)
     let cred: UserCredential | null = null
     let tid: string | null = null
+    let slug: string | null = null
+    let slugWritten = false
+    let legalAcceptanceWritten = false
+    let termsVersionForRollback = platformTerms.version
     try {
       const db = getDb()
-      const sl = await resolveAvailablePublicSlug(db, nombreTienda)
+      slug = await assertPublicSlugAvailableForRegistration(
+        db,
+        slugState.needsCustomSlug ? slugState.customSlugInput : slugState.slugFromName,
+      )
+
+      const termsSnap = await getDoc(doc(db, MC.mcPlatform, MC.mcPlatformSettingsDoc))
+      const freshTerms = resolvePlatformTerms(
+        termsSnap.exists() ? (termsSnap.data() as McPlatformSettings) : null,
+      )
+      setPlatformTerms(freshTerms)
 
       const auth = getAuthApp()
       cred = await createUserWithEmailAndPassword(auth, email.trim(), password)
@@ -166,18 +211,18 @@ export function RegisterPage() {
       /** Debe coincidir con `request.auth.token.email` (reglas Firestore); no normalizar a minúsculas. */
       const emailForFirestore = cred.user.email ?? email.trim()
       const acceptedAt = Date.now()
-      const termsVersion = platformTerms.version
-      const termsContentHash = hashTermsContent(platformTerms.text)
+      const termsVersion = freshTerms.version
+      termsVersionForRollback = termsVersion
+      const termsContentHash = hashTermsContent(freshTerms.text)
       const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 512) : undefined
 
       const batch = writeBatch(db)
       batch.set(newTenantRef, {
         ownerUid: cred.user.uid,
-        slug: sl,
+        slug: slug,
         nombreTienda: nombreTienda.trim(),
         whatsappNumero: wa,
         mensajeIntro: '',
-        subscriptionEndsAt: trialEndMs(),
         createdAt: acceptedAt,
         billingPlan: 'free',
         platformTermsAcceptedAt: acceptedAt,
@@ -187,16 +232,6 @@ export function RegisterPage() {
         platformTermsContentHash: termsContentHash,
         ...(userAgent ? { platformTermsUserAgent: userAgent } : {}),
       })
-      const acceptance: McLegalAcceptance = {
-        acceptedAt,
-        termsVersion,
-        termsContentHash,
-        acceptedByUid: cred.user.uid,
-        acceptedByEmail: emailForFirestore,
-        context: 'registration',
-        ...(userAgent ? { userAgent } : {}),
-      }
-      batch.set(doc(db, mcLegalAcceptanceDoc(tid, termsVersion)), acceptance)
       batch.set(doc(db, MC.users, cred.user.uid), {
         uid: cred.user.uid,
         email: emailForFirestore,
@@ -207,16 +242,29 @@ export function RegisterPage() {
       })
       await batch.commit()
 
-      await setDoc(doc(db, MC.slugs, sl), {
+      const acceptance: McLegalAcceptance = {
+        acceptedAt,
+        termsVersion,
+        termsContentHash,
+        acceptedByUid: cred.user.uid,
+        acceptedByEmail: emailForFirestore,
+        context: 'registration',
+        ...(userAgent ? { userAgent } : {}),
+      }
+      await setDoc(doc(db, mcLegalAcceptanceDoc(tid, termsVersion)), acceptance)
+      legalAcceptanceWritten = true
+
+      await setDoc(doc(db, MC.slugs, slug), {
         tenantId: tid,
         active: true,
         updatedAt: Date.now(),
       })
+      slugWritten = true
 
       markPendingSellerOnboarding(tid)
 
       void trackMcEvent(MC_ANALYTICS_EVENTS.sellerRegistration, {
-        store_slug: sl,
+        store_slug: slug,
         billing_plan: 'free',
       })
 
@@ -241,7 +289,12 @@ export function RegisterPage() {
       if (cred?.user && tid) {
         try {
           const dbRollback = getDb()
-          await deleteDoc(doc(dbRollback, mcLegalAcceptanceDoc(tid, platformTerms.version)))
+          if (slugWritten && slug) {
+            await deleteDoc(doc(dbRollback, MC.slugs, slug))
+          }
+          if (legalAcceptanceWritten) {
+            await deleteDoc(doc(dbRollback, mcLegalAcceptanceDoc(tid, termsVersionForRollback)))
+          }
           await deleteDoc(doc(dbRollback, MC.users, cred.user.uid))
           await deleteDoc(doc(dbRollback, MC.tenants, tid))
         } catch {
@@ -263,6 +316,15 @@ export function RegisterPage() {
         )
       } else if (e instanceof Error && e.message === 'slug_too_short') {
         setErr('La URL generada es demasiado corta. Elegí un nombre de tienda más descriptivo.')
+      } else if (e instanceof Error && e.message === 'slug_taken') {
+        setErr('Ese enlace ya está en uso. Volvé al paso de tienda y elegí otro.')
+        setStep('tienda')
+      } else if (e instanceof Error && e.message === 'slug_reserved') {
+        setErr('Ese enlace está reservado. Volvé al paso de tienda y elegí otro.')
+        setStep('tienda')
+      } else if (e instanceof Error && e.message === 'slug_invalid') {
+        setErr('El enlace del catálogo no es válido. Revisalo en el primer paso.')
+        setStep('tienda')
       } else {
         setErr(
           code
@@ -276,7 +338,8 @@ export function RegisterPage() {
   }
 
   const currentIndex = stepIndex(step)
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const autoSlugHostPreview =
+    slugState.slugFromName.length >= 3 ? formatPublicSlugHostPreview(slugState.slugFromName) : ''
 
   return (
     <div className="mc-page relative min-h-svh overflow-x-hidden px-4 py-8 pb-16">
@@ -284,7 +347,7 @@ export function RegisterPage() {
         <AuthBrandHeader
           className="mb-8"
           title="Crear tienda"
-          subtitle={`${MC_TRIAL_DAYS} días gratis. Unos pasos y listo.`}
+          subtitle="Creá tu tienda gratis"
         />
 
         <div className="mb-6 flex justify-center gap-2">
@@ -328,19 +391,58 @@ export function RegisterPage() {
                     placeholder="Ej. Flores del Valle"
                   />
                 </div>
-                <div className="rounded-md border border-neutral-200/60 bg-mc-50/80 px-4 py-3">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">Tu catálogo público</p>
-                  <p className="mt-1 break-all text-[14px] font-medium text-mc-900">
-                    {slugPreview.length >= 3 ? (
-                      <>
-                        {origin}
-                        /c/{slugPreview}
-                      </>
-                    ) : (
-                      <span className="text-mc-400">Se genera al escribir el nombre</span>
-                    )}
-                  </p>
-                </div>
+                {slugState.slugFromName.length >= 3 && !slugState.needsCustomSlug ? (
+                  <div className="rounded-md border border-neutral-200/60 bg-mc-50/80 px-4 py-3">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">
+                      Tu catálogo público
+                    </p>
+                    <p className="mt-1 break-all text-[14px] font-medium text-mc-900">
+                      {slugState.autoSlugProbe.status === 'checking' ? (
+                        <span className="text-mc-500">Comprobando enlace…</span>
+                      ) : slugState.storeUrlPreview ? (
+                        <StorePublicHostDisplay host={slugState.storeUrlPreview} variant="prominent" />
+                      ) : (
+                        <span className="text-mc-400">Se genera al escribir el nombre</span>
+                      )}
+                    </p>
+                    {slugState.autoSlugProbe.status === 'available' && slugState.storeUrlPreview ? (
+                      <p className="mt-2 text-[12px] font-medium text-emerald-800">Enlace disponible</p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {slugState.needsCustomSlug ? (
+                  <div className="space-y-3 rounded-md border border-amber-200/70 bg-amber-50/50 px-4 py-4">
+                    <p className="text-[13px] leading-relaxed text-amber-950">
+                      {slugState.autoSlugProbe.status === 'reserved' ? (
+                        <>
+                          La dirección{' '}
+                          <StorePublicHostDisplay host={autoSlugHostPreview} variant="highlight" /> está reservada
+                          para la plataforma. Elegí otro enlace para tu catálogo (el nombre de la tienda no cambia).
+                        </>
+                      ) : (
+                        <>
+                          La dirección{' '}
+                          <StorePublicHostDisplay host={autoSlugHostPreview} variant="highlight" /> ya está en uso.
+                          Elegí otro enlace para tu catálogo (el nombre de la tienda no cambia).
+                        </>
+                      )}
+                    </p>
+                    <PublicStoreSlugField
+                      value={slugState.customSlugInput}
+                      onChange={slugState.setCustomSlugInput}
+                      status={slugState.customSlugProbe.status}
+                      issue={slugState.customSlugProbe.issue}
+                      autoFocus
+                    />
+                  </div>
+                ) : slugState.slugFromName.length < 3 ? (
+                  <div className="rounded-md border border-neutral-200/60 bg-mc-50/80 px-4 py-3">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">
+                      Tu catálogo público
+                    </p>
+                    <p className="mt-1 text-[14px] text-mc-400">Se genera al escribir el nombre</p>
+                  </div>
+                ) : null}
               </>
             )}
 
@@ -416,21 +518,16 @@ export function RegisterPage() {
                     {termsLoading ? (
                       'Cargando términos…'
                     ) : (
-                      <>
-                        Acepto los{' '}
-                        <button
-                          type="button"
-                          className="font-medium text-mc-900 underline decoration-neutral-300 underline-offset-2 transition hover:opacity-70"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            setTermsModalOpen(true)
-                          }}
-                        >
-                          términos y condiciones
-                        </button>{' '}
-                        de Mi Catálogo (versión {platformTerms.version}). Entiendo que rigen el uso de la
-                        plataforma como comerciante.
-                      </>
+                      <button
+                        type="button"
+                        className="text-left font-medium text-mc-900 underline decoration-neutral-300 underline-offset-2 transition hover:opacity-70"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setTermsModalOpen(true)
+                        }}
+                      >
+                        Acepto términos y condiciones
+                      </button>
                     )}
                   </span>
                 </label>

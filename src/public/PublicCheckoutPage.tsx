@@ -1,5 +1,5 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import clsx from 'clsx'
 import { collection, doc, setDoc } from 'firebase/firestore'
@@ -19,6 +19,8 @@ import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { useEnvioCheckoutQuote } from '@/hooks/useEnvioCheckoutQuote'
 import type { McCuponTienda, McOrdenCatalogoLinea } from '@/types/mc'
 import { usePublicTenant } from '@/public/usePublicTenant'
+import { usePublicStore } from '@/public/PublicStoreContext'
+import { buildStorePublicPath } from '@/lib/storePublicUrl'
 import { usePublicCheckoutStartTracking } from '@/public/usePublicCatalogAnalytics'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 import { MunicipioCombobox } from '@/public/MunicipioCombobox'
@@ -27,6 +29,16 @@ import { buildCheckoutWhatsappText, whatsappUrlFromNumber } from '@/catalog-loca
 import { buildNumeroReferencia, publicCatalogSuccessPath } from '@/lib/catalogOrderTracking'
 import { markCarritoIniciadoOnOrderComplete } from '@/lib/markCarritoIniciadoOnOrder'
 import { useCarritoIniciadoCheckoutSync } from '@/hooks/useCarritoIniciadoCheckoutSync'
+import {
+  CHECKOUT_STEP_META,
+  CHECKOUT_STEPS,
+  checkoutStepIndex,
+  validateCheckoutAll,
+  validateCheckoutStep,
+  type CheckoutFields,
+  type CheckoutStepId,
+} from '@/lib/checkoutValidation'
+import { CheckoutStepIndicator } from '@/public/checkout/CheckoutStepIndicator'
 import {
   MC_ONEPAY_DONE_MSG,
   MC_ONEPAY_POPUP_NAME,
@@ -45,67 +57,8 @@ function callableErrorMessage(e: unknown): string {
   return 'No se pudo abrir el pago.'
 }
 
-function CheckoutDisclosure({
-  title,
-  hint,
-  initialOpen = false,
-  open: openControlled,
-  onOpenChange,
-  children,
-}: {
-  title: string
-  hint?: string
-  /** Estado inicial si no hay control externo. */
-  initialOpen?: boolean
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
-  children: ReactNode
-}) {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(initialOpen)
-  const controlled = openControlled !== undefined
-  const open = controlled ? openControlled : uncontrolledOpen
-
-  function setOpen(next: boolean) {
-    if (controlled) onOpenChange?.(next)
-    else setUncontrolledOpen(next)
-  }
-
-  return (
-    <details
-      className="mc-checkout-panel rounded-md border mc-pc-border bg-[var(--cat-surface)]"
-      open={open}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-    >
-      <summary className="flex cursor-pointer items-start justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-[color-mix(in_srgb,var(--cat-bg)_55%,var(--cat-surface)_45%)] sm:px-5 sm:py-4">
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-medium tracking-tight mc-pc-text">{title}</p>
-          {hint ? <p className="mt-1 text-[12px] leading-relaxed mc-pc-muted">{hint}</p> : null}
-        </div>
-        <span
-          className="mc-checkout-chevron mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border mc-pc-border text-[11px] mc-pc-muted"
-          aria-hidden
-        >
-          ▼
-        </span>
-      </summary>
-      <div className="border-t mc-pc-border px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">{children}</div>
-    </details>
-  )
-}
-
-function CheckoutCard({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded-md border mc-pc-border bg-[var(--cat-surface)]">
-      <div className="border-b mc-pc-border px-4 py-3 sm:px-5 sm:py-3.5">
-        <p className="text-[15px] font-medium tracking-tight mc-pc-text">{title}</p>
-      </div>
-      <div className="px-4 py-4 sm:px-5 sm:py-5">{children}</div>
-    </div>
-  )
-}
-
 export function PublicCheckoutPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug, to } = usePublicStore()
   usePublicCheckoutStartTracking()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -129,7 +82,11 @@ export function PublicCheckoutPage() {
   const [busy, setBusy] = useState(false)
   const [onepayBusy, setOnepayBusy] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
-  const [cuponOpen, setCuponOpen] = useState(false)
+  const [checkoutStep, setCheckoutStep] = useState<CheckoutStepId>('revisar')
+
+  useEffect(() => {
+    setErrMsg(null)
+  }, [checkoutStep])
 
   /** Links antiguos de OnePay que apuntaban a `/checkout?onepay=1`: redirect a la vista dedicada. */
   useEffect(() => {
@@ -147,7 +104,7 @@ export function PublicCheckoutPage() {
       if (e.origin !== window.location.origin) return
       const d = e.data as { type?: string; pathname?: string; search?: string }
       if (d?.type !== MC_ONEPAY_DONE_MSG || typeof d.pathname !== 'string') return
-      const expectedPath = slug ? `/c/${slug}/checkout/pago-validando` : null
+      const expectedPath = slug ? buildStorePublicPath(slug, '/checkout/pago-validando') : null
       if (!expectedPath || d.pathname !== expectedPath) return
       let q = ''
       if (typeof d.search === 'string' && d.search.length > 0) {
@@ -240,6 +197,64 @@ export function PublicCheckoutPage() {
     )
   }, [checkoutVentasModoExplicit, tenant?.onepayPaymentsEnabled, pasarelaMicatalogoOk])
 
+  function checkoutFields(): CheckoutFields {
+    return {
+      nombre,
+      telefono,
+      email,
+      clienteTipoDocumento,
+      clienteDocumentoNumero,
+      envioDepartamento,
+      envioCiudad,
+      envioDireccion,
+    }
+  }
+
+  function cuponEsInvalido(): boolean {
+    if (!cuponAplicado) return false
+    return !buscarCuponActivo(cuponAplicado.codigo, tenant?.cuponesCatalogo)
+  }
+
+  function validateStepOpts() {
+    return { preciosOk, cuponInvalid: cuponEsInvalido() }
+  }
+
+  function goCheckoutNext() {
+    setErrMsg(null)
+    const err = validateCheckoutStep(checkoutStep, checkoutFields(), validateStepOpts())
+    if (err) {
+      setErrMsg(err)
+      return
+    }
+    const i = checkoutStepIndex(checkoutStep)
+    if (i < CHECKOUT_STEPS.length - 1) {
+      setCheckoutStep(CHECKOUT_STEPS[i + 1]!)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  function goCheckoutBack() {
+    setErrMsg(null)
+    const i = checkoutStepIndex(checkoutStep)
+    if (i > 0) {
+      setCheckoutStep(CHECKOUT_STEPS[i - 1]!)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  function goToCheckoutStep(step: CheckoutStepId) {
+    const targetIdx = checkoutStepIndex(step)
+    const currentIdx = checkoutStepIndex(checkoutStep)
+    if (targetIdx >= currentIdx) return
+    setErrMsg(null)
+    setCheckoutStep(step)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function validateBeforeSubmit(): string | null {
+    return validateCheckoutAll(checkoutFields(), validateStepOpts())
+  }
+
   function aplicarCupon() {
     setCuponError(null)
     const key = normalizeCuponCodigo(cuponInput)
@@ -255,7 +270,6 @@ export function PublicCheckoutPage() {
     }
     setCuponAplicado(found)
     setCuponError(null)
-    setCuponOpen(true)
   }
 
   function quitarCupon() {
@@ -283,20 +297,9 @@ export function PublicCheckoutPage() {
       setErrMsg('Todos los productos deben tener precio para comprar en línea.')
       return
     }
-    if (!nombre.trim() || !telefono.trim()) {
-      setErrMsg('Nombre y teléfono son obligatorios.')
-      return
-    }
-    if (!envioDepartamento.trim()) {
-      setErrMsg('Seleccioná el departamento de envío.')
-      return
-    }
-    if (!envioCiudad.trim() || !envioDireccion.trim()) {
-      setErrMsg('Ciudad y dirección de envío son obligatorias.')
-      return
-    }
-    if (!clienteTipoDocumento.trim() || !clienteDocumentoNumero.trim()) {
-      setErrMsg('Tipo y número de documento son obligatorios.')
+    const submitErr = validateBeforeSubmit()
+    if (submitErr) {
+      setErrMsg(submitErr)
       return
     }
     const cuponVigente = cuponAplicado
@@ -335,7 +338,7 @@ export function PublicCheckoutPage() {
       }
       if (nombre.trim()) base.clienteNombre = nombre.trim()
       if (telefono.trim()) base.clienteTelefono = telefono.trim()
-      if (email.trim()) base.clienteEmail = email.trim()
+      base.clienteEmail = email.trim()
       base.clienteTipoDocumento = clienteTipoDocumento.trim().toUpperCase()
       base.clienteDocumentoNumero = clienteDocumentoNumero.trim()
       if (nota.trim()) base.notaCliente = nota.trim()
@@ -391,20 +394,9 @@ export function PublicCheckoutPage() {
       setErrMsg('Todos los productos deben tener precio para pedir en línea.')
       return
     }
-    if (!nombre.trim() || !telefono.trim()) {
-      setErrMsg('Nombre y teléfono son obligatorios.')
-      return
-    }
-    if (!envioDepartamento.trim()) {
-      setErrMsg('Seleccioná el departamento de envío.')
-      return
-    }
-    if (!envioCiudad.trim() || !envioDireccion.trim()) {
-      setErrMsg('Ciudad y dirección de envío son obligatorias.')
-      return
-    }
-    if (!clienteTipoDocumento.trim() || !clienteDocumentoNumero.trim()) {
-      setErrMsg('Tipo y número de documento son obligatorios.')
+    const submitErr = validateBeforeSubmit()
+    if (submitErr) {
+      setErrMsg(submitErr)
       return
     }
     const cuponVigente = cuponAplicado
@@ -428,7 +420,7 @@ export function PublicCheckoutPage() {
     const waText = buildCheckoutWhatsappText(lines, tenant.mensajeIntro, {
       nombre: nombre.trim(),
       telefono: telefono.trim(),
-      email: email.trim() || undefined,
+      email: email.trim(),
       clienteTipoDocumento: clienteTipoDocumento.trim().toUpperCase(),
       clienteDocumentoNumero: clienteDocumentoNumero.trim(),
       envioDepartamento: formatoDepartamentoEtiqueta(envioDepartamento.trim()),
@@ -469,20 +461,9 @@ export function PublicCheckoutPage() {
       setErrMsg('Todos los productos deben tener precio.')
       return
     }
-    if (!nombre.trim() || !telefono.trim()) {
-      setErrMsg('Nombre y teléfono son obligatorios.')
-      return
-    }
-    if (!envioDepartamento.trim()) {
-      setErrMsg('Seleccioná el departamento de envío.')
-      return
-    }
-    if (!envioCiudad.trim() || !envioDireccion.trim()) {
-      setErrMsg('Ciudad y dirección de envío son obligatorias.')
-      return
-    }
-    if (!clienteTipoDocumento.trim() || !clienteDocumentoNumero.trim()) {
-      setErrMsg('Tipo y número de documento son obligatorios.')
+    const submitErr = validateBeforeSubmit()
+    if (submitErr) {
+      setErrMsg(submitErr)
       return
     }
     const cuponVigente = cuponAplicado
@@ -535,7 +516,7 @@ export function PublicCheckoutPage() {
         cuponCodigo: cuponVigente ? cuponVigente.codigo : undefined,
         nombre: nombre.trim(),
         telefono: telefono.trim(),
-        email: email.trim() || undefined,
+        email: email.trim(),
         nota: nota.trim() || undefined,
         clienteTipoDocumento: clienteTipoDocumento.trim().toUpperCase(),
         clienteDocumentoNumero: clienteDocumentoNumero.trim(),
@@ -590,7 +571,7 @@ export function PublicCheckoutPage() {
       <div className="mc-public-catalog-inset max-w-lg space-y-6 py-12">
         <p className="text-sm leading-relaxed mc-pc-text">No hay productos en el carrito.</p>
         <Link
-          to={`/c/${slug}`}
+          to={to('/')}
           className="inline-block text-sm font-medium mc-pc-text underline decoration-neutral-300 underline-offset-4 transition duration-200 ease-in-out hover:opacity-65"
         >
           Volver al catálogo
@@ -609,7 +590,7 @@ export function PublicCheckoutPage() {
           <strong className="font-medium mc-pc-text">Checkout · cómo cerrás ventas</strong>, y guardá tu elección.
         </p>
         <Link
-          to={`/c/${slug}`}
+          to={to('/')}
           className="inline-block text-sm font-medium mc-pc-text underline decoration-neutral-300 underline-offset-4 transition duration-200 ease-in-out hover:opacity-65"
         >
           Volver al catálogo
@@ -622,13 +603,6 @@ export function PublicCheckoutPage() {
 
   const fieldClass =
     'mt-1.5 w-full rounded-md border mc-pc-border bg-[var(--cat-surface)] px-3 py-2.5 text-sm leading-relaxed mc-pc-text outline-none transition duration-200 ease-in-out placeholder:text-[color-mix(in_srgb,var(--cat-muted)_65%,transparent)] focus:border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)]'
-
-  const envioHint =
-    envioDepartamento.trim() && envioCiudad.trim() && envioDireccion.trim()
-      ? `${formatoDepartamentoEtiqueta(envioDepartamento.trim())} · ${envioCiudad.trim()} · listo`
-      : envioDepartamento.trim() && envioCiudad.trim()
-        ? `${formatoDepartamentoEtiqueta(envioDepartamento.trim())} · ${envioCiudad.trim()} · falta dirección`
-        : 'Departamento, ciudad/municipio y dirección'
 
   const innerFieldClass = clsx(fieldClass, 'mt-1.5')
 
@@ -728,79 +702,133 @@ export function PublicCheckoutPage() {
   )
 
   const resumenCtaAccentClass =
-    'mt-3 w-full rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40'
+    'w-full rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40'
 
-  const onepayResumenCta = mostrarOnepayEnCheckout ? (
-    <>
-      {errMsg ? <p className="mt-3 text-sm leading-relaxed text-red-700">{errMsg}</p> : null}
-      <button
-        type="button"
-        onClick={() => void pagarConOnepay()}
-        disabled={onepayBusy || busy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading}
-        className={resumenCtaAccentClass}
-      >
-        {onepayBusy ? 'Abriendo OnePay…' : `Pagar · ${totalCop > 0 ? formatCop(totalCop) : '—'}`}
-      </button>
-    </>
-  ) : null
+  const navSecondaryClass =
+    'rounded-full border mc-pc-border bg-transparent px-4 py-3.5 text-sm font-semibold mc-pc-text transition duration-200 ease-in-out hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40'
 
-  const whatsappResumenCta =
-    checkoutVentasModo === 'whatsapp' ? (
-      <>
-        {errMsg ? <p className="mt-3 text-sm leading-relaxed text-red-700">{errMsg}</p> : null}
+  const isFinalStep = checkoutStep === 'envio'
+  const currentStepIdx = checkoutStepIndex(checkoutStep)
+  const stepMeta = CHECKOUT_STEP_META[checkoutStep]
+
+  const finalPayDisabled =
+    busy || onepayBusy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading
+
+  const finalPayButton = mostrarOnepayEnCheckout ? (
+    <button
+      type="button"
+      onClick={() => void pagarConOnepay()}
+      disabled={finalPayDisabled}
+      className={resumenCtaAccentClass}
+    >
+      {onepayBusy ? 'Abriendo OnePay…' : `Pagar · ${totalCop > 0 ? formatCop(totalCop) : '—'}`}
+    </button>
+  ) : checkoutVentasModo === 'whatsapp' ? (
+    <button
+      type="button"
+      onClick={pedirPorWhatsapp}
+      disabled={finalPayDisabled}
+      className={resumenCtaAccentClass}
+    >
+      Pedir por Whatsapp
+    </button>
+  ) : (
+    <button
+      type="submit"
+      form="checkout-final-form"
+      disabled={finalPayDisabled}
+      className={resumenCtaAccentClass}
+    >
+      {busy ? 'Procesando…' : 'Confirmar pago simulado'}
+    </button>
+  )
+
+  const stepNavButtons = (
+    <div className="flex gap-3">
+      {currentStepIdx > 0 ? (
+        <button type="button" className={clsx(navSecondaryClass, 'flex-1')} onClick={goCheckoutBack}>
+          Atrás
+        </button>
+      ) : null}
+      {!isFinalStep ? (
+        <button type="button" className={clsx(resumenCtaAccentClass, 'flex-1')} onClick={goCheckoutNext}>
+          Continuar
+        </button>
+      ) : (
+        <div className="min-w-0 flex-1">{finalPayButton}</div>
+      )}
+    </div>
+  )
+
+  const datosResumenCard =
+    nombre.trim() || telefono.trim() || email.trim() ? (
+      <div className="rounded-md border border-dashed mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] px-4 py-3.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">Tus datos</p>
+        <dl className="mt-2 space-y-1 text-[13px] leading-snug mc-pc-text">
+          {nombre.trim() ? (
+            <div className="flex justify-between gap-3">
+              <dt className="mc-pc-muted">Nombre</dt>
+              <dd className="text-right font-medium">{nombre.trim()}</dd>
+            </div>
+          ) : null}
+          {telefono.trim() ? (
+            <div className="flex justify-between gap-3">
+              <dt className="mc-pc-muted">Teléfono</dt>
+              <dd className="text-right font-medium">{telefono.trim()}</dd>
+            </div>
+          ) : null}
+          {email.trim() ? (
+            <div className="flex justify-between gap-3">
+              <dt className="mc-pc-muted">Correo</dt>
+              <dd className="truncate text-right font-medium">{email.trim()}</dd>
+            </div>
+          ) : null}
+        </dl>
         <button
           type="button"
-          onClick={pedirPorWhatsapp}
-          disabled={busy || onepayBusy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading}
-          className={resumenCtaAccentClass}
+          onClick={() => goToCheckoutStep('datos')}
+          className="mt-2.5 text-[12px] font-medium mc-pc-text underline decoration-[color-mix(in_srgb,var(--cat-muted)_45%,transparent)] underline-offset-2 hover:opacity-75"
         >
-          Pedir por Whatsapp
+          Editar datos
         </button>
-      </>
+      </div>
     ) : null
 
-  const resumenCta = onepayResumenCta ?? whatsappResumenCta
-
   return (
-    <div className="mc-public-catalog-inset py-7 sm:py-9 lg:max-w-7xl">
-      <div className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <nav className="flex flex-wrap items-center gap-1.5 text-[12px] sm:text-[13px] mc-pc-muted" aria-label="Checkout">
-            <Link
-              to={`/c/${slug}`}
-              className="font-medium text-[var(--cat-text)] transition hover:opacity-75"
-            >
-              Tienda
-            </Link>
-            <span className="text-[color-mix(in_srgb,var(--cat-muted)_55%,transparent)]" aria-hidden>
-              /
-            </span>
-            <span className="text-[var(--cat-text)]">Pago</span>
-          </nav>
-          <h1 className="mc-pc-display mt-2 text-2xl font-semibold tracking-tight text-[var(--cat-text)] sm:mt-3 sm:text-3xl">
-            Checkout
-          </h1>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--cat-muted)] sm:mt-3">
-            {mostrarOnepayEnCheckout
-              ? 'Completá tus datos; en el resumen del pedido tenés el total y el botón para abrir el cobro seguro de OnePay.'
-              : checkoutVentasModo === 'whatsapp'
-                ? 'Completá tus datos para registrar el pedido. Esta tienda coordina el pago por WhatsApp.'
-                : 'Completá tus datos; cuando la tienda active la pasarela podrás pagar en línea.'}
-          </p>
-        </div>
-        <ol className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--cat-muted)] sm:gap-2 sm:text-[11px]">
-          <li className="text-[var(--cat-text)]">1 · Revisar</li>
-          <li aria-hidden>·</li>
-          <li>2 · Datos</li>
-          <li aria-hidden>·</li>
-          <li>3 · Pago</li>
-        </ol>
+    <div className="mc-public-catalog-inset pb-28 py-7 sm:py-9 lg:max-w-7xl lg:pb-9">
+      <div className="mb-6 sm:mb-8">
+        <nav className="flex flex-wrap items-center gap-1.5 text-[12px] sm:text-[13px] mc-pc-muted" aria-label="Checkout">
+          <Link
+            to={to('/')}
+            className="font-medium text-[var(--cat-text)] transition hover:opacity-75"
+          >
+            Tienda
+          </Link>
+          <span className="text-[color-mix(in_srgb,var(--cat-muted)_55%,transparent)]" aria-hidden>
+            /
+          </span>
+          <span className="text-[var(--cat-text)]">Pago</span>
+        </nav>
+        <h1 className="mc-pc-display mt-2 text-2xl font-semibold tracking-tight text-[var(--cat-text)] sm:mt-3 sm:text-3xl">
+          Checkout
+        </h1>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--cat-muted)] sm:mt-3">
+          {mostrarOnepayEnCheckout
+            ? 'Tres pasos rápidos: revisás el pedido, cargás tus datos y pagás con OnePay de forma segura.'
+            : checkoutVentasModo === 'whatsapp'
+              ? 'Completá el pedido paso a paso. Esta tienda coordina el pago por WhatsApp.'
+              : 'Completá el pedido paso a paso. Cuando la tienda active la pasarela podrás pagar en línea.'}
+        </p>
+      </div>
+
+      <div className="mb-6 sm:mb-8">
+        <CheckoutStepIndicator current={checkoutStep} onStepClick={goToCheckoutStep} />
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 sm:mb-6">
         {tenantHasPoliticas(tenant) && (
           <Link
-            to={`/c/${slug}/politicas`}
+            to={to('/politicas')}
             className="text-sm font-medium text-[var(--cat-text)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_45%,transparent)] underline-offset-4 transition hover:opacity-80"
           >
             Políticas
@@ -810,304 +838,277 @@ export function PublicCheckoutPage() {
 
       <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-10 xl:gap-12">
         <div className="space-y-5 lg:col-span-7 lg:space-y-6">
-          <div className="lg:hidden">
-            <CheckoutDisclosure title="Resumen del pedido" hint={resumenHint} initialOpen>
-              {resumenList}
-              <p className="mt-4 text-xs leading-relaxed text-[var(--cat-muted)]">
-                Cupón y envío se reflejan en el total.
-              </p>
-              {resumenCta}
-            </CheckoutDisclosure>
-          </div>
-
-      <CheckoutDisclosure
-        title="Cupón de descuento"
-        hint={cuponAplicado ? `Aplicado: ${normalizeCuponCodigo(cuponAplicado.codigo)}` : 'Opcional · tocá para ingresar código'}
-        open={cuponOpen}
-        onOpenChange={setCuponOpen}
-      >
-        <div className="space-y-3">
-          {cuponAplicado ? (
-            <div className="flex flex-col gap-2 rounded-md border mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_40%,var(--cat-surface)_60%)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm mc-pc-text">
-                Activo: <span className="font-mono font-medium">{normalizeCuponCodigo(cuponAplicado.codigo)}</span>
-              </p>
-              <button
-                type="button"
-                className="text-sm font-medium mc-pc-muted underline decoration-neutral-300 underline-offset-4 hover:opacity-70"
-                onClick={quitarCupon}
-              >
-                Quitar
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1">
-                <input
-                  className={innerFieldClass}
-                  value={cuponInput}
-                  onChange={(e) => setCuponInput(e.target.value)}
-                  placeholder="Código de descuento"
-                  autoComplete="off"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={aplicarCupon}
-                className="shrink-0 rounded-md border mc-pc-border bg-transparent px-4 py-2.5 text-sm font-medium mc-pc-text transition hover:opacity-80"
-              >
-                Aplicar
-              </button>
-            </div>
-          )}
-          {cuponError && <p className="text-sm text-red-700">{cuponError}</p>}
-        </div>
-      </CheckoutDisclosure>
-
-      {!preciosOk && (
-        <p className="rounded-md border border-neutral-200/60 bg-neutral-50/80 px-4 py-3 text-sm leading-relaxed text-neutral-800">
-          Hay ítems sin precio. Volvé al catálogo o pedí por WhatsApp si la tienda aún no cargó precios.
-        </p>
-      )}
-
-      <form onSubmit={(e) => void pagarSimulado(e)} className="space-y-5 sm:space-y-6">
-        <CheckoutCard title="Tus datos">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                Nombre <span className="text-red-700">*</span>
-              </label>
-              <input
-                className={innerFieldClass}
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                autoComplete="name"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                Teléfono <span className="text-red-700">*</span>
-              </label>
-              <input
-                className={innerFieldClass}
-                value={telefono}
-                onChange={(e) => setTelefono(e.target.value)}
-                inputMode="tel"
-                autoComplete="tel"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                Correo (opcional)
-              </label>
-              <input
-                className={innerFieldClass}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                type="email"
-                autoComplete="email"
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                  Tipo de documento <span className="text-red-700">*</span>
-                </label>
-                <select
-                  className={innerFieldClass}
-                  value={clienteTipoDocumento}
-                  onChange={(e) => setClienteTipoDocumento(e.target.value)}
-                  required
-                >
-                  <option value="">Elegí…</option>
-                  {MC_CHECKOUT_DOCUMENTO_TIPOS.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                  Número de documento <span className="text-red-700">*</span>
-                </label>
-                <input
-                  className={innerFieldClass}
-                  value={clienteDocumentoNumero}
-                  onChange={(e) => setClienteDocumentoNumero(e.target.value)}
-                  inputMode="text"
-                  autoComplete="off"
-                  required
-                  minLength={5}
-                  placeholder="Sin puntos ni espacios"
-                />
-              </div>
-            </div>
-          </div>
-        </CheckoutCard>
-
-        <CheckoutDisclosure title="Envío" hint={envioHint}>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                Departamento <span className="text-red-700">*</span>
-              </label>
-              <select
-                className={innerFieldClass}
-                value={envioDepartamento}
-                required
-                onChange={(e) => {
-                  const v = e.target.value
-                  setEnvioDepartamento(v)
-                  if (!ciudadManual) setEnvioCiudad('')
-                }}
-              >
-                <option value="">Elegí departamento…</option>
-                {COLOMBIA_DEPARTAMENTOS.map((d) => (
-                  <option key={d} value={d}>
-                    {formatoDepartamentoEtiqueta(d)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                Ciudad o municipio <span className="text-red-700">*</span>
-              </label>
-              {ciudadManual ? (
-                <input
-                  className={innerFieldClass}
-                  value={envioCiudad}
-                  onChange={(e) => setEnvioCiudad(e.target.value)}
-                  autoComplete="address-level2"
-                  required
-                  placeholder="Ej. nombre del municipio"
-                />
-              ) : (
-                <MunicipioCombobox
-                  departamento={envioDepartamento}
-                  value={envioCiudad}
-                  onChange={setEnvioCiudad}
-                  disabled={busy || onepayBusy}
-                  required
-                  inputClassName={innerFieldClass}
-                  placeholder="Buscá y elegí tu municipio…"
-                />
-              )}
-              {!ciudadManual && (
-                <p className="mt-1.5 text-[11px] leading-relaxed mc-pc-muted">
-                  Escribí las primeras letras para filtrar. El envío se calcula con la ciudad indicada y las tarifas de la
-                  tienda (o Mi Catálogo si la tienda lo configuró).
-                </p>
-              )}
-            </div>
-
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-dashed mc-pc-border px-3 py-2.5">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={ciudadManual}
-                onChange={(e) => {
-                  const v = e.target.checked
-                  setCiudadManual(v)
-                  if (!v) setEnvioCiudad('')
-                }}
-              />
-              <span className="text-[13px] leading-snug mc-pc-text">
-                Mi ciudad no aparece en la lista (escribir manualmente)
-              </span>
-            </label>
-
-            <div>
-              <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                Dirección <span className="text-red-700">*</span>
-              </label>
-              <textarea
-                className={clsx(innerFieldClass, 'min-h-[72px] resize-y')}
-                value={envioDireccion}
-                onChange={(e) => setEnvioDireccion(e.target.value)}
-                autoComplete="street-address"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                Referencia (opcional)
-              </label>
-              <input
-                className={innerFieldClass}
-                value={envioReferencia}
-                onChange={(e) => setEnvioReferencia(e.target.value)}
-                placeholder="Torre, apartamento, barrio…"
-              />
-            </div>
-          </div>
-        </CheckoutDisclosure>
-
-        <CheckoutDisclosure
-          title="Nota para la tienda"
-          hint={nota.trim() ? 'Hay un mensaje cargado' : 'Opcional'}
-        >
-          <label className="sr-only" htmlFor="checkout-nota">
-            Nota para la tienda
-          </label>
-          <textarea
-            id="checkout-nota"
-            className={clsx(innerFieldClass, 'min-h-[88px] resize-y')}
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-          />
-        </CheckoutDisclosure>
-
-        {!mostrarOnepayEnCheckout && checkoutVentasModo !== 'whatsapp' && (
-          <CheckoutDisclosure
-            title="Pago"
-            hint="Tarjeta de demostración · no se cobra de verdad"
+          <div
+            key={checkoutStep}
+            className="mc-reg-step-animate rounded-2xl border mc-pc-border bg-[var(--cat-surface)] p-5 sm:p-6"
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' || e.repeat || isFinalStep) return
+              const t = e.target
+              if (t instanceof HTMLTextAreaElement) return
+              if (t instanceof HTMLButtonElement) return
+              e.preventDefault()
+              goCheckoutNext()
+            }}
           >
-            <div className="rounded-md border border-dashed mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] px-3 py-4 sm:px-4">
-              <p className="text-[11px] font-medium uppercase tracking-[0.12em] mc-pc-muted">Tarjeta (demo)</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <input
-                  className="rounded-md border mc-pc-border bg-[var(--cat-surface)] px-3 py-2 text-sm mc-pc-muted"
-                  placeholder="Número"
-                  disabled
-                  value="4242 4242 4242 4242"
-                  readOnly
-                />
-                <input
-                  className="rounded-md border mc-pc-border bg-[var(--cat-surface)] px-3 py-2 text-sm mc-pc-muted"
-                  placeholder="MM/AA"
-                  disabled
-                  readOnly
-                />
-              </div>
-              <p className="mt-3 text-[11px] leading-relaxed mc-pc-muted">
-                Simulación: los datos no van a una pasarela. Si la tienda tiene OnePay, el pago real es solo en la página
-                que se abre con el botón de pago del resumen.
-              </p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--cat-muted)]">
+              Paso {currentStepIdx + 1} de {CHECKOUT_STEPS.length}
+            </p>
+            <h2 className="mc-pc-display mt-1.5 text-xl font-semibold tracking-tight text-[var(--cat-text)] sm:text-2xl">
+              {stepMeta.title}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--cat-muted)]">{stepMeta.subtitle}</p>
+
+            <div className="mt-5 sm:mt-6">
+              {checkoutStep === 'revisar' && (
+                <div className="space-y-5">
+                  {resumenList}
+                  <div className="rounded-md border mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_40%,var(--cat-surface)_60%)] p-4">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">Cupón de descuento</p>
+                    <div className="mt-3 space-y-3">
+                      {cuponAplicado ? (
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-sm mc-pc-text">
+                            Activo:{' '}
+                            <span className="font-mono font-medium">
+                              {normalizeCuponCodigo(cuponAplicado.codigo)}
+                            </span>
+                          </p>
+                          <button
+                            type="button"
+                            className="text-sm font-medium mc-pc-muted underline decoration-neutral-300 underline-offset-4 hover:opacity-70"
+                            onClick={quitarCupon}
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                          <div className="min-w-0 flex-1">
+                            <input
+                              className={innerFieldClass}
+                              value={cuponInput}
+                              onChange={(e) => setCuponInput(e.target.value)}
+                              placeholder="Código de descuento (opcional)"
+                              autoComplete="off"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={aplicarCupon}
+                            className="shrink-0 rounded-md border mc-pc-border bg-transparent px-4 py-2.5 text-sm font-medium mc-pc-text transition hover:opacity-80"
+                          >
+                            Aplicar
+                          </button>
+                        </div>
+                      )}
+                      {cuponError ? <p className="text-sm text-red-700">{cuponError}</p> : null}
+                    </div>
+                  </div>
+                  {!preciosOk ? (
+                    <p className="rounded-md border border-neutral-200/60 bg-neutral-50/80 px-4 py-3 text-sm leading-relaxed text-neutral-800">
+                      Hay ítems sin precio. Volvé al catálogo o pedí por WhatsApp si la tienda aún no cargó precios.
+                    </p>
+                  ) : null}
+                </div>
+              )}
+
+              {checkoutStep === 'datos' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                      Nombre <span className="text-red-700">*</span>
+                    </label>
+                    <input
+                      className={innerFieldClass}
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      autoComplete="name"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                      Teléfono <span className="text-red-700">*</span>
+                    </label>
+                    <input
+                      className={innerFieldClass}
+                      value={telefono}
+                      onChange={(e) => setTelefono(e.target.value)}
+                      inputMode="tel"
+                      autoComplete="tel"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                      Correo <span className="text-red-700">*</span>
+                    </label>
+                    <input
+                      className={innerFieldClass}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      type="email"
+                      autoComplete="email"
+                      placeholder="tu@correo.com"
+                    />
+                    <p className="mt-1.5 text-[11px] leading-relaxed mc-pc-muted">
+                      Te enviamos la confirmación del pedido y el seguimiento a este correo.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                        Tipo de documento <span className="text-red-700">*</span>
+                      </label>
+                      <select
+                        className={innerFieldClass}
+                        value={clienteTipoDocumento}
+                        onChange={(e) => setClienteTipoDocumento(e.target.value)}
+                      >
+                        <option value="">Elegí…</option>
+                        {MC_CHECKOUT_DOCUMENTO_TIPOS.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                        Número de documento <span className="text-red-700">*</span>
+                      </label>
+                      <input
+                        className={innerFieldClass}
+                        value={clienteDocumentoNumero}
+                        onChange={(e) => setClienteDocumentoNumero(e.target.value)}
+                        inputMode="text"
+                        autoComplete="off"
+                        minLength={5}
+                        placeholder="Sin puntos ni espacios"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {checkoutStep === 'envio' && (
+                <form id="checkout-final-form" onSubmit={(e) => void pagarSimulado(e)} className="space-y-5">
+                  {datosResumenCard}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                        Departamento <span className="text-red-700">*</span>
+                      </label>
+                      <select
+                        className={innerFieldClass}
+                        value={envioDepartamento}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setEnvioDepartamento(v)
+                          if (!ciudadManual) setEnvioCiudad('')
+                        }}
+                      >
+                        <option value="">Elegí departamento…</option>
+                        {COLOMBIA_DEPARTAMENTOS.map((d) => (
+                          <option key={d} value={d}>
+                            {formatoDepartamentoEtiqueta(d)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                        Ciudad o municipio <span className="text-red-700">*</span>
+                      </label>
+                      {ciudadManual ? (
+                        <input
+                          className={innerFieldClass}
+                          value={envioCiudad}
+                          onChange={(e) => setEnvioCiudad(e.target.value)}
+                          autoComplete="address-level2"
+                          placeholder="Ej. nombre del municipio"
+                        />
+                      ) : (
+                        <MunicipioCombobox
+                          departamento={envioDepartamento}
+                          value={envioCiudad}
+                          onChange={setEnvioCiudad}
+                          disabled={busy || onepayBusy}
+                          inputClassName={innerFieldClass}
+                          placeholder="Buscá y elegí tu municipio…"
+                        />
+                      )}
+                      {!ciudadManual ? (
+                        <p className="mt-1.5 text-[11px] leading-relaxed mc-pc-muted">
+                          El envío se calcula con la ciudad indicada y las tarifas de la tienda.
+                        </p>
+                      ) : null}
+                    </div>
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-dashed mc-pc-border px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={ciudadManual}
+                        onChange={(e) => {
+                          const v = e.target.checked
+                          setCiudadManual(v)
+                          if (!v) setEnvioCiudad('')
+                        }}
+                      />
+                      <span className="text-[13px] leading-snug mc-pc-text">
+                        Mi ciudad no aparece en la lista (escribir manualmente)
+                      </span>
+                    </label>
+                    <div>
+                      <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                        Dirección <span className="text-red-700">*</span>
+                      </label>
+                      <textarea
+                        className={clsx(innerFieldClass, 'min-h-[72px] resize-y')}
+                        value={envioDireccion}
+                        onChange={(e) => setEnvioDireccion(e.target.value)}
+                        autoComplete="street-address"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                        Referencia (opcional)
+                      </label>
+                      <input
+                        className={innerFieldClass}
+                        value={envioReferencia}
+                        onChange={(e) => setEnvioReferencia(e.target.value)}
+                        placeholder="Torre, apartamento, barrio…"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
+                        Nota para la tienda (opcional)
+                      </label>
+                      <textarea
+                        className={clsx(innerFieldClass, 'min-h-[72px] resize-y')}
+                        value={nota}
+                        onChange={(e) => setNota(e.target.value)}
+                        placeholder="Instrucciones especiales, horario de entrega…"
+                      />
+                    </div>
+                  </div>
+                  {!mostrarOnepayEnCheckout && checkoutVentasModo !== 'whatsapp' ? (
+                    <div className="rounded-md border border-dashed mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] px-3 py-4 sm:px-4">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.12em] mc-pc-muted">Pago simulado</p>
+                      <p className="mt-2 text-[12px] leading-relaxed mc-pc-muted">
+                        Modo demostración: no se cobra de verdad. Con OnePay activo, el cobro real se abre en una ventana
+                        segura.
+                      </p>
+                    </div>
+                  ) : null}
+                </form>
+              )}
             </div>
-          </CheckoutDisclosure>
-        )}
 
-        {!mostrarOnepayEnCheckout && checkoutVentasModo !== 'whatsapp' && errMsg ? (
-          <p className="text-sm leading-relaxed text-red-700">{errMsg}</p>
-        ) : null}
+            {errMsg ? <p className="mt-4 text-sm leading-relaxed text-red-700">{errMsg}</p> : null}
 
-        {!mostrarOnepayEnCheckout && checkoutVentasModo !== 'whatsapp' ? (
-          <div className="flex flex-col gap-2">
-            <button
-              type="submit"
-              disabled={busy || onepayBusy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading}
-              className="w-full rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {busy ? 'Procesando…' : 'Confirmar pago simulado'}
-            </button>
+            <div className="mt-6 hidden lg:block">{stepNavButtons}</div>
           </div>
-        ) : null}
-      </form>
         </div>
 
         <aside className="hidden lg:col-span-5 lg:block" aria-label="Resumen del pedido">
@@ -1116,12 +1117,31 @@ export function PublicCheckoutPage() {
             <h2 className="mc-pc-display mt-1.5 text-lg font-semibold text-[var(--cat-text)]">Tu pedido</h2>
             <p className="mt-1 text-xs text-[var(--cat-muted)]">{resumenHint}</p>
             <div className="mt-4">{resumenList}</div>
+            {checkoutStep !== 'revisar' && envioDepartamento.trim() && envioCiudad.trim() ? (
+              <p className="mt-3 text-[11px] leading-relaxed text-[var(--cat-muted)]">
+                Envío a {envioCiudad.trim()}, {formatoDepartamentoEtiqueta(envioDepartamento.trim())}
+              </p>
+            ) : null}
             <p className="mt-4 text-xs leading-relaxed text-[var(--cat-muted)]">
-              Cupón y envío se reflejan en el total.
+              {isFinalStep ? 'Revisá el total antes de confirmar.' : 'El envío se actualiza al completar la dirección.'}
             </p>
-            {resumenCta}
+            {isFinalStep ? <div className="mt-4">{finalPayButton}</div> : null}
           </div>
         </aside>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t mc-pc-border bg-[color-mix(in_srgb,var(--cat-surface)_92%,transparent)] px-4 py-3 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
+        <div className="mx-auto max-w-lg space-y-2">
+          {isFinalStep ? (
+            <div className="flex items-center justify-between gap-3 px-0.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">Total</span>
+              <span className="text-lg font-bold tabular-nums text-[var(--cat-text)]">
+                {totalCop > 0 ? formatCop(totalCop) : '—'}
+              </span>
+            </div>
+          ) : null}
+          {stepNavButtons}
+        </div>
       </div>
     </div>
   )

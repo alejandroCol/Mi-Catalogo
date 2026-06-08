@@ -1,6 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { db } from './firebaseAdmin.js'
+import { isTenantMembershipActive } from './tenantMembership.js'
 
 export type StoreAnalyticsEvent =
   | 'catalog_visit'
@@ -55,8 +56,8 @@ async function resolveActiveTenantBySlug(slug: string): Promise<{ tenantId: stri
   if (!tenantSnap.exists) {
     throw new HttpsError('not-found', 'Tienda no encontrada.')
   }
-  const endsAt = tenantSnap.data()?.subscriptionEndsAt
-  if (typeof endsAt !== 'number' || endsAt <= Date.now()) {
+  const tenant = tenantSnap.data() as { billingPlan?: string; subscriptionEndsAt?: number }
+  if (!isTenantMembershipActive(tenant)) {
     throw new HttpsError('failed-precondition', 'Tienda inactiva.')
   }
   return { tenantId }

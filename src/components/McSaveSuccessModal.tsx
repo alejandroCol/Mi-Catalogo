@@ -1,8 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 
 export type McSaveSuccessOptions = {
   title?: string
   message?: string
+  /** Se ejecuta al cerrar el diálogo (botón Listo, overlay o Escape). */
+  onAfterClose?: () => void
 }
 
 type McSaveSuccessContextValue = {
@@ -22,13 +24,22 @@ export function useSaveSuccess() {
 export function McSaveSuccessProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [options, setOptions] = useState<McSaveSuccessOptions>({})
+  const afterCloseRef = useRef<(() => void) | undefined>(undefined)
 
   const showSaveSuccess = useCallback((opts?: McSaveSuccessOptions) => {
+    afterCloseRef.current = opts?.onAfterClose
     setOptions({
       title: opts?.title ?? 'Cambios guardados',
       message: opts?.message,
     })
     setOpen(true)
+  }, [])
+
+  const handleClose = useCallback(() => {
+    setOpen(false)
+    const fn = afterCloseRef.current
+    afterCloseRef.current = undefined
+    fn?.()
   }, [])
 
   return (
@@ -38,7 +49,7 @@ export function McSaveSuccessProvider({ children }: { children: ReactNode }) {
         open={open}
         title={options.title ?? 'Cambios guardados'}
         message={options.message}
-        onClose={() => setOpen(false)}
+        onClose={handleClose}
       />
     </McSaveSuccessContext.Provider>
   )

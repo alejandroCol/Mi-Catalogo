@@ -7,6 +7,7 @@ import {
   accountReadyForDebit,
   onepayCreateNequiAccount,
   onepayCreateTokenizedCard,
+  onepayGetAccount,
   onepayListAccounts,
   onepayListCards,
   onepayListNequiBanks,
@@ -41,6 +42,30 @@ async function resolveTenantOwner(uid: string): Promise<{ tenantId: string }> {
     throw new HttpsError('permission-denied', 'Solo el dueño puede gestionar el plan.')
   }
   return { tenantId }
+}
+
+async function resolveNequiAccountReady(params: {
+  customerId: string
+  accountId: string
+  secretKey: string
+}): Promise<{ acc: Awaited<ReturnType<typeof onepayGetAccount>>; ready: boolean }> {
+  let acc = await onepayGetAccount(params.accountId, params.secretKey)
+  if (!acc) {
+    const accounts = await onepayListAccounts(params.customerId, params.secretKey)
+    acc = accounts.find((a) => a.id === params.accountId) ?? null
+  }
+  return { acc, ready: acc ? accountReadyForDebit(acc) : false }
+}
+
+async function pinNequiIfReady(tenantId: string, accountId: string, ready: boolean): Promise<void> {
+  if (!ready) return
+  await db.doc(`mc_tenants/${tenantId}`).set(
+    {
+      billingPinnedAccountId: accountId,
+      billingDebitMethod: 'nequi',
+    },
+    { merge: true },
+  )
 }
 
 async function getPlatformBillingCreds(): Promise<{
@@ -282,18 +307,71 @@ export const mcBillingValidateNequi = onCall({ invoker: 'public' }, async (reque
       ? (request.data as { otp: string }).otp.trim()
       : undefined
   if (!accountId) throw new HttpsError('invalid-argument', 'accountId requerido.')
+
   const { secretKey } = await getPlatformBillingCreds()
-  const out = await onepayValidateAccount(accountId, secretKey, otp)
-  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
-  const customerId = (tenantSnap.data() as { billingOnePayCustomerId?: string }).billingOnePayCustomerId?.trim()
-  if (customerId) {
-    const accounts = await onepayListAccounts(customerId, secretKey)
-    const acc = accounts.find((a) => a.id === accountId)
-    if (acc && accountReadyForDebit(acc)) {
-      await db.doc(`mc_tenants/${tenantId}`).set({ billingPinnedAccountId: accountId }, { merge: true })
+  let validateStatus: string | undefined
+  let validateMessage: string | undefined
+
+  if (otp) {
+    try {
+      const out = await onepayValidateAccount(accountId, secretKey, otp)
+      validateStatus = out.status
+      validateMessage = out.message
+    } catch (e) {
+      validateMessage = e instanceof Error ? e.message : 'No se pudo validar Nequi'
     }
   }
-  return { ok: true as const, status: out.status, message: out.message }
+
+  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
+  const customerId = (tenantSnap.data() as { billingOnePayCustomerId?: string }).billingOnePayCustomerId?.trim()
+  if (!customerId) {
+    return {
+      ok: true as const,
+      ready: false,
+      status: validateStatus,
+      message: validateMessage ?? 'Completá primero tus datos de facturación.',
+    }
+  }
+
+  const { acc, ready } = await resolveNequiAccountReady({ customerId, accountId, secretKey })
+  await pinNequiIfReady(tenantId, accountId, ready)
+
+  return {
+    ok: true as const,
+    ready,
+    status: acc?.status ?? validateStatus,
+    authorization: acc?.authorization,
+    message: validateMessage,
+  }
+})
+
+/** Consulta estado Nequi sin forzar validate (evita 500 si ya fue aprobado). */
+export const mcBillingCheckNequiReady = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Iniciá sesión.')
+  const { tenantId } = await resolveTenantOwner(uid)
+  const accountId =
+    typeof (request.data as { accountId?: unknown })?.accountId === 'string'
+      ? (request.data as { accountId: string }).accountId.trim()
+      : ''
+  if (!accountId) throw new HttpsError('invalid-argument', 'accountId requerido.')
+
+  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
+  const customerId = (tenantSnap.data() as { billingOnePayCustomerId?: string }).billingOnePayCustomerId?.trim()
+  if (!customerId) {
+    throw new HttpsError('failed-precondition', 'Completá primero tus datos de facturación.')
+  }
+
+  const { secretKey } = await getPlatformBillingCreds()
+  const { acc, ready } = await resolveNequiAccountReady({ customerId, accountId, secretKey })
+  await pinNequiIfReady(tenantId, accountId, ready)
+
+  return {
+    ok: true as const,
+    ready,
+    status: acc?.status,
+    authorization: acc?.authorization,
+  }
 })
 
 export const mcBillingCompleteActivation = onCall({ invoker: 'public' }, async (request) => {

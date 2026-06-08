@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   addDoc,
   collection,
@@ -22,6 +22,7 @@ import { formatCop } from '@/lib/formatCop'
 import { formatoDepartamentoEtiqueta } from '@/lib/colombiaGeo'
 import { mcOrdenesCatalogoCollection, mcPedidosCollection } from '@/lib/mcCollections'
 import { IconChevronRight } from '@/icons/McIcons'
+import { MobilePullToRefresh } from '@/components/MobilePullToRefresh'
 import { ADMIN_SEGUIMIENTO_ESTADOS } from '@/lib/catalogOrderTracking'
 import type { McOrdenCatalogo, McOrdenCatalogoEstado, McPedido } from '@/types/mc'
 
@@ -44,7 +45,7 @@ function previewLineas(o: McOrdenCatalogo) {
 }
 
 export function PedidosPage() {
-  const { profile, tenant } = useMcAuth()
+  const { tenant, effectiveTenantId } = useMcAuth()
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [ventas, setVentas] = useState<(McOrdenCatalogo & { id: string })[]>([])
   const [manual, setManual] = useState<(McPedido & { id: string })[]>([])
@@ -55,13 +56,17 @@ export function PedidosPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [expandedVentaId, setExpandedVentaId] = useState<string | null>(null)
   const [manualFormOpen, setManualFormOpen] = useState(false)
+  const [listenKey, setListenKey] = useState(0)
+
+  const reloadPlatformSettings = useCallback(async () => {
+    if (!firebaseConfigured) return
+    const ps = await getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc))
+    setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
+  }, [])
 
   useEffect(() => {
-    if (!firebaseConfigured) return
-    void getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc)).then((ps) => {
-      setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
-    })
-  }, [])
+    void reloadPlatformSettings()
+  }, [reloadPlatformSettings])
 
   const checkoutModo = explicitCheckoutVentasModo(tenant)
   const showSaldoLink =
@@ -69,9 +74,9 @@ export function PedidosPage() {
     (checkoutModo === 'pasarela_micatalogo' && platformSettings?.pasarelaMicatalogoActiva === true)
 
   useEffect(() => {
-    if (!firebaseConfigured || !profile?.tenantId) return
+    if (!firebaseConfigured || !effectiveTenantId) return
     const db = getDb()
-    const tid = profile.tenantId
+    const tid = effectiveTenantId
     const qVentas = query(collection(db, mcOrdenesCatalogoCollection(tid)), orderBy('createdAt', 'desc'))
     const qManual = query(collection(db, mcPedidosCollection(tid)), orderBy('createdAt', 'desc'))
     const u1 = onSnapshot(qVentas, (snap) => {
@@ -84,16 +89,21 @@ export function PedidosPage() {
       u1()
       u2()
     }
-  }, [profile?.tenantId])
+  }, [effectiveTenantId, listenKey])
+
+  const refreshPedidos = useCallback(async () => {
+    await reloadPlatformSettings()
+    setListenKey((k) => k + 1)
+  }, [reloadPlatformSettings])
 
   async function agregarManual(e: React.FormEvent) {
     e.preventDefault()
-    if (!profile?.tenantId || !nota.trim()) return
+    if (!effectiveTenantId || !nota.trim()) return
     setBusy(true)
     try {
       const db = getDb()
       const totalNum = total.replace(/\D/g, '') ? Number(total.replace(/\D/g, '')) : undefined
-      await addDoc(collection(db, mcPedidosCollection(profile.tenantId)), {
+      await addDoc(collection(db, mcPedidosCollection(effectiveTenantId)), {
         clienteHint: cliente.trim() || undefined,
         nota: nota.trim(),
         estado: 'nuevo',
@@ -110,15 +120,15 @@ export function PedidosPage() {
   }
 
   async function borrarManual(id: string) {
-    if (!profile?.tenantId || !window.confirm('¿Borrar este pedido manual?')) return
-    await deleteDoc(doc(getDb(), mcPedidosCollection(profile.tenantId), id))
+    if (!effectiveTenantId || !window.confirm('¿Borrar este pedido manual?')) return
+    await deleteDoc(doc(getDb(), mcPedidosCollection(effectiveTenantId), id))
   }
 
   async function setEstadoOrden(
     orden: McOrdenCatalogo & { id: string },
     estado: McOrdenCatalogoEstado,
   ) {
-    if (!profile?.tenantId) return
+    if (!effectiveTenantId) return
     if (estado === 'enviado' && !orden.trackingImageUrl) {
       window.alert('Subí la imagen de la guía de rastreo antes de marcar el pedido como Despachado.')
       return
@@ -129,28 +139,28 @@ export function PedidosPage() {
     if (estado === 'en_preparacion') patch.seguimientoPreparacionAt = now
     if (estado === 'enviado') patch.seguimientoDespachoAt = now
     if (estado === 'entregado') patch.seguimientoEntregaAt = now
-    await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(profile.tenantId), orden.id), patch)
+    await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(effectiveTenantId), orden.id), patch)
   }
 
   async function setTrackingNumber(id: string, trackingNumber: string) {
-    if (!profile?.tenantId) return
-    await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(profile.tenantId), id), {
+    if (!effectiveTenantId) return
+    await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(effectiveTenantId), id), {
       trackingNumber: trackingNumber.trim() || undefined,
       updatedAt: Date.now(),
     })
   }
 
   async function onGuiaFile(id: string, file: File | null) {
-    if (!file || !profile?.tenantId || !firebaseStorageConfigured) return
+    if (!file || !effectiveTenantId || !firebaseStorageConfigured) return
     setUploadingId(id)
     try {
       const light = await compressImageForUpload(file, { maxEdgePx: 900, jpegQuality: 0.65 })
       const storage = getStorageApp()
-      const path = `mc_tenants/${profile.tenantId}/ordenes_catalogo/${id}_guia.jpg`
+      const path = `mc_tenants/${effectiveTenantId}/ordenes_catalogo/${id}_guia.jpg`
       const r = ref(storage, path)
       await uploadBytes(r, light, { contentType: 'image/jpeg' })
       const url = await getDownloadURL(r)
-      await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(profile.tenantId), id), {
+      await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(effectiveTenantId), id), {
         trackingImageUrl: url,
         updatedAt: Date.now(),
       })
@@ -162,6 +172,7 @@ export function PedidosPage() {
   const listShell = 'overflow-hidden rounded-md border border-neutral-200/50 bg-[var(--cat-surface)]'
 
   return (
+    <MobilePullToRefresh onRefresh={refreshPedidos}>
     <div className="mc-shell space-y-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <h1 className="ios-large-title">Ventas</h1>
@@ -482,5 +493,6 @@ export function PedidosPage() {
         )}
       </section>
     </div>
+    </MobilePullToRefresh>
   )
 }

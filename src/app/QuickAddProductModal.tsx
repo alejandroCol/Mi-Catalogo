@@ -27,6 +27,8 @@ import {
   variantesConStockDefinido,
 } from '@/lib/productoVariantes'
 import type { McPlatformSettings, McProductoVariante, McTenant } from '@/types/mc'
+import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
+import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 
 export function QuickAddProductModal({
   tenantId,
@@ -60,6 +62,9 @@ export function QuickAddProductModal({
     valor: '',
   }))
   const [variantes, setVariantes] = useState<VarianteDraftConArchivo[]>([])
+  const [categoriaIds, setCategoriaIds] = useState<string[]>([])
+
+  const { categorias } = useTenantCategorias(tenantId)
 
   const { showSaveSuccess } = useSaveSuccess()
   const tieneVariantes = variantes.length > 0
@@ -163,6 +168,7 @@ export function QuickAddProductModal({
           ...(mostrarDescargaImagen ? { mostrarDescargaImagen: true } : {}),
           ...descParsed.fields,
           ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
+          ...(categoriaIds.length > 0 ? { categoriaIds } : {}),
         },
         platformSettings,
       )
@@ -252,7 +258,6 @@ export function QuickAddProductModal({
                 setCoverId(nextCover)
               }}
               disabled={busy}
-              capture="environment"
             />
           </ProductoFormSection>
 
@@ -322,6 +327,15 @@ export function QuickAddProductModal({
                 )}
               </div>
             )}
+          </ProductoFormSection>
+
+          <ProductoFormSection title="Categorías">
+            <ProductoCategoriasPicker
+              categorias={categorias}
+              selectedIds={categoriaIds}
+              onChange={setCategoriaIds}
+              disabled={busy}
+            />
           </ProductoFormSection>
 
           <ProductoDescuentoEditor

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import { useMcAuth } from '@/auth/McAuthContext'
@@ -6,13 +6,14 @@ import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 import { billingPlanOf } from '@/lib/catalogTheme'
 import { formatCop } from '@/lib/formatCop'
 import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
+import { buildStorePublicUrl } from '@/lib/storePublicUrl'
 import {
   catalogoVendedorGate,
   explicitCheckoutVentasModo,
   hasCheckoutVentasModoSelected,
   isCatalogoVendedorListo,
 } from '@/lib/checkoutVentasModo'
-import { isSubscriptionActive } from '@/lib/subscription'
+import { isTenantMembershipActive, membershipExpiryLabel } from '@/lib/subscription'
 import { useTenantPedidosSales } from '@/hooks/useTenantPedidosSales'
 import { useTenantHasProducts } from '@/hooks/useTenantHasProducts'
 import { useTenantTodayVisits } from '@/hooks/useTenantAnalytics'
@@ -23,81 +24,112 @@ import {
   IconChevronRight,
   IconClipboard,
   IconLink,
+  IconMagicBrush,
   IconPlusCircle,
 } from '@/icons/McIcons'
 import { CheckoutEnvioRequiredModal } from '@/app/CheckoutEnvioRequiredModal'
 import { CheckoutVentasRequiredModal } from '@/app/CheckoutVentasRequiredModal'
 import { NewStoreExpertBanner } from '@/components/onboarding/NewStoreExpertBanner'
+import { NewStoreReadyToShareCard } from '@/components/onboarding/NewStoreReadyToShareCard'
 import { NewStoreSetupChecklist } from '@/components/onboarding/NewStoreSetupChecklist'
 import { OnboardingExpertRewardCard } from '@/components/onboarding/OnboardingExpertRewardCard'
-import { isNewStoreForOnboarding } from '@/lib/newStoreOnboarding'
+import { CompartirMiTiendaButton } from '@/components/dashboard/CompartirMiTiendaButton'
+import { MobilePullToRefresh } from '@/components/MobilePullToRefresh'
+import { useOnboardingRewardWindow } from '@/hooks/useOnboardingRewardWindow'
+import { DASHBOARD_RETURN_NAV } from '@/app/configuraciones/configSubpageNav'
+import {
+  isNewStoreChecklistEligible,
+  isNewStoreExpertPromoBannerVisible,
+  isNewStoreExpertPromoEnabled,
+  shouldShowNewStoreReadyToSharePrompt,
+} from '@/lib/newStoreOnboarding'
 
 export function DashboardPage() {
-  const { profile, tenant } = useMcAuth()
-  const { platformSettings, ready: platformSettingsReady } = usePlatformSettings()
+  const { profile, tenant, loading, effectiveTenantId, isActingAsStoreOwner } = useMcAuth()
+  const { platformSettings, ready: platformSettingsReady, reload: reloadPlatformSettings } =
+    usePlatformSettings()
   const [onepayBalancePreview, setOnepayBalancePreview] = useState<string | null>(null)
   const [onepayBalancePreviewLoading, setOnepayBalancePreviewLoading] = useState(false)
   const [ventasRequiredModalOpen, setVentasRequiredModalOpen] = useState(false)
   const [envioRequiredModalOpen, setEnvioRequiredModalOpen] = useState(false)
   const summaryPeriod = tenant?.salesSummaryPeriod === 'fortnight' ? 'fortnight' : 'week'
-  const sales = useTenantPedidosSales(profile?.tenantId, summaryPeriod)
-  const { hasProducts, loading: productsLoading } = useTenantHasProducts(profile?.tenantId)
-  const { visits: todayVisits, loading: visitsLoading } = useTenantTodayVisits(profile?.tenantId)
-  const active = tenant ? isSubscriptionActive(tenant.subscriptionEndsAt) : false
+  const {
+    loading: salesLoading,
+    reload: reloadSales,
+    today: salesToday,
+    periodTotal: salesPeriodTotal,
+    periodLabel: salesPeriodLabel,
+  } = useTenantPedidosSales(effectiveTenantId, summaryPeriod)
+  const { hasProducts, loading: productsLoading } = useTenantHasProducts(effectiveTenantId)
+  const { visits: todayVisits, loading: visitsLoading, reload: reloadTodayVisits } =
+    useTenantTodayVisits(effectiveTenantId)
+  const active = tenant ? isTenantMembershipActive(tenant) : false
 
-  useEffect(() => {
+  const loadOnepayBalancePreview = useCallback(async () => {
     const modo = explicitCheckoutVentasModo(tenant)
     if (
       !tenant ||
       !profile ||
       !active ||
-      profile.uid !== tenant.ownerUid ||
+      !isActingAsStoreOwner ||
       (modo !== 'pasarela' && modo !== 'pasarela_micatalogo') ||
       !firebaseConfigured
     ) {
+      setOnepayBalancePreview(null)
+      setOnepayBalancePreviewLoading(false)
       return
     }
-    if (modo === 'pasarela' && tenant.onepayPaymentsEnabled !== true) return
-    let cancelled = false
+    if (modo === 'pasarela' && tenant.onepayPaymentsEnabled !== true) {
+      setOnepayBalancePreview(null)
+      setOnepayBalancePreviewLoading(false)
+      return
+    }
     setOnepayBalancePreviewLoading(true)
-    ;(async () => {
-      try {
-        const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepaySellerSaldoSummary')
-        const res = (await fn({})) as {
-          data: {
-            balance?: { balance_label?: string } | null
-            ledger?: { availableNetCop?: number } | null
-            modo?: string
-          }
+    try {
+      const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepaySellerSaldoSummary')
+      const res = (await fn({})) as {
+        data: {
+          balance?: { balance_label?: string } | null
+          ledger?: { availableNetCop?: number } | null
+          modo?: string
         }
-        const ledgerAvailable = res.data?.ledger?.availableNetCop
-        const preview =
-          typeof ledgerAvailable === 'number'
-            ? formatCop(ledgerAvailable)
-            : res.data?.balance?.balance_label
-        if (!cancelled) {
-          setOnepayBalancePreview(typeof preview === 'string' && preview.trim() ? preview.trim() : null)
-        }
-      } catch {
-        if (!cancelled) setOnepayBalancePreview(null)
-      } finally {
-        if (!cancelled) setOnepayBalancePreviewLoading(false)
       }
-    })()
-    return () => {
-      cancelled = true
+      const ledgerAvailable = res.data?.ledger?.availableNetCop
+      const preview =
+        typeof ledgerAvailable === 'number'
+          ? formatCop(ledgerAvailable)
+          : res.data?.balance?.balance_label
+      setOnepayBalancePreview(typeof preview === 'string' && preview.trim() ? preview.trim() : null)
+    } catch {
+      setOnepayBalancePreview(null)
+    } finally {
+      setOnepayBalancePreviewLoading(false)
     }
   }, [tenant, profile, active])
 
-  if (!tenant || !profile) {
+  useEffect(() => {
+    void loadOnepayBalancePreview()
+  }, [loadOnepayBalancePreview])
+
+  const refreshDashboard = useCallback(async () => {
+    await Promise.all([
+      reloadSales(),
+      reloadTodayVisits(),
+      reloadPlatformSettings(),
+      loadOnepayBalancePreview(),
+    ])
+  }, [reloadSales, reloadTodayVisits, reloadPlatformSettings, loadOnepayBalancePreview])
+
+  if (loading || !tenant || !profile) {
     return (
-      <div className="mc-shell">
-        <p className="ios-subhead">Cargando tu tienda…</p>
+      <div className="mc-shell flex min-h-[40vh] flex-col items-center justify-center gap-3">
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-mc-200 border-t-mc-900" aria-hidden />
+        <p className="ios-subhead text-mc-600">Cargando tu tienda…</p>
       </div>
     )
   }
 
-  const publicUrl = `${window.location.origin}/c/${tenant.slug}`
+  const publicUrl = buildStorePublicUrl(tenant.slug)
   const catalogoListo = isCatalogoVendedorListo(tenant, platformSettings)
 
   function abrirCatalogoPublico() {
@@ -126,11 +158,18 @@ export function DashboardPage() {
   const saldoPath =
     checkoutModo === 'pasarela' || checkoutModo === 'pasarela_micatalogo' ? '/app/mi-saldo' : null
   const showOnepayEnableCta =
-    active && profile.uid === tenant.ownerUid && !hasCheckoutVentasModoSelected(tenant)
+    active && isActingAsStoreOwner && !hasCheckoutVentasModoSelected(tenant)
 
-  const showNewStoreOnboarding = isNewStoreForOnboarding(tenant)
+  const { nowMs } = useOnboardingRewardWindow(tenant)
+  const showNewStoreChecklist = isNewStoreChecklistEligible(tenant)
+  const showReadyToSharePrompt = shouldShowNewStoreReadyToSharePrompt(tenant)
+  const showExpertPromoBanner =
+    platformSettingsReady && isNewStoreExpertPromoBannerVisible(tenant, platformSettings, nowMs)
+  const expertPromoEnabled = platformSettingsReady && isNewStoreExpertPromoEnabled(platformSettings)
 
   return (
+    <MobilePullToRefresh onRefresh={refreshDashboard}>
+    {showExpertPromoBanner && <NewStoreExpertBanner tenant={tenant} />}
     <div className="mc-shell space-y-6 sm:space-y-8">
       <section className="border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-6 sm:px-8 sm:py-8">
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--cat-muted)]">Tu tienda</p>
@@ -147,19 +186,21 @@ export function DashboardPage() {
         <p className="mt-2 text-[13px] capitalize leading-relaxed text-[var(--cat-muted)]">{hoyLabel}</p>
       </section>
 
-      {showNewStoreOnboarding && (
-        <>
-          <NewStoreExpertBanner tenant={tenant} />
-          <NewStoreSetupChecklist
-            tenant={tenant}
-            platformSettings={platformSettings}
-            platformSettingsReady={platformSettingsReady}
-            hasProducts={hasProducts}
-          />
-        </>
+      {showNewStoreChecklist && (
+        <NewStoreSetupChecklist
+          tenant={tenant}
+          platformSettings={platformSettings}
+          platformSettingsReady={platformSettingsReady}
+          hasProducts={hasProducts}
+          expertPromoEnabled={expertPromoEnabled}
+        />
       )}
 
-      {!showNewStoreOnboarding && <OnboardingExpertRewardCard tenant={tenant} />}
+      {showReadyToSharePrompt && <NewStoreReadyToShareCard />}
+
+      {!showNewStoreChecklist && !showReadyToSharePrompt && (
+        <OnboardingExpertRewardCard tenant={tenant} />
+      )}
 
       {!active && (
         <div className="border border-neutral-200/60 bg-neutral-50/50 px-5 py-4 text-[13px] leading-relaxed text-[var(--cat-text)]">
@@ -181,7 +222,8 @@ export function DashboardPage() {
       {showOnepayEnableCta && (
         <section aria-label="Pagos con pasarela">
           <Link
-            to="/app/pagos-pasarela"
+            to="/app/cuenta/checkout-ventas/seleccion"
+            state={DASHBOARD_RETURN_NAV}
             className="group relative flex w-full overflow-hidden border border-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)] bg-gradient-to-br from-[var(--cat-surface)] via-[var(--cat-surface)] to-[color-mix(in_srgb,var(--cat-accent)_14%,var(--cat-surface))] px-5 py-6 text-left shadow-[0_1px_0_color-mix(in_srgb,var(--cat-text)_6%,transparent)] transition duration-300 hover:border-[color-mix(in_srgb,var(--cat-accent)_55%,transparent)] hover:shadow-[0_14px_40px_-28px_color-mix(in_srgb,var(--cat-text)_45%,transparent)] sm:px-7 sm:py-7"
           >
             <div
@@ -200,8 +242,7 @@ export function DashboardPage() {
                   Habilitar pagos con tarjeta, Nequi y PSE
                 </p>
                 <p className="mt-2 text-[13px] leading-relaxed text-[var(--cat-muted)]">
-                  Solicitá tu cuenta OnePay desde acá. Te guiamos paso a paso; la pasarela en el catálogo queda activa cuando
-                  esté aprobada y vincules tu clave en Cuenta.
+                  Elegí cómo querés cobrar: pasarela con tarjeta, Nequi y PSE, pasarela Mi Catálogo o WhatsApp.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {['Tarjeta', 'Nequi', 'PSE'].map((m) => (
@@ -213,16 +254,6 @@ export function DashboardPage() {
                     </span>
                   ))}
                 </div>
-                {tenant.onepayKybStatus === 'pending' && (
-                  <p className="mt-3 border border-amber-200/50 bg-amber-50/30 px-2.5 py-1.5 text-[12px] font-medium text-amber-950">
-                    Solicitud en revisión · te avisamos para el siguiente paso
-                  </p>
-                )}
-                {tenant.onepayKybStatus === 'approved' && (
-                  <p className="mt-3 border border-emerald-200/50 bg-emerald-50/35 px-2.5 py-1.5 text-[12px] font-medium text-emerald-950">
-                    Aprobada · completá la vinculación en Cuenta
-                  </p>
-                )}
               </div>
               <IconChevronRight
                 size={18}
@@ -238,15 +269,15 @@ export function DashboardPage() {
           saldoPath={saldoPath}
           periodo="hoy"
           label="Vendido hoy"
-          loading={sales.loading}
-          amount={sales.today}
+          loading={salesLoading}
+          amount={salesToday}
         />
         <SaldoCard
           saldoPath={saldoPath}
           periodo="semana"
-          label={sales.periodLabel}
-          loading={sales.loading}
-          amount={sales.periodTotal}
+          label={salesPeriodLabel}
+          loading={salesLoading}
+          amount={salesPeriodTotal}
         />
       </section>
 
@@ -287,7 +318,7 @@ export function DashboardPage() {
       </section>
 
       {active &&
-        profile?.uid === tenant.ownerUid &&
+        isActingAsStoreOwner &&
         (checkoutModo === 'pasarela_micatalogo' || tenant.onepayPaymentsEnabled === true) && (
         <section aria-label="Dinero en pasarela">
           <Link
@@ -352,54 +383,77 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {active &&
-        (catalogoListo ? (
-          <a
-            href={publicUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="group flex items-center gap-4 border border-neutral-200/50 bg-[var(--cat-accent)] px-5 py-5 text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
+      {active && (
+        <section className="space-y-3" aria-label="Catálogo público">
+          <CompartirMiTiendaButton storeUrl={publicUrl} />
+          {catalogoListo ? (
+            <a
+              href={publicUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="group flex items-center gap-4 border border-neutral-200/50 bg-[var(--cat-accent)] px-5 py-5 text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
+                <IconLink size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium tracking-tight">Ver tienda como cliente</p>
+                <p className="mt-1 break-all text-[12px] leading-relaxed opacity-90">{publicUrl}</p>
+              </div>
+              <IconChevronRight size={17} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={abrirCatalogoPublico}
+              className="group flex w-full cursor-pointer items-center gap-4 border border-neutral-200/50 bg-[var(--cat-accent)] px-5 py-5 text-left text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
+                <IconLink size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium tracking-tight">Ver tienda como cliente</p>
+                <p className="mt-1 break-all text-[12px] leading-relaxed opacity-90">{publicUrl}</p>
+              </div>
+              <IconChevronRight size={17} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
+            </button>
+          )}
+          <Link
+            to="/app/personalizar"
+            className="group flex items-center gap-4 border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-5 no-underline transition duration-200 ease-in-out hover:border-neutral-300/70 hover:bg-neutral-50/50"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
-              <IconLink size={20} />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-violet-200/70 bg-gradient-to-br from-violet-100 via-fuchsia-50 to-indigo-50 text-violet-700 shadow-[0_1px_3px_rgba(91,33,182,0.12)] transition group-hover:from-violet-200/80 group-hover:to-fuchsia-100/80">
+              <IconMagicBrush size={22} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="font-medium tracking-tight">Ver catálogo público</p>
-              <p className="mt-1 break-all text-[12px] leading-relaxed opacity-90">{publicUrl}</p>
+              <p className="font-medium tracking-tight text-[var(--cat-text)]">Personalizar mi tienda</p>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
+                Banner, logo y estilo del catálogo
+              </p>
             </div>
-            <IconChevronRight size={17} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
-          </a>
-        ) : (
-          <button
-            type="button"
-            onClick={abrirCatalogoPublico}
-            className="group flex w-full cursor-pointer items-center gap-4 border border-neutral-200/50 bg-[var(--cat-accent)] px-5 py-5 text-left text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
-              <IconLink size={20} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium tracking-tight">Ver catálogo público</p>
-              <p className="mt-1 break-all text-[12px] leading-relaxed opacity-90">{publicUrl}</p>
-            </div>
-            <IconChevronRight size={17} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
-          </button>
-        ))}
+            <IconChevronRight size={17} className="shrink-0 text-[var(--cat-muted)] opacity-60 transition group-hover:opacity-100" />
+          </Link>
+        </section>
+      )}
 
-      <div className="border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-4 text-[13px] leading-relaxed text-[var(--cat-muted)]">
-        <p>
-          Membresía hasta{' '}
-          <strong className="font-medium text-[var(--cat-text)]">
-            {new Date(tenant.subscriptionEndsAt).toLocaleDateString('es-CO')}
-          </strong>
-        </p>
-        {tenant.whatsappNumero && (
-          <p className="mt-1.5">
-            WhatsApp pedidos:{' '}
-            <strong className="font-medium text-[var(--cat-text)]">{tenant.whatsappNumero}</strong>
+      <footer className="space-y-2 pb-1 text-center">
+        {plan === 'expert' && (
+          <p className="text-[12px] leading-relaxed text-[var(--cat-muted)]">
+            Membresía Expert hasta{' '}
+            <span className="font-medium text-[var(--cat-text)]">
+              {membershipExpiryLabel(tenant)}
+            </span>
           </p>
         )}
-      </div>
+        <a
+          href="https://wa.me/573054411568"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-block text-[12px] text-[var(--cat-muted)] underline decoration-neutral-300/80 underline-offset-[3px] transition hover:text-[var(--cat-text)] hover:decoration-neutral-400"
+        >
+          ¿Tienes dudas? Escríbenos
+        </a>
+      </footer>
 
       {isMcSuperAdminUser(profile) && (
         <Link
@@ -415,7 +469,7 @@ export function DashboardPage() {
         onClose={() => setVentasRequiredModalOpen(false)}
         context="dashboard"
         tenant={tenant}
-        tenantId={profile?.tenantId}
+        tenantId={effectiveTenantId}
         platformSettings={platformSettings}
       />
       <CheckoutEnvioRequiredModal
@@ -423,6 +477,7 @@ export function DashboardPage() {
         onClose={() => setEnvioRequiredModalOpen(false)}
       />
     </div>
+    </MobilePullToRefresh>
   )
 }
 

@@ -53,6 +53,7 @@ function isEnvioCotizacionAutomaticaConfigured(tenant: TenantSlice): boolean {
 
 type PlatformSlice = {
   pasarelaMicatalogoActiva?: boolean
+  newStoreExpertPromoBannerEnabled?: boolean
   envioMicatalogoEstimadoCop?: number
   envioMicatalogoPorCiudad?: { ciudad?: string; cop?: number }[]
 }
@@ -170,6 +171,7 @@ export const mcFinalizeNewStoreOnboarding = onCall({ invoker: 'public' }, async 
     )
   }
 
+  const promoEnabled = platform?.newStoreExpertPromoBannerEnabled !== false
   const withinRewardWindow =
     typeof tenant.createdAt === 'number' &&
     now - tenant.createdAt <= MC_ONBOARDING_EXPERT_REWARD_MS
@@ -177,7 +179,7 @@ export const mcFinalizeNewStoreOnboarding = onCall({ invoker: 'public' }, async 
   let rewardCode: string | null = null
   let rewardCodeId: string | null = null
 
-  if (withinRewardWindow) {
+  if (promoEnabled && withinRewardWindow) {
     const issued = await createOnboardingRewardCode(tenantId, 1)
     rewardCode = issued.code
     rewardCodeId = issued.codeId
@@ -197,6 +199,6 @@ export const mcFinalizeNewStoreOnboarding = onCall({ invoker: 'public' }, async 
     ok: true as const,
     alreadyCompleted: false,
     rewardCode,
-    rewardEligible: withinRewardWindow,
+    rewardEligible: Boolean(rewardCode),
   }
 })

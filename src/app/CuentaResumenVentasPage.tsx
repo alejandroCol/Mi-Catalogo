@@ -7,7 +7,7 @@ import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 
 export function CuentaResumenVentasPage() {
-  const { profile, tenant } = useMcAuth()
+  const { tenant, effectiveTenantId } = useMcAuth()
   const [salesPeriod, setSalesPeriod] = useState<'week' | 'fortnight'>('week')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -19,11 +19,11 @@ export function CuentaResumenVentasPage() {
   }, [tenant])
 
   async function guardar() {
-    if (!profile?.tenantId) return
+    if (!effectiveTenantId) return
     setBusy(true)
     setErr(null)
     try {
-      await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), { salesSummaryPeriod: salesPeriod })
+      await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), { salesSummaryPeriod: salesPeriod })
       showSaveSuccess({ message: 'El período del resumen de ventas se actualizó.' })
     } catch {
       setErr('No se pudo guardar.')

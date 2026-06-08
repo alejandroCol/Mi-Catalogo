@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { ConfigSubpageNavState } from '@/app/configuraciones/configSubpageNav'
 import type { McCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { checkoutVentasModoDisplay } from '@/lib/checkoutVentasModoDisplay'
 import { CONFIG_CHECKOUT_VENTAS_PATH } from '@/app/CheckoutVentasRequiredModal'
@@ -7,10 +8,12 @@ import { CONFIG_CHECKOUT_VENTAS_PATH } from '@/app/CheckoutVentasRequiredModal'
 export function CheckoutVentasModoSuccessModal({
   open,
   modo,
+  navState,
   onClose,
 }: {
   open: boolean
   modo: McCheckoutVentasModo | null
+  navState?: ConfigSubpageNavState
   onClose: () => void
 }) {
   const navigate = useNavigate()
@@ -30,7 +33,7 @@ export function CheckoutVentasModoSuccessModal({
 
   function volverAlResumen() {
     onClose()
-    navigate(CONFIG_CHECKOUT_VENTAS_PATH)
+    navigate(CONFIG_CHECKOUT_VENTAS_PATH, navState ? { state: navState } : undefined)
   }
 
   function irAConfiguracionExtra() {

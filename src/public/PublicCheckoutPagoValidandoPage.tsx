@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext'
 import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
 import { publicCatalogSuccessPath } from '@/lib/catalogOrderTracking'
 import { MC_ONEPAY_DONE_MSG, publicCatalogOnePayReturnPath } from '@/public/onepayCheckoutPaths'
 
+import { usePublicStore } from '@/public/PublicStoreContext'
+
 const relayedMcOnePayPopupKeys = new Set<string>()
 
 export function PublicCheckoutPagoValidandoPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug, to } = usePublicStore()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const onePayReturn = searchParams.get('onepay') === '1'
@@ -124,13 +126,13 @@ export function PublicCheckoutPagoValidandoPage() {
   return (
     <div className="mc-public-catalog-inset max-w-lg py-12 sm:py-16">
       <nav className="flex flex-wrap items-center gap-1.5 text-[12px] sm:text-[13px] mc-pc-muted" aria-label="Validación">
-        <Link to={`/c/${slug}`} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
+        <Link to={to('/')} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
           Tienda
         </Link>
         <span className="text-[color-mix(in_srgb,var(--cat-muted)_55%,transparent)]" aria-hidden>
           /
         </span>
-        <Link to={`/c/${slug}/checkout`} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
+        <Link to={to('/checkout')} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
           Checkout
         </Link>
         <span className="text-[color-mix(in_srgb,var(--cat-muted)_55%,transparent)]" aria-hidden>
@@ -149,7 +151,7 @@ export function PublicCheckoutPagoValidandoPage() {
       {!onePayReturn && (
         <p className="mt-8 text-sm leading-relaxed mc-pc-muted">
           Abrí el pago desde el checkout de esta tienda. Si llegaste acá sin pagar,{' '}
-          <Link to={`/c/${slug}/checkout`} className="font-medium text-[var(--cat-text)] underline underline-offset-4">
+          <Link to={to('/checkout')} className="font-medium text-[var(--cat-text)] underline underline-offset-4">
             volvé al checkout
           </Link>
           .
@@ -176,7 +178,7 @@ export function PublicCheckoutPagoValidandoPage() {
       {onePayReturn && onepayOrderId && onepayViewToken && onpayReturnStatus === 'cancelado' && (
         <p className="mt-8 rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm leading-relaxed text-red-950 sm:px-5">
           El cobro no se completó o venció.{' '}
-          <Link to={`/c/${slug}/checkout`} className="font-semibold underline underline-offset-4">
+          <Link to={to('/checkout')} className="font-semibold underline underline-offset-4">
             Volvé al checkout
           </Link>{' '}
           para intentar de nuevo.
@@ -190,7 +192,7 @@ export function PublicCheckoutPagoValidandoPage() {
 
       <div className="mt-10 flex flex-wrap gap-3">
         <Link
-          to={`/c/${slug}`}
+          to={to('/')}
           className="inline-flex items-center justify-center rounded-full border mc-pc-border bg-transparent px-4 py-2.5 text-sm font-medium mc-pc-text transition hover:opacity-80"
         >
           Ir al catálogo

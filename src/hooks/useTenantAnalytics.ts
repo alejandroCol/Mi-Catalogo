@@ -123,28 +123,25 @@ export function useTenantTodayVisits(tenantId: string | undefined) {
   const [visits, setVisits] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const reload = useCallback(async () => {
     if (!tenantId || !firebaseConfigured) {
       setVisits(null)
       setLoading(false)
       return
     }
-    let cancelled = false
     setLoading(true)
-    void fetchTenantTodayVisits(tenantId)
-      .then((n) => {
-        if (!cancelled) setVisits(n)
-      })
-      .catch(() => {
-        if (!cancelled) setVisits(null)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
+    try {
+      setVisits(await fetchTenantTodayVisits(tenantId))
+    } catch {
+      setVisits(null)
+    } finally {
+      setLoading(false)
     }
   }, [tenantId])
 
-  return { visits, loading }
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  return { visits, loading, reload }
 }

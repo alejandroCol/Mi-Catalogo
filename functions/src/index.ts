@@ -14,6 +14,8 @@ import {
   sendCatalogSalePaidEmail,
 } from './catalogSaleEmail.js'
 import { AUTH_VERIFY_COOLDOWN_MS, sendVerificationEmailWithResend } from './authVerificationEmail.js'
+import { mcSendCarritoRecuperacionEmailHandler } from './carritoRecuperacionEmail.js'
+import { buildStorePublicUrl, isReservedStoreSlug } from './storePublicUrl.js'
 import { MC_RESEND_FROM } from './mcResend.js'
 import {
   authenticateOnePayWebhook,
@@ -25,6 +27,12 @@ import {
   onepayPickExternalId,
 } from './onepayCatalogHelpers.js'
 import { productoPrecioVentaFromData } from './productoDescuento.js'
+import {
+  assertKybGeoCaller,
+  fetchOnePayCities,
+  fetchOnePayStates,
+} from './onepayKybGeo.js'
+import { isTenantMembershipActive } from './tenantMembership.js'
 import { mcBillingTryFinalizeFromChargeWebhook } from './billingSubscription/service.js'
 import { onepayGetCharge } from './billingSubscription/onepayBillingApi.js'
 import {
@@ -46,6 +54,7 @@ import {
   mcBillingSetDefaultPaymentMethod,
   mcBillingValidateDiscountCode,
   mcBillingValidateNequi,
+  mcBillingCheckNequiReady,
 } from './billingSubscription/handlers.js'
 
 const REGION = process.env.MC_FUNCTIONS_REGION || 'us-central1'
@@ -211,6 +220,25 @@ export const mcSendEmailVerification = onCall({ invoker: 'public', secrets: [res
   )
   return { ok: true as const }
 })
+
+/** Recordatorio de carrito abandonado al correo del comprador (Resend). */
+export const mcSendCarritoRecuperacionEmail = onCall(
+  { invoker: 'public', secrets: [resendApiKey] },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Iniciá sesión.')
+    }
+    const key = readResendApiKey()
+    if (!key) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Falta configurar RESEND_API_KEY en Cloud Functions para enviar correos de recuperación.',
+      )
+    }
+    const origin = mcPublicOrigin.value().trim()
+    return mcSendCarritoRecuperacionEmailHandler(db, request.auth.uid, request.data, key, origin)
+  },
+)
 
 const ONEPAY_KYB_TERMS_VERSION = 'mc-2026-05'
 const ONEPAY_SALES_ALLOWED = new Set([10, 35, 110, 240, 500])
@@ -684,14 +712,14 @@ async function assertOnepayOwnerMerchantReady(
   }
   const td = tenantSnap.data() as {
     ownerUid?: string
+    billingPlan?: string
     subscriptionEndsAt?: number
     onepayPaymentsEnabled?: boolean
   }
   if (!superAdminBypass && td?.ownerUid !== request.auth!.uid) {
     throw new HttpsError('permission-denied', 'Solo el dueño.')
   }
-  const subEnds = td.subscriptionEndsAt
-  if (!superAdminBypass && (typeof subEnds !== 'number' || subEnds <= Date.now())) {
+  if (!superAdminBypass && !isTenantMembershipActive(td)) {
     throw new HttpsError('failed-precondition', 'Membresía inactiva.')
   }
   if (td.onepayPaymentsEnabled !== true) {
@@ -760,6 +788,7 @@ async function assertSellerSaldoAccess(
   }
   const tenant = tenantSnap.data() as {
     ownerUid?: string
+    billingPlan?: string
     subscriptionEndsAt?: number
     checkoutVentasModo?: string
     onepayPaymentsEnabled?: boolean
@@ -771,7 +800,7 @@ async function assertSellerSaldoAccess(
   if (tenant.ownerUid !== request.auth.uid) {
     throw new HttpsError('permission-denied', 'Solo el dueño de la tienda.')
   }
-  if (typeof tenant.subscriptionEndsAt !== 'number' || tenant.subscriptionEndsAt <= Date.now()) {
+  if (!isTenantMembershipActive(tenant)) {
     throw new HttpsError('failed-precondition', 'Membresía inactiva.')
   }
   const modo = tenant.checkoutVentasModo
@@ -824,6 +853,9 @@ export const mcOnepaySellerSaldoSummary = onCall({ invoker: 'public' }, async (r
     const payments = ledger.recentPayments.map((p) => ({
       orderId: p.orderId,
       createdAt: p.createdAt,
+      paidAt: p.paidAt,
+      releaseAt: p.releaseAt,
+      isReleased: p.isReleased,
       numeroReferencia: p.numeroReferencia,
       clienteNombre: p.clienteNombre,
       onepayPaymentId: p.onepayPaymentId,
@@ -839,6 +871,9 @@ export const mcOnepaySellerSaldoSummary = onCall({ invoker: 'public' }, async (r
         grossTotalCop: ledger.grossTotalCop,
         feeTotalCop: ledger.feeTotalCop,
         netTotalCop: ledger.netTotalCop,
+        releasedNetCop: ledger.releasedNetCop,
+        pendingNetCop: ledger.pendingNetCop,
+        pendingPaymentCount: ledger.pendingPaymentCount,
         withdrawnTotalCop: ledger.withdrawnTotalCop,
         availableNetCop: ledger.availableNetCop,
         paymentCount: ledger.paymentCount,
@@ -1275,11 +1310,8 @@ export const mcOnepaySetWebhookSecret = onCall({ invoker: 'public' }, async (req
   if (!superAdminBypass && td0?.ownerUid !== request.auth!.uid) {
     throw new HttpsError('permission-denied', 'Solo el dueño.')
   }
-  const subEnds0 = (tenantSnap.data() as { subscriptionEndsAt?: number }).subscriptionEndsAt
-  if (
-    !superAdminBypass &&
-    (typeof subEnds0 !== 'number' || subEnds0 <= Date.now())
-  ) {
+  const tdSub0 = tenantSnap.data() as { billingPlan?: string; subscriptionEndsAt?: number }
+  if (!superAdminBypass && !isTenantMembershipActive(tdSub0)) {
     throw new HttpsError('failed-precondition', 'Membresía inactiva.')
   }
   const credRef0 = db.doc(`mc_tenants/${tenantId}/private_onepay/credentials`)
@@ -1339,8 +1371,8 @@ export const mcOnepayLinkMerchant = onCall({ invoker: 'public' }, async (request
     throw new HttpsError('permission-denied', 'Solo el dueño puede vincular pagos.')
   }
 
-  const subEnds = (tenantSnap.data() as { subscriptionEndsAt?: number }).subscriptionEndsAt
-  if (!superAdminBypass && (typeof subEnds !== 'number' || subEnds <= Date.now())) {
+  const tdSub = tenantSnap.data() as { billingPlan?: string; subscriptionEndsAt?: number }
+  if (!superAdminBypass && !isTenantMembershipActive(tdSub)) {
     throw new HttpsError('failed-precondition', 'Membresía inactiva.')
   }
 
@@ -1636,17 +1668,67 @@ export const mcOnepayListBanksForKyb = onCall({ invoker: 'public', secrets: [one
   if (!tenantSnap.exists) {
     throw new HttpsError('not-found', 'Tienda no encontrada.')
   }
-  const td = tenantSnap.data() as { ownerUid?: string; subscriptionEndsAt?: number }
+  const td = tenantSnap.data() as {
+    ownerUid?: string
+    billingPlan?: string
+    subscriptionEndsAt?: number
+  }
   if (td.ownerUid !== request.auth.uid) {
     throw new HttpsError('permission-denied', 'Solo el dueño de la tienda puede solicitar la pasarela.')
   }
-  if (typeof td.subscriptionEndsAt !== 'number' || td.subscriptionEndsAt <= Date.now()) {
+  if (!isTenantMembershipActive(td)) {
     throw new HttpsError('failed-precondition', 'Tu membresía está vencida.')
   }
 
   const raw = await onepayFetchBanksJson(platformSk)
   const banks = normalizeOnePayBanksPayload(raw)
   return { banks }
+})
+
+/** Departamentos OnePay para KYB — GET /v1/states (IDs para filter[state_id] en ciudades). */
+export const mcOnepayListStatesForKyb = onCall({ invoker: 'public', secrets: [onePayPlatformSk] }, async (request) => {
+  await assertKybGeoCaller(request)
+  const platformSk = onePayPlatformSk.value().trim()
+  if (!platformSk) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Falta configurar el secreto ONEPAY_PLATFORM_SK en Cloud Functions.',
+    )
+  }
+  const d = request.data as Record<string, unknown>
+  const filterName = typeof d.filterName === 'string' ? d.filterName : undefined
+  const states = await fetchOnePayStates(platformSk, filterName)
+  return { states }
+})
+
+/** Ciudades OnePay para KYB — GET /v1/cities (city_id al crear empresa). */
+export const mcOnepayListCitiesForKyb = onCall({ invoker: 'public', secrets: [onePayPlatformSk] }, async (request) => {
+  await assertKybGeoCaller(request)
+  const platformSk = onePayPlatformSk.value().trim()
+  if (!platformSk) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Falta configurar el secreto ONEPAY_PLATFORM_SK en Cloud Functions.',
+    )
+  }
+  const d = request.data as Record<string, unknown>
+  const filterName = typeof d.filterName === 'string' ? d.filterName : undefined
+  let stateId: number | undefined
+  if (typeof d.stateId === 'number' && Number.isFinite(d.stateId) && d.stateId > 0) {
+    stateId = Math.floor(d.stateId)
+  } else if (typeof d.stateId === 'string' && /^\d+$/.test(d.stateId.trim())) {
+    stateId = parseInt(d.stateId.trim(), 10)
+  }
+  let page = 1
+  if (typeof d.page === 'number' && Number.isFinite(d.page) && d.page > 0) {
+    page = Math.floor(d.page)
+  }
+  let perPage = 20
+  if (typeof d.perPage === 'number' && Number.isFinite(d.perPage) && d.perPage > 0) {
+    perPage = Math.min(50, Math.floor(d.perPage))
+  }
+  const pageResult = await fetchOnePayCities(platformSk, { stateId, filterName, page, perPage })
+  return pageResult
 })
 
 // --- Alta empresa OnePay (KYB): POST /v1/companies con clave de plataforma
@@ -1694,6 +1776,7 @@ export const mcOnepaySubmitCompanyKyb = onCall(
     }
     const td = tenantSnap.data() as {
       ownerUid?: string
+      billingPlan?: string
       subscriptionEndsAt?: number
       onepayKybStatus?: string
       nombreTienda?: string
@@ -1701,7 +1784,7 @@ export const mcOnepaySubmitCompanyKyb = onCall(
     if (td.ownerUid !== request.auth.uid) {
       throw new HttpsError('permission-denied', 'Solo el dueño de la tienda puede solicitar la pasarela.')
     }
-    if (typeof td.subscriptionEndsAt !== 'number' || td.subscriptionEndsAt <= Date.now()) {
+    if (!isTenantMembershipActive(td)) {
       throw new HttpsError('failed-precondition', 'Tu membresía está vencida. Renová para solicitar pagos.')
     }
 
@@ -2026,7 +2109,7 @@ export const mcOnepayStartCatalogCheckout = onCall(
   }
 
   const slug = typeof data.slug === 'string' ? data.slug.trim().toLowerCase() : ''
-  if (!slug || !/^[a-z0-9-]{2,80}$/.test(slug)) {
+  if (!slug || !/^[a-z0-9-]{2,80}$/.test(slug) || isReservedStoreSlug(slug)) {
     throw new HttpsError('invalid-argument', 'Slug inválido.')
   }
 
@@ -2085,6 +2168,7 @@ export const mcOnepayStartCatalogCheckout = onCall(
     throw new HttpsError('not-found', 'Tienda no encontrada.')
   }
   const tenant = tenantSnap.data() as {
+    billingPlan?: string
     subscriptionEndsAt?: number
     onepayPaymentsEnabled?: boolean
     nombreTienda?: string
@@ -2105,7 +2189,7 @@ export const mcOnepayStartCatalogCheckout = onCall(
     cuponesCatalogo?: McCupon[]
     checkoutVentasModo?: string
   }
-  if (typeof tenant.subscriptionEndsAt !== 'number' || tenant.subscriptionEndsAt <= Date.now()) {
+  if (!isTenantMembershipActive(tenant)) {
     throw new HttpsError('failed-precondition', 'Catálogo pausado.')
   }
 
@@ -2302,8 +2386,11 @@ export const mcOnepayStartCatalogCheckout = onCall(
     orderDoc.onepayViaMicatalogo = true
     orderDoc.micatalogoStoreId = tenantId
   }
-  const email = typeof data.email === 'string' ? data.email.trim() : ''
-  if (email && email.includes('@')) orderDoc.clienteEmail = email.slice(0, 120)
+  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new HttpsError('invalid-argument', 'Correo electrónico obligatorio y válido.')
+  }
+  orderDoc.clienteEmail = email.slice(0, 120)
   const nota = typeof data.nota === 'string' ? data.nota.trim() : ''
   if (nota) orderDoc.notaCliente = nota.slice(0, 2000)
   if (envioCiudad) orderDoc.envioCiudad = envioCiudad.slice(0, 120)
@@ -2334,10 +2421,12 @@ export const mcOnepayStartCatalogCheckout = onCall(
 
   const refStr = `mc-${orderId}`.slice(0, ONEPAY_REF_MAX)
   const title = `Pedido · ${(tenant.nombreTienda ?? 'Catálogo').trim()}`.slice(0, ONEPAY_TITLE_MAX)
-  const returnUrl = `${redirectOrigin.replace(/\/$/, '')}/c/${encodeURIComponent(slug)}/checkout/pago-validando?onepay=1&o=${encodeURIComponent(orderId)}&ov=${encodeURIComponent(viewToken)}`.slice(
-    0,
-    ONEPAY_REDIRECT_URL_MAX,
-  )
+  const returnUrl = buildStorePublicUrl(
+    mcPublicOrigin.value(),
+    slug,
+    `/checkout/pago-validando?onepay=1&o=${encodeURIComponent(orderId)}&ov=${encodeURIComponent(viewToken)}`,
+    { requestOrigin: redirectOrigin },
+  ).slice(0, ONEPAY_REDIRECT_URL_MAX)
 
   const onePayBody: Record<string, unknown> = {
     amount: totalFinal,
@@ -2827,10 +2916,10 @@ webhookApp.post(
             const origin = mcPublicOrigin.value().replace(/\/$/, '')
             const slug =
               typeof tdata?.slug === 'string' && tdata.slug.trim() ? tdata.slug.trim().toLowerCase() : ''
-            const catalogUrl = slug ? `${origin}/c/${encodeURIComponent(slug)}` : origin
+            const catalogUrl = slug ? buildStorePublicUrl(origin, slug) : origin
             const seguimientoUrl =
               slug && orderId
-                ? `${origin}/c/${encodeURIComponent(slug)}/seguimiento?o=${encodeURIComponent(orderId)}`
+                ? buildStorePublicUrl(origin, slug, `/seguimiento?o=${encodeURIComponent(orderId)}`)
                 : undefined
 
             let toEmail = ''
@@ -2930,6 +3019,9 @@ export { mcRecordStoreAnalytics } from './storeAnalytics.js'
 export { mcOnTenantCreatedNotify } from './newStoreRegistrationEmail.js'
 export { mcFinalizeNewStoreOnboarding } from './onboardingExpertReward.js'
 export { mcQuoteEnvioCheckout } from './shipping/mcQuoteEnvioCheckout.js'
+export { mcStartStoreImpersonation, mcStopStoreImpersonation } from './storeImpersonation.js'
+export { mcCreateSalesRep, mcSetSalesRepActive } from './salesRep.js'
+export { mcAdminCreateStore } from './adminCreateStore.js'
 
 export {
   mcBillingGetSdkContext,
@@ -2938,6 +3030,7 @@ export {
   mcBillingAddNequi,
   mcBillingListNequiBanks,
   mcBillingValidateNequi,
+  mcBillingCheckNequiReady,
   mcBillingCompleteActivation,
   mcBillingPaymentMethods,
   mcBillingGetSubscriptionState,

@@ -1,1 +1,0 @@
-function e(e,t,n){return`${`/c/${encodeURIComponent(e)}/checkout/pago-validando`}?${`onepay=1&o=${encodeURIComponent(t)}&ov=${encodeURIComponent(n)}`}`}var t=`mc_catalog_onepay`,n=`mc-catalog-onepay-done`;export{t as n,e as r,n as t};

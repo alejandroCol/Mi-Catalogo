@@ -9,7 +9,7 @@ import { normalizeCuponCodigo } from '@/lib/checkoutPricing'
 import type { McCuponTienda } from '@/types/mc'
 
 export function CuentaCuponesPage() {
-  const { profile, tenant } = useMcAuth()
+  const { tenant, effectiveTenantId } = useMcAuth()
   const [cupones, setCupones] = useState<McCuponTienda[]>([])
   const [nuevoCuponCodigo, setNuevoCuponCodigo] = useState('')
   const [nuevoCuponTipo, setNuevoCuponTipo] = useState<'porcentaje' | 'monto_fijo'>('porcentaje')
@@ -33,7 +33,7 @@ export function CuentaCuponesPage() {
   }, [tenant])
 
   async function guardar() {
-    if (!profile?.tenantId) return
+    if (!effectiveTenantId) return
     setBusy(true)
     setErr(null)
     try {
@@ -58,7 +58,7 @@ export function CuentaCuponesPage() {
             : Math.max(0, Math.round(c.valor)),
         activo: Boolean(c.activo),
       }))
-      await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), { cuponesCatalogo })
+      await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), { cuponesCatalogo })
       showSaveSuccess({ message: 'Los cupones del checkout se actualizaron.' })
     } catch {
       setErr('No se pudo guardar.')

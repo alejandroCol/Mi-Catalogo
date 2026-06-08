@@ -5,9 +5,10 @@ import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
+import { buildStorePublicUrl } from '@/lib/storePublicUrl'
 
 export function CuentaPoliticasPage() {
-  const { profile, tenant } = useMcAuth()
+  const { tenant, effectiveTenantId } = useMcAuth()
   const [politicasCambios, setPoliticasCambios] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -19,11 +20,11 @@ export function CuentaPoliticasPage() {
   }, [tenant])
 
   async function guardar() {
-    if (!profile?.tenantId) return
+    if (!effectiveTenantId) return
     setBusy(true)
     setErr(null)
     try {
-      await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), {
+      await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), {
         politicasCambios: politicasCambios.trim() || '',
       })
       showSaveSuccess({ message: 'Las políticas del catálogo se actualizaron.' })
@@ -34,7 +35,7 @@ export function CuentaPoliticasPage() {
     }
   }
 
-  const politicasUrl = tenant?.slug ? `/c/${tenant.slug}/politicas` : null
+  const politicasUrl = tenant?.slug ? buildStorePublicUrl(tenant.slug, '/politicas') : null
 
   return (
     <ConfiguracionesSubpageLayout title="Políticas del catálogo">

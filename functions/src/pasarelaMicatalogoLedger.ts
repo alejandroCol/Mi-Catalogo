@@ -5,6 +5,11 @@ import {
   pasarelaMicatalogoNetAfterWithdrawalCop,
   pasarelaMicatalogoWithdrawalFeeCop,
 } from './pasarelaFees.js'
+import {
+  pasarelaSaldoIsReleased,
+  pasarelaSaldoPaidAtMs,
+  pasarelaSaldoReleaseAtMs,
+} from './pasarelaSaldoHold.js'
 
 const PAYMENTS_PAGE_SIZE = 500
 const RECENT_PAYMENTS_LIMIT = 120
@@ -12,6 +17,9 @@ const RECENT_PAYMENTS_LIMIT = 120
 export type PasarelaMicatalogoPaymentRow = {
   orderId: string
   createdAt: number
+  paidAt: number
+  releaseAt: number
+  isReleased: boolean
   numeroReferencia: string | null
   clienteNombre: string | null
   onepayPaymentId: string | null
@@ -32,6 +40,9 @@ export type PasarelaMicatalogoLedger = {
   grossTotalCop: number
   feeTotalCop: number
   netTotalCop: number
+  releasedNetCop: number
+  pendingNetCop: number
+  pendingPaymentCount: number
   withdrawnTotalCop: number
   availableNetCop: number
   paymentCount: number
@@ -39,12 +50,17 @@ export type PasarelaMicatalogoLedger = {
   withdrawals: PasarelaMicatalogoWithdrawalRow[]
 }
 
-function mapPaidMicatalogoOrder(docSnap: FirebaseFirestore.QueryDocumentSnapshot): PasarelaMicatalogoPaymentRow | null {
+function mapPaidMicatalogoOrder(
+  docSnap: FirebaseFirestore.QueryDocumentSnapshot,
+  nowMs: number,
+): PasarelaMicatalogoPaymentRow | null {
   const data = docSnap.data() as {
     pagoOnePay?: boolean
     onepayViaMicatalogo?: boolean
     estado?: string
     createdAt?: number
+    updatedAt?: number
+    seguimientoCompraAt?: number
     totalCop?: number
     numeroReferencia?: string
     clienteNombre?: string
@@ -54,9 +70,14 @@ function mapPaidMicatalogoOrder(docSnap: FirebaseFirestore.QueryDocumentSnapshot
   if (data.estado === 'cancelado') return null
   const grossCop = Math.max(0, Math.round(Number(data.totalCop) || 0))
   const feeCop = pasarelaMicatalogoFeePerPaymentCop(grossCop)
+  const paidAt = pasarelaSaldoPaidAtMs(data)
+  const releaseAt = pasarelaSaldoReleaseAtMs(paidAt)
   return {
     orderId: docSnap.id,
     createdAt: typeof data.createdAt === 'number' ? data.createdAt : 0,
+    paidAt,
+    releaseAt,
+    isReleased: pasarelaSaldoIsReleased(paidAt, nowMs),
     numeroReferencia: data.numeroReferencia ?? null,
     clienteNombre: data.clienteNombre ?? null,
     onepayPaymentId: data.onepayPaymentId ?? null,
@@ -69,6 +90,7 @@ function mapPaidMicatalogoOrder(docSnap: FirebaseFirestore.QueryDocumentSnapshot
 async function fetchAllPaidMicatalogoPayments(
   db: Firestore,
   tenantId: string,
+  nowMs: number,
 ): Promise<PasarelaMicatalogoPaymentRow[]> {
   const col = db.collection(`mc_tenants/${tenantId}/ordenes_catalogo`)
   const rows: PasarelaMicatalogoPaymentRow[] = []
@@ -84,7 +106,7 @@ async function fetchAllPaidMicatalogoPayments(
     const snap = await q.get()
     if (snap.empty) break
     for (const docSnap of snap.docs) {
-      const row = mapPaidMicatalogoOrder(docSnap)
+      const row = mapPaidMicatalogoOrder(docSnap, nowMs)
       if (row) rows.push(row)
     }
     lastDoc = snap.docs[snap.docs.length - 1]
@@ -123,21 +145,28 @@ export async function fetchPasarelaMicatalogoLedger(
   db: Firestore,
   tenantId: string,
 ): Promise<PasarelaMicatalogoLedger> {
+  const nowMs = Date.now()
   const [payments, withdrawals] = await Promise.all([
-    fetchAllPaidMicatalogoPayments(db, tenantId),
+    fetchAllPaidMicatalogoPayments(db, tenantId, nowMs),
     fetchWithdrawals(db, tenantId),
   ])
 
   const grossTotalCop = payments.reduce((s, p) => s + p.grossCop, 0)
   const feeTotalCop = payments.reduce((s, p) => s + p.feeCop, 0)
   const netTotalCop = payments.reduce((s, p) => s + p.netCop, 0)
+  const releasedNetCop = payments.filter((p) => p.isReleased).reduce((s, p) => s + p.netCop, 0)
+  const pendingPayments = payments.filter((p) => !p.isReleased)
+  const pendingNetCop = pendingPayments.reduce((s, p) => s + p.netCop, 0)
   const withdrawnTotalCop = withdrawals.reduce((s, w) => s + w.amountCop, 0)
-  const availableNetCop = Math.max(0, netTotalCop - withdrawnTotalCop)
+  const availableNetCop = Math.max(0, releasedNetCop - withdrawnTotalCop)
 
   return {
     grossTotalCop,
     feeTotalCop,
     netTotalCop,
+    releasedNetCop,
+    pendingNetCop,
+    pendingPaymentCount: pendingPayments.length,
     withdrawnTotalCop,
     availableNetCop,
     paymentCount: payments.length,

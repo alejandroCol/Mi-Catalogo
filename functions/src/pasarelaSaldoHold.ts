@@ -1,0 +1,28 @@
+/** Tiempo que debe transcurrir desde el cobro antes de poder retirar el neto de una venta. */
+export const PASARELA_SALDO_HOLD_MS = 24 * 60 * 60 * 1000
+
+export function pasarelaSaldoPaidAtMs(input: {
+  seguimientoCompraAt?: number
+  updatedAt?: number
+  createdAt?: number
+}): number {
+  if (typeof input.seguimientoCompraAt === 'number' && input.seguimientoCompraAt > 0) {
+    return input.seguimientoCompraAt
+  }
+  if (typeof input.updatedAt === 'number' && input.updatedAt > 0) {
+    return input.updatedAt
+  }
+  if (typeof input.createdAt === 'number' && input.createdAt > 0) {
+    return input.createdAt
+  }
+  return 0
+}
+
+export function pasarelaSaldoReleaseAtMs(paidAtMs: number): number {
+  return paidAtMs + PASARELA_SALDO_HOLD_MS
+}
+
+export function pasarelaSaldoIsReleased(paidAtMs: number, nowMs = Date.now()): boolean {
+  if (paidAtMs <= 0) return false
+  return nowMs >= pasarelaSaldoReleaseAtMs(paidAtMs)
+}

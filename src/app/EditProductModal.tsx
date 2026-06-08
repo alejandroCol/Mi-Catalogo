@@ -31,6 +31,8 @@ import {
   variantesDraftFromProducto,
 } from '@/lib/productoVariantes'
 import type { McProducto, McProductoVariante } from '@/types/mc'
+import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
+import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 
 export function EditProductModal({
   tenantId,
@@ -64,6 +66,9 @@ export function EditProductModal({
   const [descuento, setDescuento] = useState(() => productoDescuentoDraftFromProduct(product))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [categoriaIds, setCategoriaIds] = useState<string[]>(() => product.categoriaIds ?? [])
+
+  const { categorias } = useTenantCategorias(tenantId)
 
   const { showSaveSuccess } = useSaveSuccess()
   const tieneVariantes = variantes.length > 0
@@ -190,6 +195,7 @@ export function EditProductModal({
             }),
         galeriaImagenes: galeriaImagenes && galeriaImagenes.length > 0 ? galeriaImagenes : deleteField(),
         variantes: builtVariantes.length > 0 ? builtVariantes : deleteField(),
+        categoriaIds: categoriaIds.length > 0 ? categoriaIds : deleteField(),
       })
 
       showSaveSuccess({
@@ -303,6 +309,15 @@ export function EditProductModal({
                 )}
               </div>
             )}
+          </ProductoFormSection>
+
+          <ProductoFormSection title="Categorías">
+            <ProductoCategoriasPicker
+              categorias={categorias}
+              selectedIds={categoriaIds}
+              onChange={setCategoriaIds}
+              disabled={busy}
+            />
           </ProductoFormSection>
 
           <ProductoDescuentoEditor

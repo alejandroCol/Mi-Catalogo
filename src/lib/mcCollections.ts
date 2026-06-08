@@ -6,10 +6,25 @@ export const MC = {
   mcPlatform: 'mc_platform',
   mcPlatformSettingsDoc: 'settings',
   billingDiscountCodes: 'mc_billing_discount_codes',
+  tutorialSections: 'mc_tutorial_sections',
+  salesVisits: 'mc_sales_visits',
+  demoStores: 'mc_demo_stores',
 } as const
+
+export function mcTutorialsCollection(sectionId: string) {
+  return `${MC.tutorialSections}/${sectionId}/tutorials` as const
+}
+
+export function mcTutorialSectionsCollection() {
+  return MC.tutorialSections
+}
 
 export function mcProductosCollection(tenantId: string) {
   return `mc_tenants/${tenantId}/productos` as const
+}
+
+export function mcCategoriasCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/categorias` as const
 }
 
 export function mcPedidosCollection(tenantId: string) {

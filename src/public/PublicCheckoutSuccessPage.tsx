@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext'
 import { formatCop } from '@/lib/formatCop'
 import { normalizeOrderIdInput, publicCatalogTrackingPath } from '@/lib/catalogOrderTracking'
 import { CatalogOrderTrackingTimeline } from '@/public/CatalogOrderTrackingTimeline'
 import { useCatalogOrderTracking } from '@/public/useCatalogOrderTracking'
 import { usePublicTenant } from '@/public/usePublicTenant'
+import { usePublicStore } from '@/public/PublicStoreContext'
 import { usePublicCheckoutCompleteTracking } from '@/public/usePublicCatalogAnalytics'
 
 export function PublicCheckoutSuccessPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug, to, storePublicUrl } = usePublicStore()
   const [searchParams] = useSearchParams()
   const orderIdParam = searchParams.get('o') ?? searchParams.get('ref') ?? ''
   const orderId = normalizeOrderIdInput(orderIdParam)
@@ -21,9 +22,10 @@ export function PublicCheckoutSuccessPage() {
   const [copiedLink, setCopiedLink] = useState(false)
 
   const trackingUrl = useMemo(() => {
-    if (!slug || !orderId || typeof window === 'undefined') return ''
-    return `${window.location.origin}${publicCatalogTrackingPath(slug, orderId)}`
-  }, [slug, orderId])
+    if (!slug || !orderId) return ''
+    const q = new URLSearchParams({ o: orderId })
+    return storePublicUrl(`/seguimiento?${q.toString()}`)
+  }, [slug, orderId, storePublicUrl])
 
   useEffect(() => {
     if (!slug || !orderId) return
@@ -37,7 +39,7 @@ export function PublicCheckoutSuccessPage() {
   }, [order?.estado, clear])
 
   if (!slug || !orderId) {
-    return <Navigate to={`/c/${slug ?? ''}`} replace />
+    return <Navigate to={to('/')} replace />
   }
 
   async function copiarPedido() {
@@ -143,7 +145,7 @@ export function PublicCheckoutSuccessPage() {
 
       <div className="mt-10 flex flex-wrap justify-center gap-3">
         <Link
-          to={`/c/${slug}`}
+          to={to('/')}
           className="inline-flex items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_22%,transparent)] px-5 py-2.5 text-sm font-medium text-[var(--cat-text)] transition hover:opacity-80"
         >
           Seguir comprando

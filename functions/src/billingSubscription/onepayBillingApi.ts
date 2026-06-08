@@ -259,10 +259,14 @@ export async function onepayCreateBillingCharge(params: {
   if (hasCard === hasAccount) {
     throw new Error('Se requiere tarjeta o Nequi (uno solo)')
   }
+  const amount = Math.round(params.amountCop)
+  if (amount <= 0) {
+    throw new Error('OnePay no admite cargos de $0. Activá el plan sin cargo inicial.')
+  }
   const body: Record<string, unknown> = {
     title: params.title.slice(0, 200),
     customer_id: params.customerId.trim(),
-    amount: Math.max(1, Math.round(params.amountCop)),
+    amount,
     currency: 'COP',
     metadata: billingMetadataForApi(params.metadata),
   }
@@ -322,7 +326,27 @@ export function chargeStatusFailed(status: string | undefined): boolean {
 
 export function accountReadyForDebit(acc: OnePayAccount): boolean {
   const st = (acc.status ?? '').toLowerCase()
-  if (st === 'rejected' || st === 'inactive') return false
-  if (st === 'pending' || st === 'validating') return false
-  return acc.authorization === true
+  if (st === 'rejected' || st === 'inactive' || st === 'failed') return false
+  if (st === 'pending' || st === 'validating' || st === 'waiting') return false
+  if (acc.authorization === true) return true
+  // OnePay a veces omite `authorization` cuando el estado ya es activo/aprobado.
+  if (
+    (st === 'active' || st === 'approved' || st === 'enabled' || st === 'linked') &&
+    acc.authorization !== false
+  ) {
+    return true
+  }
+  return false
+}
+
+export async function onepayGetAccount(
+  accountId: string,
+  secretKey: string,
+): Promise<OnePayAccount | null> {
+  const res = await fetch(`${ONEPAY_ACCOUNTS_API}/${encodeURIComponent(accountId)}`, {
+    headers: { Authorization: `Bearer ${secretKey.trim()}` },
+  })
+  if (!res.ok) return null
+  const data = await readOnePayJson<OnePayAccount>(res)
+  return typeof data.id === 'string' ? data : null
 }

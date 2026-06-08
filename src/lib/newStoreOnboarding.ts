@@ -25,6 +25,7 @@ type OnboardingTenantPick = Pick<
   McTenant,
   | 'createdAt'
   | 'onboardingSetupCompletedAt'
+  | 'onboardingSharePromptSeenAt'
   | 'onboardingExpertRewardCode'
   | 'checkoutVentasModo'
   | 'onepayPaymentsEnabled'
@@ -35,11 +36,60 @@ type OnboardingTenantPick = Pick<
   | 'billingPlan'
 >
 
-/** Tienda nueva: aún no completó el checklist y sigue en plan Free. */
-export function isNewStoreForOnboarding(tenant: OnboardingTenantPick | null | undefined): boolean {
+/**
+ * Promo Expert 24 h habilitada en plataforma (banner + código al completar checklist).
+ * Default: true si no está definido.
+ */
+export function isNewStoreExpertPromoEnabled(
+  platformSettings: Pick<McPlatformSettings, 'newStoreExpertPromoBannerEnabled'> | null | undefined,
+): boolean {
+  // Sin settings cargados aún: no asumir activado (evita parpadeo al refrescar).
+  if (platformSettings == null) return false
+  return platformSettings.newStoreExpertPromoBannerEnabled !== false
+}
+
+/**
+ * Tienda nueva elegible para el checklist de primeros pasos:
+ * - Sin checklist completado
+ * - Plan Free
+ * - Sin límite de 24 h
+ */
+export function isNewStoreChecklistEligible(
+  tenant: OnboardingTenantPick | null | undefined,
+): boolean {
   if (!tenant) return false
   if (tenant.onboardingSetupCompletedAt) return false
-  return tenant.billingPlan !== 'expert'
+  if (tenant.billingPlan === 'expert') return false
+  return typeof tenant.createdAt === 'number'
+}
+
+/** CTA «Estás listo para vender» en Inicio tras completar el checklist (una sola vez). */
+export function shouldShowNewStoreReadyToSharePrompt(
+  tenant: Pick<McTenant, 'onboardingSetupCompletedAt' | 'onboardingSharePromptSeenAt'> | null | undefined,
+): boolean {
+  if (!tenant?.onboardingSetupCompletedAt) return false
+  return !tenant.onboardingSharePromptSeenAt
+}
+
+/** Banner promo Expert visible: checklist activo + promo habilitada + dentro de 24 h. */
+export function isNewStoreExpertPromoBannerVisible(
+  tenant: OnboardingTenantPick | null | undefined,
+  platformSettings: Pick<McPlatformSettings, 'newStoreExpertPromoBannerEnabled'> | null | undefined,
+  nowMs = Date.now(),
+): boolean {
+  if (!isNewStoreChecklistEligible(tenant)) return false
+  if (!isNewStoreExpertPromoEnabled(platformSettings)) return false
+  return isWithinOnboardingExpertRewardWindow(tenant!, nowMs)
+}
+
+/**
+ * @deprecated Usar `isNewStoreChecklistEligible` o `isNewStoreExpertPromoBannerVisible`.
+ */
+export function isNewStoreForOnboarding(
+  tenant: OnboardingTenantPick | null | undefined,
+  nowMs = Date.now(),
+): boolean {
+  return isNewStoreExpertPromoBannerVisible(tenant, null, nowMs)
 }
 
 export function isWithinOnboardingExpertRewardWindow(

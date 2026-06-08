@@ -10,8 +10,10 @@ export type ConfigMenuItem = {
   /** Ruta destino cuando el usuario tiene acceso (o no es Expert). */
   to: string
   size: ConfigTileSize
-  /** Si true, sin plan Expert el tile lleva a /app/plan y muestra estrella. */
+  /** Si true, muestra estrella Expert en el tile. */
   expert?: boolean
+  /** Si true, el tile siempre abre la página; el plan Expert se valida al guardar. */
+  expertGateOnSave?: boolean
   icon?: ReactNode
   /** Texto secundario (ej. contador de cupones). */
   hint?: string

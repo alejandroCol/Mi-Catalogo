@@ -1,70 +1,94 @@
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { ExpertStar } from '@/components/billing/ExpertStar'
-import {
-  isWithinOnboardingExpertRewardWindow,
-  onboardingExpertRewardDeadlineMs,
-} from '@/lib/newStoreOnboarding'
+import { useOnboardingRewardWindow } from '@/hooks/useOnboardingRewardWindow'
 import type { McTenant } from '@/types/mc'
 import { IconChevronRight } from '@/icons/McIcons'
 
-function formatCountdown(deadlineMs: number, nowMs: number): string {
+function formatCountdown(deadlineMs: number, nowMs: number): { primary: string; urgent: boolean } {
   const diff = Math.max(0, deadlineMs - nowMs)
   const hours = Math.floor(diff / (60 * 60 * 1000))
   const minutes = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000))
-  if (hours <= 0 && minutes <= 0) return 'Últimos minutos'
-  if (hours >= 1) return `${hours} h ${minutes} min restantes`
-  return `${minutes} min restantes`
+  const seconds = Math.floor((diff % (60 * 1000)) / 1000)
+  const urgent = diff > 0 && diff <= 60 * 60 * 1000
+
+  if (diff <= 0) return { primary: 'Tiempo agotado', urgent: true }
+  if (hours >= 1) return { primary: `${hours} h ${minutes} min`, urgent }
+  if (minutes >= 1) return { primary: `${minutes} min ${seconds} s`, urgent: true }
+  return { primary: `${seconds} s`, urgent: true }
 }
 
 export function NewStoreExpertBanner({ tenant }: { tenant: McTenant }) {
-  const now = Date.now()
-  const withinWindow = isWithinOnboardingExpertRewardWindow(tenant, now)
-  const deadlineMs = onboardingExpertRewardDeadlineMs(tenant)
+  const { nowMs, withinWindow, deadlineMs } = useOnboardingRewardWindow(tenant)
+  const countdown = formatCountdown(deadlineMs, nowMs)
+  const [pulse, setPulse] = useState(false)
+
+  useEffect(() => {
+    if (!countdown.urgent) return
+    const id = window.setInterval(() => setPulse((p) => !p), 1400)
+    return () => window.clearInterval(id)
+  }, [countdown.urgent])
+
+  if (!withinWindow) return null
 
   return (
-    <section
-      aria-label="Promoción Expert para tiendas nuevas"
-      className="group relative overflow-hidden border border-[color-mix(in_srgb,var(--cat-text)_12%,transparent)] bg-gradient-to-br from-[#0a0a0a] via-[#171717] to-[#262626] px-5 py-6 text-white shadow-[0_18px_50px_-30px_rgba(0,0,0,0.55)] sm:px-7 sm:py-7"
+    <a
+      href="#new-store-checklist"
+      aria-label="Completá tu tienda en menos de 24 horas y obtené funciones Expert por un mes. Ir al checklist."
+      className="group relative block w-full border-b border-white/[0.06] bg-[#0a0a0a] text-white transition hover:bg-[#111111] active:bg-[#141414]"
     >
       <div
-        className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/10 blur-3xl"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -bottom-12 left-8 h-28 w-28 rounded-full bg-amber-400/20 blur-3xl"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_120%_at_50%_-40%,rgba(251,191,36,0.07),transparent)]"
         aria-hidden
       />
 
-      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">
-              <ExpertStar className="text-amber-300 [&_svg]:h-3 [&_svg]:w-3" />
-              Tienda nueva
-            </span>
-            {withinWindow && (
-              <span className="text-[11px] font-medium tabular-nums text-amber-200/90">
-                {formatCountdown(deadlineMs, now)}
-              </span>
-            )}
-          </div>
-          <p className="mt-3 text-[1.15rem] font-medium leading-snug tracking-tight sm:text-[1.35rem]">
-            Obtené Mi Catálogo Expert gratis completando tu tienda en menos de 24 horas
-          </p>
-          <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-white/70">
-            Terminá el checklist de abajo y recibí un código exclusivo para tu tienda: primer mes Expert a $0 con tu
-            método de pago, y desde el segundo mes el precio normal.
-          </p>
-        </div>
+      <div className="relative mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-2.5 sm:gap-4 sm:px-6 sm:py-3 lg:px-12">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
+          <ExpertStar className="text-amber-300/90 [&_svg]:h-3.5 [&_svg]:w-3.5" />
+        </span>
 
-        <Link
-          to="/app/plan"
-          className="inline-flex shrink-0 items-center justify-center gap-2 border border-white/25 bg-white px-4 py-3 text-[13px] font-semibold uppercase tracking-[0.1em] text-neutral-900 transition hover:bg-white/90"
+        <p className="min-w-0 flex-1 text-[12px] leading-snug text-white/82 sm:text-[13px]">
+          <span className="font-medium">
+            Completá tu tienda en menos de 24 horas y obtené funciones Expert por un mes
+          </span>
+          <span
+            className={`mt-0.5 block text-[10px] font-medium tabular-nums sm:hidden ${
+              countdown.urgent ? 'text-amber-200/75' : 'text-white/45'
+            }`}
+          >
+            {countdown.primary} restantes
+          </span>
+        </p>
+
+        <span
+          className={`hidden shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium tabular-nums sm:inline-flex ${
+            countdown.urgent
+              ? pulse
+                ? 'border-amber-400/35 bg-amber-400/10 text-amber-200/90'
+                : 'border-amber-400/25 bg-amber-400/6 text-amber-200/75'
+              : 'border-white/10 bg-white/[0.03] text-white/55'
+          }`}
         >
-          Conocer Expert
-          <IconChevronRight size={16} className="opacity-70" />
-        </Link>
+          <span className="relative flex h-1 w-1" aria-hidden>
+            <span
+              className={`absolute inline-flex h-full w-full rounded-full ${
+                countdown.urgent ? 'animate-ping bg-amber-300/50' : 'bg-emerald-400/60'
+              }`}
+            />
+            <span
+              className={`relative inline-flex h-1 w-1 rounded-full ${
+                countdown.urgent ? 'bg-amber-300/90' : 'bg-emerald-400/80'
+              }`}
+            />
+          </span>
+          {countdown.primary}
+        </span>
+
+        <IconChevronRight
+          size={15}
+          className="shrink-0 text-white/35 transition group-hover:translate-x-0.5 group-hover:text-white/55"
+          aria-hidden
+        />
       </div>
-    </section>
+    </a>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
+import { StoreImpersonationBanner } from '@/auth/StoreImpersonationBanner'
 import { SellerOnboardingOverlay, useAssignSellerOnboardingTabAnchors } from '@/app/SellerOnboardingOverlay'
 import { McSaveSuccessProvider } from '@/components/McSaveSuccessModal'
 import { clearPendingSellerOnboarding, shouldShowSellerOnboarding } from '@/lib/onboardingStorage'
@@ -8,16 +9,16 @@ import { tenantThemeCssVars } from '@/lib/catalogTheme'
 import { IconCart, IconCube, IconHome, IconSliders } from '@/icons/McIcons'
 
 export function AppShell() {
-  const { tenant } = useMcAuth()
+  const { tenant, isImpersonating } = useMcAuth()
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const { tabAnchorsRef, tabAnchorAssignRefs } = useAssignSellerOnboardingTabAnchors()
 
   useEffect(() => {
-    if (!tenant?.id) return
+    if (!tenant?.id || isImpersonating) return
     if (shouldShowSellerOnboarding(tenant.id)) {
       setOnboardingOpen(true)
     }
-  }, [tenant?.id])
+  }, [tenant?.id, isImpersonating])
 
   function closeOnboarding() {
     clearPendingSellerOnboarding()
@@ -34,8 +35,9 @@ export function AppShell() {
         color: 'var(--cat-text)',
       }}
     >
+      <StoreImpersonationBanner />
       <SellerOnboardingOverlay
-        open={onboardingOpen}
+        open={onboardingOpen && !isImpersonating}
         onDismiss={closeOnboarding}
         tabAnchorsRef={tabAnchorsRef}
       />

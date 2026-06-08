@@ -1,5 +1,6 @@
 import type { LineaCarritoSimple } from '@/catalog-local/simpleCartTypes'
 import { mcCarritosIniciadosCollection } from '@/lib/mcCollections'
+import { buildStorePublicUrl } from '@/lib/storePublicUrl'
 import type { McCarritoIniciado, McCarritoIniciadoLinea } from '@/types/mc'
 
 export function lineasToCarritoIniciado(lines: LineaCarritoSimple[]): McCarritoIniciadoLinea[] {
@@ -39,12 +40,12 @@ export function carritoIniciadoDocPath(tenantId: string, carritoId: string) {
 
 /** URL de checkout con carrito y cupón preaplicados. */
 export function buildCarritoRecuperacionCheckoutUrl(
-  origin: string,
+  _origin: string,
   slug: string,
   carritoId: string,
   cuponCodigo?: string,
 ): string {
-  const base = `${origin.replace(/\/$/, '')}/c/${encodeURIComponent(slug)}/checkout`
+  const base = buildStorePublicUrl(slug, '/checkout')
   const q = new URLSearchParams({ r: carritoId })
   const cupon = cuponCodigo?.trim()
   if (cupon) q.set('cupon', cupon)

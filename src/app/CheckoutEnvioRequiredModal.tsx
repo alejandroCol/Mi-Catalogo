@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { ConfigSubpageNavState } from '@/app/configuraciones/configSubpageNav'
 
 export function CheckoutEnvioRequiredModal({
   open,
   onClose,
+  returnNav,
 }: {
   open: boolean
   onClose: () => void
+  returnNav?: ConfigSubpageNavState
 }) {
   const navigate = useNavigate()
 
@@ -23,7 +26,7 @@ export function CheckoutEnvioRequiredModal({
 
   function irAConfigurarEnvio() {
     onClose()
-    navigate('/app/cuenta/envio')
+    navigate('/app/cuenta/envio', returnNav ? { state: returnNav } : undefined)
   }
 
   return (

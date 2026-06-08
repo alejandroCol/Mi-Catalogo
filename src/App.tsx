@@ -1,8 +1,15 @@
 import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { McAuthProvider } from '@/auth/McAuthContext'
+import { McPostLoginRedirect } from '@/app/McPostLoginRedirect'
 import { RequireMcAuth } from '@/app/RequireMcAuth'
+import { RequireMcSalesRep } from '@/app/RequireMcSalesRep'
+import { RequireMcStoreOwner } from '@/app/RequireMcStoreOwner'
 import { McRouteAnalyticsTracker } from '@/lib/McRouteAnalyticsTracker'
+import { parseStoreSlugFromHostname, resolveAppSurface } from '@/lib/storePublicUrl'
+import { LandingPage } from '@/landing/LandingPage'
+import { LegacyCatalogGateway } from '@/public/LegacyCatalogGateway'
+import { PublicStoreProvider } from '@/public/PublicStoreContext'
 
 const LoginPage = lazy(() =>
   import('@/auth/LoginPage').then((m) => ({ default: m.LoginPage })),
@@ -22,6 +29,9 @@ const DashboardPage = lazy(() =>
 const InventarioPage = lazy(() =>
   import('@/app/InventarioPage').then((m) => ({ default: m.InventarioPage })),
 )
+const CategoriasPage = lazy(() =>
+  import('@/app/CategoriasPage').then((m) => ({ default: m.CategoriasPage })),
+)
 const PedidosPage = lazy(() =>
   import('@/app/PedidosPage').then((m) => ({ default: m.PedidosPage })),
 )
@@ -30,6 +40,12 @@ const CuentaPage = lazy(() =>
 )
 const CuentaEnvioPage = lazy(() =>
   import('@/app/CuentaEnvioPage').then((m) => ({ default: m.CuentaEnvioPage })),
+)
+const CuentaEnvioAutomaticoPage = lazy(() =>
+  import('@/app/CuentaEnvioAutomaticoPage').then((m) => ({ default: m.CuentaEnvioAutomaticoPage })),
+)
+const CuentaEnvioManualPage = lazy(() =>
+  import('@/app/CuentaEnvioManualPage').then((m) => ({ default: m.CuentaEnvioManualPage })),
 )
 const CuentaCuponesPage = lazy(() =>
   import('@/app/CuentaCuponesPage').then((m) => ({ default: m.CuentaCuponesPage })),
@@ -42,6 +58,9 @@ const CuentaLogoPage = lazy(() =>
 )
 const CuentaBannerTemporadaPage = lazy(() =>
   import('@/app/CuentaBannerTemporadaPage').then((m) => ({ default: m.CuentaBannerTemporadaPage })),
+)
+const PersonalizarMiTiendaPage = lazy(() =>
+  import('@/app/PersonalizarMiTiendaPage').then((m) => ({ default: m.PersonalizarMiTiendaPage })),
 )
 const CarritosAbandonadosPage = lazy(() =>
   import('@/app/CarritosAbandonadosPage').then((m) => ({ default: m.CarritosAbandonadosPage })),
@@ -68,6 +87,9 @@ const CuentaPoliticasPage = lazy(() =>
 )
 const CuentaResumenVentasPage = lazy(() =>
   import('@/app/CuentaResumenVentasPage').then((m) => ({ default: m.CuentaResumenVentasPage })),
+)
+const CuentaTutorialesPage = lazy(() =>
+  import('@/app/CuentaTutorialesPage').then((m) => ({ default: m.CuentaTutorialesPage })),
 )
 const PagosPasarelaPage = lazy(() =>
   import('@/app/PagosPasarelaPage').then((m) => ({ default: m.PagosPasarelaPage })),
@@ -122,10 +144,35 @@ const SuperAdminTerminosPage = lazy(() =>
     default: m.SuperAdminTerminosPage,
   })),
 )
+const SuperAdminTutorialesPage = lazy(() =>
+  import('@/superadmin/SuperAdminTutorialesPage').then((m) => ({
+    default: m.SuperAdminTutorialesPage,
+  })),
+)
 const SuperAdminTenantOnepayPage = lazy(() =>
   import('@/superadmin/SuperAdminTenantOnepayPage').then((m) => ({
     default: m.SuperAdminTenantOnepayPage,
   })),
+)
+const SuperAdminVendedoresPage = lazy(() =>
+  import('@/superadmin/SuperAdminVendedoresPage').then((m) => ({
+    default: m.SuperAdminVendedoresPage,
+  })),
+)
+const VendedorShell = lazy(() =>
+  import('@/vendedor/VendedorShell').then((m) => ({ default: m.VendedorShell })),
+)
+const VendedorDashboardPage = lazy(() =>
+  import('@/vendedor/VendedorDashboardPage').then((m) => ({ default: m.VendedorDashboardPage })),
+)
+const VendedorPitchPage = lazy(() =>
+  import('@/vendedor/VendedorPitchPage').then((m) => ({ default: m.VendedorPitchPage })),
+)
+const VendedorCapacitacionPage = lazy(() =>
+  import('@/vendedor/VendedorCapacitacionPage').then((m) => ({ default: m.VendedorCapacitacionPage })),
+)
+const VendedorDemoAdminPage = lazy(() =>
+  import('@/vendedor/VendedorDemoAdminPage').then((m) => ({ default: m.VendedorDemoAdminPage })),
 )
 const PublicCatalogLayout = lazy(() =>
   import('@/public/PublicCatalogLayout').then((m) => ({
@@ -167,10 +214,6 @@ const PublicPoliciesPage = lazy(() =>
     default: m.PublicPoliciesPage,
   })),
 )
-const LandingPage = lazy(() =>
-  import('@/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
-)
-
 function RouteFallback() {
   return (
     <div className="flex min-h-[40vh] items-center justify-center text-sm text-neutral-500">
@@ -179,123 +222,195 @@ function RouteFallback() {
   )
 }
 
+const publicCatalogRouteElements = (
+  <>
+    <Route index element={<PublicCatalogListPage />} />
+    <Route path="p/:productId" element={<PublicProductDetailPage />} />
+    <Route path="checkout/pago-validando" element={<PublicCheckoutPagoValidandoPage />} />
+    <Route path="checkout/exito" element={<PublicCheckoutSuccessPage />} />
+    <Route path="checkout" element={<PublicCheckoutPage />} />
+    <Route path="seguimiento" element={<PublicOrderTrackingPage />} />
+    <Route path="politicas" element={<PublicPoliciesPage />} />
+  </>
+)
+
+function PlatformRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/registro" element={<RegisterPage />} />
+      <Route path="/verificar-email" element={<VerifyEmailPage />} />
+      <Route
+        path="/vendedor"
+        element={
+          <RequireMcAuth>
+            <RequireMcSalesRep>
+              <VendedorShell />
+            </RequireMcSalesRep>
+          </RequireMcAuth>
+        }
+      >
+        <Route index element={<VendedorDashboardPage />} />
+        <Route path="pitch" element={<VendedorPitchPage />} />
+        <Route path="capacitacion" element={<VendedorCapacitacionPage />} />
+        <Route path="demo-admin/:demoId" element={<VendedorDemoAdminPage />} />
+      </Route>
+      <Route
+        path="/app"
+        element={
+          <RequireMcAuth>
+            <RequireMcStoreOwner>
+              <AppShell />
+            </RequireMcStoreOwner>
+          </RequireMcAuth>
+        }
+      >
+        <Route index element={<DashboardPage />} />
+        <Route path="inventario" element={<InventarioPage />} />
+        <Route path="inventario/categorias" element={<CategoriasPage />} />
+        <Route path="pedidos" element={<PedidosPage />} />
+        <Route path="plan" element={<PlanUpgradePage />} />
+        <Route path="estadisticas" element={<EstadisticasPage />} />
+        <Route path="cuenta" element={<CuentaPage />} />
+        <Route path="cuenta/perfil" element={<CuentaPerfilPage />} />
+        <Route path="cuenta/tienda" element={<CuentaTiendaPage />} />
+        <Route path="cuenta/whatsapp" element={<CuentaWhatsAppPage />} />
+        <Route path="cuenta/checkout-ventas" element={<CuentaCheckoutVentasPage />} />
+        <Route path="cuenta/checkout-ventas/seleccion" element={<CuentaCheckoutVentasSeleccionPage />} />
+        <Route path="cuenta/politicas" element={<CuentaPoliticasPage />} />
+        <Route path="cuenta/resumen-ventas" element={<CuentaResumenVentasPage />} />
+        <Route path="cuenta/envio" element={<CuentaEnvioPage />} />
+        <Route path="cuenta/envio/automatico" element={<CuentaEnvioAutomaticoPage />} />
+        <Route path="cuenta/envio/manual" element={<CuentaEnvioManualPage />} />
+        <Route path="cuenta/cupones" element={<CuentaCuponesPage />} />
+        <Route path="personalizar" element={<PersonalizarMiTiendaPage />} />
+        <Route path="cuenta/estilo" element={<CuentaEstiloPage />} />
+        <Route path="cuenta/logo" element={<CuentaLogoPage />} />
+        <Route path="cuenta/banner-temporada" element={<CuentaBannerTemporadaPage />} />
+        <Route path="cuenta/carritos-abandonados" element={<CarritosAbandonadosPage />} />
+        <Route path="cuenta/tutoriales" element={<CuentaTutorialesPage />} />
+        <Route path="pagos-pasarela" element={<PagosPasarelaPage />} />
+        <Route path="pagos-pasarela/onepay" element={<OnepayPasarelaResumenPage />} />
+        <Route path="mi-saldo" element={<VentasSaldoPage />} />
+        <Route path="mi-saldo/retirar" element={<OnepayRetiroFondosPage />} />
+      </Route>
+      <Route
+        path="/superadmin"
+        element={
+          <RequireMcAuth>
+            <SuperAdminPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/pasarela-micatalogo"
+        element={
+          <RequireMcAuth>
+            <SuperAdminPasarelaMicatalogoPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/envios-micatalogo"
+        element={
+          <RequireMcAuth>
+            <SuperAdminEnviosMicatalogoPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/planes"
+        element={
+          <RequireMcAuth>
+            <SuperAdminPlanesPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/descuentos"
+        element={
+          <RequireMcAuth>
+            <SuperAdminDescuentosPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/analytics"
+        element={
+          <RequireMcAuth>
+            <SuperAdminAnalyticsPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/terminos"
+        element={
+          <RequireMcAuth>
+            <SuperAdminTerminosPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/tutoriales"
+        element={
+          <RequireMcAuth>
+            <SuperAdminTutorialesPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/tienda/:tenantId/onepay"
+        element={
+          <RequireMcAuth>
+            <SuperAdminTenantOnepayPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/vendedores"
+        element={
+          <RequireMcAuth>
+            <SuperAdminVendedoresPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route path="/c/:slug" element={<LegacyCatalogGateway />}>
+        <Route element={<PublicCatalogLayout />}>{publicCatalogRouteElements}</Route>
+      </Route>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function StoreSubdomainRoutes() {
+  return (
+    <Routes>
+      <Route
+        element={
+          <PublicStoreProvider>
+            <PublicCatalogLayout />
+          </PublicStoreProvider>
+        }
+      >
+        {publicCatalogRouteElements}
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+const storeHostSlug =
+  typeof window !== 'undefined' ? parseStoreSlugFromHostname(window.location.hostname) : null
+const isStoreHost = resolveAppSurface() === 'store' && Boolean(storeHostSlug)
+
 export function App() {
   return (
     <McAuthProvider>
       <Suspense fallback={<RouteFallback />}>
+        <McPostLoginRedirect />
         <McRouteAnalyticsTracker />
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/registro" element={<RegisterPage />} />
-          <Route path="/verificar-email" element={<VerifyEmailPage />} />
-          <Route
-            path="/app"
-            element={
-              <RequireMcAuth>
-                <AppShell />
-              </RequireMcAuth>
-            }
-          >
-            <Route index element={<DashboardPage />} />
-            <Route path="inventario" element={<InventarioPage />} />
-            <Route path="pedidos" element={<PedidosPage />} />
-            <Route path="plan" element={<PlanUpgradePage />} />
-            <Route path="estadisticas" element={<EstadisticasPage />} />
-            <Route path="cuenta" element={<CuentaPage />} />
-            <Route path="cuenta/perfil" element={<CuentaPerfilPage />} />
-            <Route path="cuenta/tienda" element={<CuentaTiendaPage />} />
-            <Route path="cuenta/whatsapp" element={<CuentaWhatsAppPage />} />
-            <Route path="cuenta/checkout-ventas" element={<CuentaCheckoutVentasPage />} />
-            <Route path="cuenta/checkout-ventas/seleccion" element={<CuentaCheckoutVentasSeleccionPage />} />
-            <Route path="cuenta/politicas" element={<CuentaPoliticasPage />} />
-            <Route path="cuenta/resumen-ventas" element={<CuentaResumenVentasPage />} />
-            <Route path="cuenta/envio" element={<CuentaEnvioPage />} />
-            <Route path="cuenta/cupones" element={<CuentaCuponesPage />} />
-            <Route path="cuenta/estilo" element={<CuentaEstiloPage />} />
-            <Route path="cuenta/logo" element={<CuentaLogoPage />} />
-            <Route path="cuenta/banner-temporada" element={<CuentaBannerTemporadaPage />} />
-            <Route path="cuenta/carritos-abandonados" element={<CarritosAbandonadosPage />} />
-            <Route path="pagos-pasarela" element={<PagosPasarelaPage />} />
-            <Route path="pagos-pasarela/onepay" element={<OnepayPasarelaResumenPage />} />
-            <Route path="mi-saldo" element={<VentasSaldoPage />} />
-            <Route path="mi-saldo/retirar" element={<OnepayRetiroFondosPage />} />
-          </Route>
-          <Route
-            path="/superadmin"
-            element={
-              <RequireMcAuth>
-                <SuperAdminPage />
-              </RequireMcAuth>
-            }
-          />
-          <Route
-            path="/superadmin/pasarela-micatalogo"
-            element={
-              <RequireMcAuth>
-                <SuperAdminPasarelaMicatalogoPage />
-              </RequireMcAuth>
-            }
-          />
-          <Route
-            path="/superadmin/envios-micatalogo"
-            element={
-              <RequireMcAuth>
-                <SuperAdminEnviosMicatalogoPage />
-              </RequireMcAuth>
-            }
-          />
-          <Route
-            path="/superadmin/planes"
-            element={
-              <RequireMcAuth>
-                <SuperAdminPlanesPage />
-              </RequireMcAuth>
-            }
-          />
-          <Route
-            path="/superadmin/descuentos"
-            element={
-              <RequireMcAuth>
-                <SuperAdminDescuentosPage />
-              </RequireMcAuth>
-            }
-          />
-          <Route
-            path="/superadmin/analytics"
-            element={
-              <RequireMcAuth>
-                <SuperAdminAnalyticsPage />
-              </RequireMcAuth>
-            }
-          />
-          <Route
-            path="/superadmin/terminos"
-            element={
-              <RequireMcAuth>
-                <SuperAdminTerminosPage />
-              </RequireMcAuth>
-            }
-          />
-          <Route
-            path="/superadmin/tienda/:tenantId/onepay"
-            element={
-              <RequireMcAuth>
-                <SuperAdminTenantOnepayPage />
-              </RequireMcAuth>
-            }
-          />
-          <Route path="/c/:slug" element={<PublicCatalogLayout />}>
-            <Route index element={<PublicCatalogListPage />} />
-            <Route path="p/:productId" element={<PublicProductDetailPage />} />
-            <Route path="checkout/pago-validando" element={<PublicCheckoutPagoValidandoPage />} />
-            <Route path="checkout/exito" element={<PublicCheckoutSuccessPage />} />
-            <Route path="checkout" element={<PublicCheckoutPage />} />
-            <Route path="seguimiento" element={<PublicOrderTrackingPage />} />
-            <Route path="politicas" element={<PublicPoliciesPage />} />
-          </Route>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        {isStoreHost ? <StoreSubdomainRoutes /> : <PlatformRoutes />}
       </Suspense>
     </McAuthProvider>
   )

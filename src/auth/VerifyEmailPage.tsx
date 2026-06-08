@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { reload, signOut } from 'firebase/auth'
+import { signOut } from 'firebase/auth'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, getAuthApp } from '@/lib/firebase'
 import { callMcSendAuthVerificationEmail } from '@/lib/mcSendAuthVerificationEmail'
-import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
+import { isMcSuperAdminUser, resolveMcHomePath } from '@/lib/mcUserFromFirestore'
 import { AuthBrandHeader } from '@/brand/AuthBrandHeader'
 
 const RESEND_COOLDOWN_MS = 60_000
@@ -12,7 +12,7 @@ const RESEND_COOLDOWN_MS = 60_000
 export function VerifyEmailPage() {
   const nav = useNavigate()
   const location = useLocation()
-  const { firebaseUser, profile, loading } = useMcAuth()
+  const { firebaseUser, profile, tenant, loading, refreshAuthUser } = useMcAuth()
   const [err, setErr] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -29,18 +29,20 @@ export function VerifyEmailPage() {
       return
     }
     if (firebaseUser.emailVerified || isMcSuperAdminUser(profile)) {
-      nav('/app', { replace: true })
+      if (profile && (tenant || isMcSuperAdminUser(profile))) {
+        nav(resolveMcHomePath(profile), { replace: true })
+      }
     }
-  }, [firebaseUser, profile, loading, nav])
+  }, [firebaseUser, profile, tenant, loading, nav])
 
   useEffect(() => {
     if (!firebaseUser || firebaseUser.emailVerified) return
     let cancelled = false
     void (async () => {
       try {
-        await reload(firebaseUser)
-        if (!cancelled && getAuthApp().currentUser?.emailVerified) {
-          nav('/app', { replace: true })
+        const verified = await refreshAuthUser()
+        if (!cancelled && verified && profile) {
+          nav(resolveMcHomePath(profile), { replace: true })
         }
       } catch {
         /* ignorar */
@@ -49,7 +51,7 @@ export function VerifyEmailPage() {
     return () => {
       cancelled = true
     }
-  }, [firebaseUser, nav])
+  }, [firebaseUser, profile, nav, refreshAuthUser])
 
   useEffect(() => {
     if (cooldownUntil <= 0) return
@@ -111,14 +113,12 @@ export function VerifyEmailPage() {
   async function yaConfirme() {
     setErr(null)
     setInfo(null)
-    const auth = getAuthApp()
-    const u = auth.currentUser
-    if (!u) return
+    if (!getAuthApp().currentUser) return
     setBusy(true)
     try {
-      await reload(u)
-      if (auth.currentUser?.emailVerified) {
-        nav('/app', { replace: true })
+      const verified = await refreshAuthUser()
+      if (verified && profile) {
+        nav(resolveMcHomePath(profile), { replace: true })
         return
       }
       setErr('Todavía no vemos la confirmación. Abrí el enlace del último correo o tocá «Reenviar».')

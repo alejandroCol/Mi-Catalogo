@@ -8,8 +8,18 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.tenantId == tenantId;
     }
 
+    function mcUserIsSuperAdmin() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/mc_users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.isSuperAdmin == true;
+    }
+
+    function mcUserCanAccessTenant(tenantId) {
+      return mcUserBelongsToTenant(tenantId) || mcUserIsSuperAdmin();
+    }
+
     function mcUserCanWriteImage(tenantId, maxBytes) {
-      return mcUserBelongsToTenant(tenantId)
+      return mcUserCanAccessTenant(tenantId)
         && request.resource.size < maxBytes
         && request.resource.contentType.matches('image/.*');
     }
@@ -25,7 +35,7 @@ service firebase.storage {
     /** Mi Catálogo — fotos de productos por tienda */
     match /mc_tenants/{tenantId}/productos/{fileName} {
       allow read: if true;
-      allow write: if mcUserBelongsToTenant(tenantId);
+      allow write: if mcUserCanAccessTenant(tenantId);
     }
 
     /** Guías de rastreo (imagen comprimida) — lectura pública opcional */
@@ -48,7 +58,7 @@ service firebase.storage {
 
     match /mc_tenants/{tenantId}/onepay_kyb/{fileName} {
       allow read: if true;
-      allow write: if mcUserBelongsToTenant(tenantId)
+      allow write: if mcUserCanAccessTenant(tenantId)
         && request.resource.size < 16 * 1024 * 1024
         && request.resource.contentType == 'application/pdf';
     }

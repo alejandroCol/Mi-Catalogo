@@ -4,14 +4,14 @@ import {
   runTransaction,
   updateDoc,
 } from 'firebase/firestore'
-import type { McPlatformSettings, McProducto, McTenant } from '@/types/mc'
+import type { McCategoria, McPlatformSettings, McProducto, McTenant } from '@/types/mc'
 import { getDb } from '@/lib/firebase'
 import {
   canAddProductos,
   productLimitMessage,
   resolvePlanConfig,
 } from '@/lib/billingPlans'
-import { MC, mcProductosCollection } from '@/lib/mcCollections'
+import { MC, mcCategoriasCollection, mcProductosCollection } from '@/lib/mcCollections'
 
 export class ProductLimitError extends Error {
   constructor(message: string) {
@@ -94,5 +94,36 @@ export async function mcToggleProductoNovedad(tenantId: string, p: McProducto & 
   await updateDoc(doc(db, mcProductosCollection(tenantId), p.id), {
     marcarNovedad: !p.marcarNovedad,
     updatedAt: Date.now(),
+  })
+}
+
+export async function mcCreateCategoria(
+  tenantId: string,
+  data: Omit<McCategoria, 'id'>,
+): Promise<{ id: string }> {
+  const db = getDb()
+  const ref = doc(collection(db, mcCategoriasCollection(tenantId)))
+  await runTransaction(db, async (tx) => {
+    tx.set(ref, data)
+  })
+  return { id: ref.id }
+}
+
+export async function mcUpdateCategoria(
+  tenantId: string,
+  categoriaId: string,
+  patch: Partial<Pick<McCategoria, 'nombre' | 'orden' | 'activa'>>,
+) {
+  const db = getDb()
+  await updateDoc(doc(db, mcCategoriasCollection(tenantId), categoriaId), {
+    ...patch,
+    updatedAt: Date.now(),
+  })
+}
+
+export async function mcDeleteCategoria(tenantId: string, categoriaId: string) {
+  const db = getDb()
+  await runTransaction(db, async (tx) => {
+    tx.delete(doc(db, mcCategoriasCollection(tenantId), categoriaId))
   })
 }

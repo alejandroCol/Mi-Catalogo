@@ -1,4 +1,5 @@
 import type { McOrdenCatalogoEstado } from '@/types/mc'
+import { buildStorePublicPath } from '@/lib/storePublicUrl'
 
 /** Pasos visibles para el comprador (línea de tiempo). */
 export const CATALOG_TRACKING_STEPS = [
@@ -66,12 +67,12 @@ export function catalogTrackingIncludesGuide(estado: McOrdenCatalogoEstado | und
 
 export function publicCatalogTrackingPath(slug: string, orderId: string): string {
   const q = new URLSearchParams({ o: normalizeOrderIdInput(orderId) })
-  return `/c/${encodeURIComponent(slug)}/seguimiento?${q.toString()}`
+  return buildStorePublicPath(slug, `/seguimiento?${q.toString()}`)
 }
 
 export function publicCatalogSuccessPath(slug: string, orderId: string): string {
   const q = new URLSearchParams({ o: normalizeOrderIdInput(orderId) })
-  return `/c/${encodeURIComponent(slug)}/checkout/exito?${q.toString()}`
+  return buildStorePublicPath(slug, `/checkout/exito?${q.toString()}`)
 }
 
 export type CatalogOrderTrackingPublic = {

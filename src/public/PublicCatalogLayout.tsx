@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation, useParams } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCallback, useState } from 'react'
 import clsx from 'clsx'
 import {
@@ -19,10 +19,11 @@ import {
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 import { usePublicTenant } from '@/public/usePublicTenant'
 import { usePublicCatalogVisitTracking } from '@/public/usePublicCatalogAnalytics'
+import { usePublicStore } from '@/public/PublicStoreContext'
 import { McCatalogModal } from '@/public/McCatalogModal'
 
 function CartChrome() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug, pathBase, to } = usePublicStore()
   usePublicCatalogVisitTracking()
   const { pathname } = useLocation()
   const { tenant } = usePublicTenant(slug)
@@ -39,9 +40,8 @@ function CartChrome() {
     [registerCartTarget],
   )
 
-  const pathBase = slug ? `/c/${slug}` : '/'
-  const enCheckout = slug ? pathname.startsWith(`${pathBase}/checkout`) : false
-  const isCatalogListHome = Boolean(slug && pathname === pathBase)
+  const enCheckout = pathname.startsWith(`${to('/checkout')}`)
+  const isCatalogListHome = pathname === pathBase || pathname === '/'
   const navLink = (active: boolean) =>
     clsx(
       'rounded-full px-3 py-1.5 text-[13px] font-medium transition',
@@ -62,7 +62,7 @@ function CartChrome() {
       <header className="mc-pc-elev-header sticky top-0 z-30">
         <div className="mc-public-catalog-inset flex h-[3.25rem] items-center justify-between gap-2 sm:h-[3.75rem] sm:gap-4">
           <Link
-            to={pathBase}
+            to={pathBase || '/'}
             className="flex min-w-0 items-center gap-2.5 transition hover:opacity-80 sm:gap-3"
           >
             {tenant?.storeLogoUrl ? (
@@ -83,8 +83,8 @@ function CartChrome() {
           >
             {slug ? (
               <Link
-                to={`${pathBase}/seguimiento`}
-                className={navLink(pathname === `${pathBase}/seguimiento`)}
+                to={to('/seguimiento')}
+                className={navLink(pathname === to('/seguimiento'))}
                 onClick={() => setCartOpen(false)}
               >
                 Seguir mi pedido
@@ -92,8 +92,8 @@ function CartChrome() {
             ) : null}
             {slug && tenant && tenantHasPoliticas(tenant) && (
               <Link
-                to={`${pathBase}/politicas`}
-                className={navLink(pathname === `${pathBase}/politicas`)}
+                to={to('/politicas')}
+                className={navLink(pathname === to('/politicas'))}
                 onClick={() => setCartOpen(false)}
               >
                 Ayuda
@@ -101,7 +101,7 @@ function CartChrome() {
             )}
             {lines.length > 0 && slug && (
               <Link
-                to={`${pathBase}/checkout`}
+                to={to('/checkout')}
                 className={navLink(enCheckout)}
                 onClick={() => setCartOpen(false)}
               >
@@ -113,7 +113,7 @@ function CartChrome() {
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {slug && tenant && tenantHasPoliticas(tenant) && (
               <Link
-                to={`${pathBase}/politicas`}
+                to={to('/politicas')}
                 className="rounded-full p-2 sm:hidden"
                 aria-label="Políticas de la tienda"
               >
@@ -194,7 +194,7 @@ function CartChrome() {
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:justify-end">
             {slug ? (
               <Link
-                to={`${pathBase}/seguimiento`}
+                to={to('/seguimiento')}
                 className="text-[11px] font-medium sm:text-xs text-[var(--cat-text)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_50%,transparent)] underline-offset-4 transition hover:opacity-80"
               >
                 Seguir mi pedido
@@ -202,7 +202,7 @@ function CartChrome() {
             ) : null}
             {slug && tenant && tenantHasPoliticas(tenant) && (
               <Link
-                to={`${pathBase}/politicas`}
+                to={to('/politicas')}
                 className="text-[11px] font-medium sm:text-xs text-[var(--cat-text)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_50%,transparent)] underline-offset-4 transition hover:opacity-80"
               >
                 Envíos, pagos y cambios
@@ -229,7 +229,7 @@ function CartChrome() {
             </div>
             {lines.length > 0 && slug && (
               <Link
-                to={`/c/${slug}/checkout`}
+                to={to('/checkout')}
                 onClick={() => setCartOpen(false)}
                 className="inline-flex w-full items-center justify-center rounded-full bg-[var(--cat-accent)] px-4 py-3 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 sm:w-auto sm:shrink-0 sm:py-2.5"
               >
@@ -301,7 +301,7 @@ function Chrome() {
 }
 
 export function PublicCatalogLayout() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug } = usePublicStore()
   const key = slug ? `mc_cart_${slug}` : 'mc_cart'
   const { tenant } = usePublicTenant(slug)
   const { preset } = resolvePublicCatalogTheme(tenant)

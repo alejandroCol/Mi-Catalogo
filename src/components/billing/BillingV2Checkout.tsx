@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import { useMcAuth } from '@/auth/McAuthContext'
 import type { McBillingPeriod } from '@/lib/billingSubscriptionClient'
@@ -8,6 +8,14 @@ import { initCardFields, loadOnePayCapturesScript, tokenizeCard } from '@/lib/on
 import { splitStoredWaDigits } from '@/lib/waPhonePrefixes'
 
 type PayMethod = 'card' | 'nequi'
+
+function ZeroChargeDiscountNotice({ className = '' }: { className?: string }) {
+  return (
+    <p className={`text-[13px] leading-relaxed text-[var(--cat-muted)] ${className}`.trim()}>
+      Cancelá cuando quieras. No se cobrará ningún valor en este momento.
+    </p>
+  )
+}
 
 type Props = {
   period: McBillingPeriod
@@ -52,13 +60,15 @@ export function BillingV2Checkout({
 
   const [nequiBankId, setNequiBankId] = useState('')
   const [nequiPhone, setNequiPhone] = useState('')
+  const [nequiAwaitingApproval, setNequiAwaitingApproval] = useState(false)
+  const [pendingNequiAccountId, setPendingNequiAccountId] = useState<string | null>(null)
+  const [nequiChecking, setNequiChecking] = useState(false)
+  const nequiActivationInFlightRef = useRef(false)
 
   useEffect(() => {
     if (!tenant || !profile) return
-    const dn = profile.displayName?.trim() ?? ''
-    const parts = dn.split(/\s+/)
-    setFirstName(tenant.billingPayerFirstName ?? parts[0] ?? '')
-    setLastName(tenant.billingPayerLastName ?? (parts.length > 1 ? parts.slice(1).join(' ') : ''))
+    setFirstName(tenant.billingPayerFirstName ?? '')
+    setLastName(tenant.billingPayerLastName ?? '')
     setEmail(firebaseUser?.email ?? profile.email ?? '')
     const wa = splitStoredWaDigits(tenant.whatsappNumero ?? '')
     setPhone(tenant.billingPayerPhone ?? wa.local ?? '')
@@ -142,6 +152,53 @@ export function BillingV2Checkout({
     }
   }
 
+  const tryCompleteNequiIfReady = useCallback(
+    async (options?: { manual?: boolean }) => {
+      if (!pendingNequiAccountId || nequiActivationInFlightRef.current) return
+
+      setNequiChecking(true)
+      if (options?.manual) setMsg(null)
+
+      try {
+        const fnCheck = httpsCallable(getFirebaseFunctions(), 'mcBillingCheckNequiReady')
+        const res = await fnCheck({ accountId: pendingNequiAccountId })
+        const ready = (res.data as { ready?: boolean }).ready === true
+        if (!ready) {
+          if (options?.manual) {
+            setMsg('Aún no detectamos la aprobación. Revisá tu app Nequi e intentá de nuevo.')
+          }
+          return
+        }
+
+        nequiActivationInFlightRef.current = true
+        setNequiAwaitingApproval(false)
+        setBusy(true)
+        setMsg(null)
+        await completeActivation({ method: 'nequi', accountId: pendingNequiAccountId })
+        setPendingNequiAccountId(null)
+      } catch (e) {
+        setNequiAwaitingApproval(true)
+        setMsg((e as { message?: string }).message ?? 'No se pudo activar con Nequi.')
+      } finally {
+        setNequiChecking(false)
+        setBusy(false)
+        nequiActivationInFlightRef.current = false
+      }
+    },
+    [pendingNequiAccountId, period, discountCode, expertName, onSuccess],
+  )
+
+  useEffect(() => {
+    if (!nequiAwaitingApproval || !pendingNequiAccountId || method !== 'nequi') return
+
+    void tryCompleteNequiIfReady()
+    const intervalId = window.setInterval(() => {
+      void tryCompleteNequiIfReady()
+    }, 3500)
+
+    return () => window.clearInterval(intervalId)
+  }, [nequiAwaitingApproval, pendingNequiAccountId, tryCompleteNequiIfReady, method])
+
   async function activateWithCard() {
     if (!captureRouteId) {
       setMsg('Esperá a que cargue el formulario de tarjeta.')
@@ -172,7 +229,9 @@ export function BillingV2Checkout({
       const d = res.data as { accountId?: string; awaitingApproval?: boolean }
       if (!d.accountId) throw new Error('No se vinculó Nequi')
       if (d.awaitingApproval) {
-        setMsg('Aprobá la vinculación en tu app Nequi y volvé a intentar activar.')
+        setPendingNequiAccountId(d.accountId)
+        setNequiAwaitingApproval(true)
+        setMsg(null)
         return
       }
       await completeActivation({ method: 'nequi', accountId: d.accountId })
@@ -199,6 +258,7 @@ export function BillingV2Checkout({
     return (
       <div className="space-y-4 p-4 sm:p-6">
         <p className="ios-subhead">Tu código activa el plan sin cobro hoy.</p>
+        <ZeroChargeDiscountNotice />
         <button type="button" className="mc-btn-primary w-full" disabled={busy} onClick={() => void activateFree()}>
           {busy ? 'Activando…' : `Activar ${expertName} gratis`}
         </button>
@@ -227,6 +287,7 @@ export function BillingV2Checkout({
             <p className="mt-1 text-[13px] text-[var(--cat-muted)]">
               Después {formatCop(renewalCop)} / {period === 'yearly' ? 'año' : 'mes'} con tu método de pago
             </p>
+            <ZeroChargeDiscountNotice className="mt-2 text-[12px] text-emerald-900/75" />
           </>
         ) : (
           <p className="mt-0.5 text-[17px] font-medium tracking-tight">
@@ -240,8 +301,22 @@ export function BillingV2Checkout({
         <div className="space-y-4">
           <p className="ios-headline">Datos de facturación</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <input className="mc-input" placeholder="Nombre" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-            <input className="mc-input" placeholder="Apellido" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            <input
+              className="mc-input"
+              placeholder="Nombre"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              autoComplete="off"
+              name={`billing-given-${fieldSuffix}`}
+            />
+            <input
+              className="mc-input"
+              placeholder="Apellido"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              autoComplete="off"
+              name={`billing-family-${fieldSuffix}`}
+            />
             <input
               className="mc-input sm:col-span-2"
               type="email"
@@ -317,25 +392,50 @@ export function BillingV2Checkout({
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
-              <p className="ios-footnote text-[var(--cat-muted)]">
-                Vinculá tu Nequi para renovaciones automáticas.
-              </p>
-              <input
-                className="mc-input"
-                inputMode="tel"
-                placeholder="Celular Nequi"
-                value={nequiPhone}
-                onChange={(e) => setNequiPhone(e.target.value.replace(/\D/g, ''))}
-              />
-              <button
-                type="button"
-                className="mc-btn-primary w-full py-3 text-[15px]"
-                disabled={busy || nequiPhone.length < 10}
-                onClick={() => void activateWithNequi()}
-              >
-                {busy ? 'Procesando…' : 'Activar membresía'}
-              </button>
+            <div className="space-y-3">
+              {!nequiAwaitingApproval && (
+                <>
+                  <p className="ios-footnote text-[var(--cat-muted)]">
+                    Vinculá tu Nequi para renovaciones automáticas.
+                  </p>
+                  <input
+                    className="mc-input"
+                    inputMode="tel"
+                    placeholder="Celular Nequi"
+                    value={nequiPhone}
+                    onChange={(e) => setNequiPhone(e.target.value.replace(/\D/g, ''))}
+                  />
+                  <button
+                    type="button"
+                    className="mc-btn-primary w-full py-3 text-[15px]"
+                    disabled={busy || nequiPhone.length < 10}
+                    onClick={() => void activateWithNequi()}
+                  >
+                    {busy ? 'Procesando…' : 'Activar membresía'}
+                  </button>
+                </>
+              )}
+
+              {nequiAwaitingApproval && (
+                <div className="rounded-xl border border-violet-200/80 bg-violet-50/90 px-4 py-3.5">
+                  <p className="text-[13px] font-medium leading-snug text-violet-950">
+                    Aprobá la vinculación en tu app Nequi y continúa
+                  </p>
+                  <p className="mt-1.5 text-[12px] leading-relaxed text-violet-900/75">
+                    {nequiChecking || busy
+                      ? 'Verificando aprobación…'
+                      : 'Cuando la apruebes, activamos tu membresía automáticamente.'}
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-3 w-full rounded-lg border border-violet-300/70 bg-white px-3 py-2 text-[13px] font-medium text-violet-950 transition hover:bg-violet-50 disabled:cursor-wait disabled:opacity-60"
+                    disabled={nequiChecking || busy}
+                    onClick={() => void tryCompleteNequiIfReady({ manual: true })}
+                  >
+                    {nequiChecking || busy ? 'Verificando…' : 'Refrescar'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -59,7 +59,7 @@ export function LandingStoreShowcase() {
           </ul>
           <p className="mc-landing-showcase__hint">
             Tu link queda en{' '}
-            <code className="mc-landing-code">micatalogo.app/c/{active.id}</code>
+            <code className="mc-landing-code">{active.id}.micatalogo.io</code>
           </p>
           <LandingRegisterButton className="mt-6" />
         </div>

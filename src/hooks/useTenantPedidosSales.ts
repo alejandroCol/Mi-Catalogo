@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { collection, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { mcPedidosCollection } from '@/lib/mcCollections'
 import {
@@ -19,6 +19,7 @@ export function useTenantPedidosSales(
 ) {
   const [rows, setRows] = useState<(McPedido & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
+  const [listenKey, setListenKey] = useState(0)
 
   useEffect(() => {
     if (!firebaseConfigured || !tenantId) {
@@ -42,6 +43,31 @@ export function useTenantPedidosSales(
       },
       () => setLoading(false),
     )
+  }, [tenantId, listenKey])
+
+  const reload = useCallback(async () => {
+    if (!firebaseConfigured || !tenantId) {
+      setRows([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const db = getDb()
+      const cutoff = Date.now() - PEDIDOS_SALES_LOOKBACK_DAYS * 86400000
+      const q = query(
+        collection(db, mcPedidosCollection(tenantId)),
+        where('createdAt', '>=', cutoff),
+        orderBy('createdAt', 'desc'),
+      )
+      const snap = await getDocs(q)
+      setRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<McPedido, 'id'>) })))
+      setListenKey((k) => k + 1)
+    } catch {
+      /* onSnapshot sigue activo */
+    } finally {
+      setLoading(false)
+    }
   }, [tenantId])
 
   const sums = useMemo(() => {
@@ -62,5 +88,5 @@ export function useTenantPedidosSales(
     }
   }, [rows, summaryPeriod])
 
-  return { loading, ...sums }
+  return { loading, reload, ...sums }
 }

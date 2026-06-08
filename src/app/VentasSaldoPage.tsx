@@ -12,6 +12,8 @@ import {
   type OnepayFundWithdrawalPeriod,
 } from '@/lib/onepayFundWithdrawalPeriod'
 import { IconBankCard, IconChevronLeft } from '@/icons/McIcons'
+import { MobilePullToRefresh } from '@/components/MobilePullToRefresh'
+import { PASARELA_SALDO_HOLD_HOURS, pasarelaSaldoReleaseLabel } from '@/lib/pasarelaSaldoHold'
 
 function callableErrorMessage(e: unknown): string {
   if (
@@ -28,9 +30,13 @@ function callableErrorMessage(e: unknown): string {
 type PaymentRow = {
   orderId: string
   createdAt: number
+  paidAt?: number
+  releaseAt?: number
+  isReleased?: boolean
   numeroReferencia: string | null
   clienteNombre: string | null
   grossCop: number
+  netCop?: number
 }
 
 type WithdrawalRow = {
@@ -43,6 +49,9 @@ type WithdrawalRow = {
 type PasarelaMicatalogoLedger = {
   grossTotalCop: number
   netTotalCop: number
+  releasedNetCop: number
+  pendingNetCop: number
+  pendingPaymentCount: number
   withdrawnTotalCop: number
   availableNetCop: number
   paymentCount: number
@@ -104,7 +113,7 @@ export function VentasSaldoPage() {
     const diffToMonday = day === 0 ? 6 : day - 1
     const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday).getTime()
     const from = periodFilter === 'hoy' ? startOfToday : startOfWeek
-    return data.payments.filter((p) => p.createdAt >= from)
+    return data.payments.filter((p) => (p.paidAt ?? p.createdAt) >= from)
   }, [data?.payments, periodFilter])
 
   const filteredGross = useMemo(
@@ -122,6 +131,7 @@ export function VentasSaldoPage() {
 
   if (modo === null || modo === 'whatsapp') {
     return (
+      <MobilePullToRefresh onRefresh={load}>
       <div className="mc-shell space-y-6 pb-28">
         <BackLink />
         <p className="text-[15px] text-[var(--cat-muted)]">
@@ -132,6 +142,7 @@ export function VentasSaldoPage() {
           para ver tu saldo de cobros en línea.
         </p>
       </div>
+      </MobilePullToRefresh>
     )
   }
 
@@ -146,6 +157,7 @@ export function VentasSaldoPage() {
   const heroAmount = isMicatalogo ? (ledger?.availableNetCop ?? 0) : (data?.balance?.balance ?? null)
 
   return (
+    <MobilePullToRefresh onRefresh={load}>
     <div className="mc-shell space-y-8 pb-28">
       <PasarelaOnepayComisionesModal open={comisionesOpen} onClose={() => setComisionesOpen(false)} />
 
@@ -185,6 +197,20 @@ export function VentasSaldoPage() {
                     ? formatCop(heroAmount)
                     : data.balance?.balance_label?.trim() || formatCop(0)}
                 </p>
+                {isMicatalogo && ledger && ledger.pendingNetCop > 0 ? (
+                  <div className="mt-5 border-t border-[color-mix(in_srgb,var(--cat-accent)_18%,transparent)] pt-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-800/75">
+                      Pendiente por liberar
+                    </p>
+                    <p className="mt-1.5 text-[1.35rem] font-medium tabular-nums leading-none tracking-tight text-amber-950">
+                      {formatCop(ledger.pendingNetCop)}
+                    </p>
+                    <p className="mt-2 max-w-sm text-[12px] leading-relaxed text-[var(--cat-muted)]">
+                      {ledger.pendingPaymentCount === 1 ? '1 venta' : `${ledger.pendingPaymentCount} ventas`} se
+                      liberarán {PASARELA_SALDO_HOLD_HOURS} horas después del cobro para poder retirarlas.
+                    </p>
+                  </div>
+                ) : null}
                 {isMicatalogo && ledger ? (
                   <>
                     <p className="mt-2 text-[12px] leading-relaxed text-[var(--cat-muted)]">
@@ -253,18 +279,29 @@ export function VentasSaldoPage() {
               <p className="mt-4 text-[14px] text-[var(--cat-muted)]">No hay cobros en este período.</p>
             ) : (
               <ul className="mt-4 divide-y divide-neutral-200/50 border border-neutral-200/50">
-                {filteredPayments.map((p) => (
+                {filteredPayments.map((p) => {
+                  const paidAt = p.paidAt ?? p.createdAt
+                  const showHoldBadge = isMicatalogo && p.isReleased === false
+                  const releaseLabel = showHoldBadge ? pasarelaSaldoReleaseLabel(paidAt) : null
+                  return (
                   <li key={p.orderId} className="bg-[var(--cat-surface)] px-4 py-4 sm:px-5">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
-                        <p className="text-[15px] font-medium text-[var(--cat-text)]">
-                          {p.clienteNombre?.trim() || 'Cliente'}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-[15px] font-medium text-[var(--cat-text)]">
+                            {p.clienteNombre?.trim() || 'Cliente'}
+                          </p>
+                          {showHoldBadge && releaseLabel ? (
+                            <span className="inline-flex items-center rounded-full border border-amber-200/80 bg-amber-50/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-amber-900">
+                              {releaseLabel}
+                            </span>
+                          ) : null}
+                        </div>
                         {p.numeroReferencia ? (
                           <p className="font-mono text-[11px] text-[var(--cat-muted)]">{p.numeroReferencia}</p>
                         ) : null}
                         <p className="mt-1 text-[12px] text-[var(--cat-muted)]">
-                          {new Date(p.createdAt).toLocaleString('es-CO', {
+                          {new Date(paidAt).toLocaleString('es-CO', {
                             dateStyle: 'short',
                             timeStyle: 'short',
                           })}
@@ -275,7 +312,8 @@ export function VentasSaldoPage() {
                       </p>
                     </div>
                   </li>
-                ))}
+                  )
+                })}
               </ul>
             )}
           </section>
@@ -327,13 +365,14 @@ export function VentasSaldoPage() {
 
       <button
         type="button"
-        className="mc-btn-secondary px-4 py-2.5 text-[14px] disabled:opacity-40"
+        className="mc-btn-secondary hidden px-4 py-2.5 text-[14px] disabled:opacity-40 sm:inline-flex"
         disabled={loading}
         onClick={() => void load()}
       >
         Actualizar
       </button>
     </div>
+    </MobilePullToRefresh>
   )
 }
 

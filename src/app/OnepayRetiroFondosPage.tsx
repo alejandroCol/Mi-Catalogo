@@ -15,6 +15,7 @@ import {
   type OnePayKybBankAccountType,
 } from '@/lib/onepayKyb'
 import { pasarelaMicatalogoWithdrawalFeeCop, PASARELA_MICATALOGO_WITHDRAWAL_FIXED_COP } from '@/lib/pasarelaFees'
+import { PASARELA_SALDO_HOLD_HOURS } from '@/lib/pasarelaSaldoHold'
 import { IconChevronLeft } from '@/icons/McIcons'
 
 function callableErrorMessage(e: unknown): string {
@@ -86,6 +87,7 @@ export function OnepayRetiroFondosPage() {
   const [registeredAccountHint, setRegisteredAccountHint] = useState<string | null>(null)
   const [balanceLabel, setBalanceLabel] = useState<string | null>(null)
   const [availableNetCop, setAvailableNetCop] = useState<number | null>(null)
+  const [pendingNetCop, setPendingNetCop] = useState<number | null>(null)
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -133,21 +135,25 @@ export function OnepayRetiroFondosPage() {
       const res = (await fn({})) as {
         data: {
           balance?: { balance_label?: string; balance?: number } | null
-          ledger?: { availableNetCop?: number } | null
+          ledger?: { availableNetCop?: number; pendingNetCop?: number } | null
         }
       }
       const ledgerAvailable = res.data?.ledger?.availableNetCop
+      const ledgerPending = res.data?.ledger?.pendingNetCop
       if (typeof ledgerAvailable === 'number') {
         setAvailableNetCop(ledgerAvailable)
+        setPendingNetCop(typeof ledgerPending === 'number' ? ledgerPending : 0)
         setBalanceLabel(formatCop(ledgerAvailable))
         return
       }
       const bl = res.data?.balance?.balance_label
       setAvailableNetCop(null)
+      setPendingNetCop(null)
       setBalanceLabel(typeof bl === 'string' && bl.trim() ? bl.trim() : null)
     } catch {
       setBalanceLabel(null)
       setAvailableNetCop(null)
+      setPendingNetCop(null)
     }
   }, [])
 
@@ -427,12 +433,20 @@ export function OnepayRetiroFondosPage() {
         </form>
       ) : (
         <form onSubmit={(e) => void submitWithdraw(e)} className={retiroPanelClass}>
-          {(balanceLabel || accountHintDisplay || (availableNetCop !== null && availableNetCop < 10_000)) && (
+          {(balanceLabel || accountHintDisplay || (availableNetCop !== null && availableNetCop < 10_000) || (pendingNetCop !== null && pendingNetCop > 0)) && (
             <div className={`${retiroInfoClass} space-y-2 text-[var(--cat-muted)]`}>
               {balanceLabel ? (
                 <p>
-                  Saldo disponible según tus ventas:{' '}
+                  Disponible para retirar:{' '}
                   <strong className="text-[1.05rem] font-medium tabular-nums text-[var(--cat-text)]">{balanceLabel}</strong>
+                </p>
+              ) : null}
+              {pendingNetCop !== null && pendingNetCop > 0 ? (
+                <p className="text-[13px] text-amber-900">
+                  Pendiente por liberar:{' '}
+                  <strong className="tabular-nums text-amber-950">{formatCop(pendingNetCop)}</strong>
+                  {' · '}
+                  disponible {PASARELA_SALDO_HOLD_HOURS} h después de cada venta.
                 </p>
               ) : null}
               {availableNetCop !== null && availableNetCop < 10_000 ? (

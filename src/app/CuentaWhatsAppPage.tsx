@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
+import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
@@ -13,7 +14,8 @@ import {
 } from '@/lib/waPhonePrefixes'
 
 export function CuentaWhatsAppPage() {
-  const { profile, tenant } = useMcAuth()
+  const { tenant, effectiveTenantId } = useMcAuth()
+  const { returnTo, returnLabel } = useConfigSubpageNav()
   const [waPrefix, setWaPrefix] = useState(DEFAULT_WA_PREFIX)
   const [waLocal, setWaLocal] = useState('')
   const [intro, setIntro] = useState('')
@@ -39,7 +41,7 @@ export function CuentaWhatsAppPage() {
   )
 
   async function guardar() {
-    if (!profile?.tenantId) return
+    if (!effectiveTenantId) return
     setBusy(true)
     setErr(null)
     try {
@@ -49,7 +51,7 @@ export function CuentaWhatsAppPage() {
         setBusy(false)
         return
       }
-      await updateDoc(doc(getDb(), MC.tenants, profile.tenantId), {
+      await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), {
         whatsappNumero: digits,
         mensajeIntro: intro.trim() || '',
       })
@@ -62,7 +64,7 @@ export function CuentaWhatsAppPage() {
   }
 
   return (
-    <ConfiguracionesSubpageLayout title="WhatsApp para pedidos">
+    <ConfiguracionesSubpageLayout title="WhatsApp para pedidos" backTo={returnTo} backLabel={returnLabel}>
       <div className="mc-card space-y-5">
         <div>
           <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">Número</label>

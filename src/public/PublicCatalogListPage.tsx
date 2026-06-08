@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { isProductNovedad, NOVEDAD_DIAS_RECENTE } from '@/lib/catalogNovedad'
@@ -11,18 +11,30 @@ import {
 } from '@/lib/catalogListFilter'
 import { resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import { mcProductosCollection } from '@/lib/mcCollections'
+import { usePublicCategorias } from '@/hooks/usePublicCategorias'
+import {
+  categoriaSubtituloCatalogo,
+  categoriaTituloCatalogo,
+  contarProductosPorCategoria,
+  filtrarProductosPorCategoria,
+} from '@/lib/catalogCategorias'
 import {
   catalogDescuentosTabVisible,
   productoTieneDescuento,
   resolveCatalogDescuentosTabLabel,
 } from '@/lib/productoDescuento'
 import { productoStockEfectivo } from '@/lib/productoVariantes'
-import type { McCatalogThemePreset } from '@/types/mc'
-import type { McProducto } from '@/types/mc'
+import type { McCatalogThemePreset, McProducto } from '@/types/mc'
 import { CatalogListToolbar } from '@/public/CatalogListToolbar'
+import {
+  CatalogCategoryHeader,
+  CatalogCategoryMobileBar,
+  CatalogCategorySidebar,
+} from '@/public/CatalogCategorySidebar'
 import { CatalogProductPrice, CatalogDiscountBadge } from '@/public/CatalogProductPrice'
 import { CatalogViewTabs, type CatalogViewTab } from '@/public/CatalogViewTabs'
 import { SeasonBannerHero } from '@/public/SeasonBannerHero'
+import { usePublicStore } from '@/public/PublicStoreContext'
 import { usePublicTenant } from '@/public/usePublicTenant'
 import { isSeasonBannerActive, MC_CATALOGO_PRODUCTOS_ID } from '@/lib/seasonBanner'
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
@@ -83,12 +95,12 @@ function NovedadBadge({ className, floating }: { className?: string; floating?: 
 
 function ReyProductCard({
   p,
-  slug,
+  productPath,
   showNovedadBadge,
   layout,
 }: {
   p: McProducto & { id: string }
-  slug: string
+  productPath: (productId: string) => string
   showNovedadBadge: boolean
   layout: { density: 'comfortable' | 'compact'; aspect: '4/5' | '3/4' }
 }) {
@@ -117,7 +129,7 @@ function ReyProductCard({
         />
         {img ? (
           <Link
-            to={`/c/${slug}/p/${p.id}`}
+            to={productPath(p.id)}
             className="relative block h-full w-full focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
             aria-label={`Ver ${p.nombre}`}
           >
@@ -130,7 +142,7 @@ function ReyProductCard({
           </Link>
         ) : (
           <Link
-            to={`/c/${slug}/p/${p.id}`}
+            to={productPath(p.id)}
             className="flex h-full items-center justify-center text-xs mc-pc-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
             aria-label={`Ver ${p.nombre}`}
           >
@@ -139,7 +151,7 @@ function ReyProductCard({
         )}
       </div>
       <Link
-        to={`/c/${slug}/p/${p.id}`}
+        to={productPath(p.id)}
         className={clsx('flex flex-1 flex-col', pad)}
       >
         <h3
@@ -161,11 +173,11 @@ function ReyProductCard({
 
 function ReyProductCardBold({
   p,
-  slug,
+  productPath,
   showNovedadBadge,
 }: {
   p: McProducto & { id: string }
-  slug: string
+  productPath: (productId: string) => string
   showNovedadBadge: boolean
 }) {
   const img = p.imageUrl
@@ -180,7 +192,7 @@ function ReyProductCardBold({
         <CatalogDiscountBadge product={p} floating className="absolute right-4 top-4 z-10" />
         {img ? (
           <Link
-            to={`/c/${slug}/p/${p.id}`}
+            to={productPath(p.id)}
             className="relative block h-full w-full focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
             aria-label={`Ver ${p.nombre}`}
           >
@@ -193,7 +205,7 @@ function ReyProductCardBold({
           </Link>
         ) : (
           <Link
-            to={`/c/${slug}/p/${p.id}`}
+            to={productPath(p.id)}
             className="flex h-full items-center justify-center text-sm mc-pc-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-inset mc-pc-ring-focus"
             aria-label={`Ver ${p.nombre}`}
           >
@@ -201,7 +213,7 @@ function ReyProductCardBold({
           </Link>
         )}
       </div>
-      <Link to={`/c/${slug}/p/${p.id}`} className="block px-5 py-6 text-center sm:px-8 sm:py-8">
+      <Link to={productPath(p.id)} className="block px-5 py-6 text-center sm:px-8 sm:py-8">
         <h3 className="mc-pc-display text-[1.35rem] font-semibold leading-tight text-[var(--cat-text)] sm:text-2xl">
           {p.nombre}
         </h3>
@@ -222,9 +234,11 @@ function sectionHeading(preset: McCatalogThemePreset, key: 'novedades' | 'resto'
 }
 
 export function PublicCatalogListPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug, to } = usePublicStore()
   const { tenantId, tenant, loading, error } = usePublicTenant(slug)
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
+  const { categorias: categoriasActivas } = usePublicCategorias(tenantId)
+  const [selectedCategoriaId, setSelectedCategoriaId] = useState<string | null>(null)
   const [filter, setFilter] = useState(getDefaultCatalogListFilter)
   const [viewTab, setViewTab] = useState<CatalogViewTab>('todos')
   const [novedadNow] = useState(() => Date.now())
@@ -249,10 +263,19 @@ export function PublicCatalogListPage() {
   const descuentosTabLabel = tenant ? resolveCatalogDescuentosTabLabel(tenant) : 'Descuento'
   const showDescuentosTab = tenant ? catalogDescuentosTabVisible(tenant, descuentos.length) : false
 
+  const showCategoriasSidebar = categoriasActivas.length > 0
+
+  const categoryCounts = useMemo(() => {
+    const conConteo = contarProductosPorCategoria(rows, categoriasActivas)
+    const byId: Record<string, number> = {}
+    for (const cat of conConteo) byId[cat.id] = cat.productCount
+    return { todos: rows.length, byId }
+  }, [rows, categoriasActivas])
+
   const scopedRows = useMemo(() => {
-    if (viewTab === 'descuentos') return descuentos
-    return rows
-  }, [viewTab, rows, descuentos])
+    const base = viewTab === 'descuentos' ? descuentos : rows
+    return filtrarProductosPorCategoria(base, selectedCategoriaId)
+  }, [viewTab, rows, descuentos, selectedCategoriaId])
 
   const { novedades, resto } = useMemo(() => {
     const n: (McProducto & { id: string })[] = []
@@ -285,7 +308,7 @@ export function PublicCatalogListPage() {
     return <p className="text-center text-sm text-red-600">{error ?? 'No disponible'}</p>
   }
 
-  const catalogSlug = slug
+  const productPath = (productId: string) => to(`/p/${productId}`)
 
   function listFor(
     items: (McProducto & { id: string })[],
@@ -299,7 +322,7 @@ export function PublicCatalogListPage() {
             <ReyProductCardBold
               key={p.id}
               p={p}
-              slug={catalogSlug}
+              productPath={productPath}
               showNovedadBadge={novedadFor(p)}
             />
           ))}
@@ -313,7 +336,7 @@ export function PublicCatalogListPage() {
             <ReyProductCard
               key={p.id}
               p={p}
-              slug={catalogSlug}
+              productPath={productPath}
               showNovedadBadge={novedadFor(p)}
               layout={{ density: 'compact', aspect: '3/4' }}
             />
@@ -328,7 +351,7 @@ export function PublicCatalogListPage() {
             <ReyProductCard
               key={p.id}
               p={p}
-              slug={catalogSlug}
+              productPath={productPath}
               showNovedadBadge={novedadFor(p)}
               layout={{ density: 'compact', aspect: '3/4' }}
             />
@@ -342,7 +365,7 @@ export function PublicCatalogListPage() {
           <ReyProductCard
             key={p.id}
             p={p}
-            slug={catalogSlug}
+            productPath={productPath}
             showNovedadBadge={novedadFor(p)}
             layout={{ density: 'comfortable', aspect: '4/5' }}
           />
@@ -358,20 +381,24 @@ export function PublicCatalogListPage() {
   const restoSectionTitle = sectionHeading(preset, 'resto')
   const noHeroBeforeSearch = preset === 'morning'
   const showSeasonHero = isSeasonBannerActive(tenant)
+  const catalogTitle = categoriaTituloCatalogo(selectedCategoriaId, categoriasActivas)
+  const catalogSubtitle = categoriaSubtituloCatalogo(scopedRows.length, tenant.nombreTienda)
 
-  return (
-    <div className={clsx(showSeasonHero && 'mc-catalog-list--season')}>
-      {showSeasonHero ? <SeasonBannerHero tenant={tenant} /> : null}
-
-      <div
-        id={MC_CATALOGO_PRODUCTOS_ID}
-        className={clsx(
-          'space-y-8 scroll-mt-[calc(3.25rem+0.5rem)] sm:space-y-10 sm:scroll-mt-[calc(3.75rem+0.75rem)]',
-          showSeasonHero && 'pt-6 sm:pt-8',
-        )}
-      >
+  const catalogMain = (
+    <>
       <div className={clsx(!showSeasonHero && (noHeroBeforeSearch ? 'space-y-0' : 'space-y-3 sm:space-y-4'))}>
-        {!showSeasonHero ? <CatalogIntro preset={preset} /> : null}
+        {!showSeasonHero && !showCategoriasSidebar ? <CatalogIntro preset={preset} /> : null}
+        {showCategoriasSidebar ? (
+          <>
+            <CatalogCategoryMobileBar
+              categorias={categoriasActivas}
+              selectedId={selectedCategoriaId}
+              onSelect={setSelectedCategoriaId}
+              counts={categoryCounts}
+            />
+            <CatalogCategoryHeader title={catalogTitle} subtitle={catalogSubtitle} />
+          </>
+        ) : null}
         <div id="mc-catalogo-busqueda" className="scroll-mt-20">
           {showDescuentosTab && !hasActiveFilters && (
             <div className="mb-4">
@@ -467,6 +494,33 @@ export function PublicCatalogListPage() {
           </section>
         </>
       )}
+    </>
+  )
+
+  return (
+    <div className={clsx(showSeasonHero && 'mc-catalog-list--season')}>
+      {showSeasonHero ? <SeasonBannerHero tenant={tenant} /> : null}
+
+      <div
+        id={MC_CATALOGO_PRODUCTOS_ID}
+        className={clsx(
+          'scroll-mt-[calc(3.25rem+0.5rem)] sm:scroll-mt-[calc(3.75rem+0.75rem)]',
+          showSeasonHero && 'pt-6 sm:pt-8',
+        )}
+      >
+        {showCategoriasSidebar ? (
+          <div className="mc-cat-layout flex items-start gap-8 xl:gap-12">
+            <CatalogCategorySidebar
+              categorias={categoriasActivas}
+              selectedId={selectedCategoriaId}
+              onSelect={setSelectedCategoriaId}
+              counts={categoryCounts}
+            />
+            <div className="min-w-0 flex-1 space-y-8 sm:space-y-10">{catalogMain}</div>
+          </div>
+        ) : (
+          <div className="space-y-8 sm:space-y-10">{catalogMain}</div>
+        )}
       </div>
     </div>
   )

@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { formatCop } from '@/lib/formatCop'
 import { normalizeOrderIdInput } from '@/lib/catalogOrderTracking'
 import { CatalogOrderTrackingTimeline } from '@/public/CatalogOrderTrackingTimeline'
 import { useCatalogOrderTracking } from '@/public/useCatalogOrderTracking'
+import { usePublicStore } from '@/public/PublicStoreContext'
 
 export function PublicOrderTrackingPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug, to } = usePublicStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const qOrderId = searchParams.get('o') ?? searchParams.get('ref') ?? ''
 
@@ -36,7 +37,7 @@ export function PublicOrderTrackingPage() {
   return (
     <div className="mx-auto max-w-lg py-10 sm:py-14">
       <nav className="flex flex-wrap items-center gap-1.5 text-[12px] sm:text-[13px] mc-pc-muted" aria-label="Seguimiento">
-        <Link to={`/c/${slug}`} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
+        <Link to={to('/')} className="font-medium text-[var(--cat-text)] transition hover:opacity-75">
           Tienda
         </Link>
         <span aria-hidden>/</span>
@@ -106,7 +107,7 @@ export function PublicOrderTrackingPage() {
       ) : null}
 
       <p className="mt-10 text-center text-[12px] text-[var(--cat-muted)]">
-        <Link to={`/c/${slug}`} className="font-medium text-[var(--cat-text)] underline underline-offset-4">
+        <Link to={to('/')} className="font-medium text-[var(--cat-text)] underline underline-offset-4">
           Volver al catálogo
         </Link>
       </p>

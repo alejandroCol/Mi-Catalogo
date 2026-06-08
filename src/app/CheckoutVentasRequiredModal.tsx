@@ -6,6 +6,7 @@ import { MC } from '@/lib/mcCollections'
 import type { McCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 import { CheckoutVentasModoOptions } from '@/app/CheckoutVentasModoOptions'
+import type { ConfigSubpageNavState } from '@/app/configuraciones/configSubpageNav'
 
 /** @deprecated Usar `CONFIG_CHECKOUT_VENTAS_PATH`. */
 export const MC_CHECKOUT_VENTAS_ANCHOR = 'mc-checkout-ventas'
@@ -24,6 +25,7 @@ export function CheckoutVentasRequiredModal({
   tenantId,
   platformSettings,
   onModoSelected,
+  returnNav,
 }: {
   open: boolean
   onClose: () => void
@@ -32,6 +34,7 @@ export function CheckoutVentasRequiredModal({
   tenantId?: string
   platformSettings: McPlatformSettings | null
   onModoSelected?: (modo: McCheckoutVentasModo) => void
+  returnNav?: ConfigSubpageNavState
 }) {
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
@@ -50,12 +53,16 @@ export function CheckoutVentasRequiredModal({
   const pasarelaLista = tenant?.onepayPaymentsEnabled === true
   const pasarelaMicatalogoOk = platformSettings?.pasarelaMicatalogoActiva === true
 
+  function navOpts() {
+    return returnNav ? { state: returnNav } : undefined
+  }
+
   function irACheckoutVentas() {
-    navigate(CONFIG_CHECKOUT_VENTAS_PATH)
+    navigate(CONFIG_CHECKOUT_VENTAS_PATH, navOpts())
   }
 
   function irAWhatsapp() {
-    navigate(CONFIG_WHATSAPP_PATH)
+    navigate(CONFIG_WHATSAPP_PATH, navOpts())
   }
 
   async function persistModo(modo: McCheckoutVentasModo) {
@@ -72,7 +79,7 @@ export function CheckoutVentasRequiredModal({
 
       if (modo === 'pasarela') {
         onClose()
-        navigate('/app/pagos-pasarela')
+        navigate('/app/pagos-pasarela', navOpts())
         return
       }
 
@@ -86,9 +93,9 @@ export function CheckoutVentasRequiredModal({
       irAWhatsapp()
     } catch {
       onClose()
-      if (modo === 'pasarela') navigate('/app/pagos-pasarela')
-      else if (modo === 'whatsapp') navigate(CONFIG_WHATSAPP_PATH)
-      else navigate(CONFIG_CHECKOUT_VENTAS_PATH)
+      if (modo === 'pasarela') navigate('/app/pagos-pasarela', navOpts())
+      else if (modo === 'whatsapp') navigate(CONFIG_WHATSAPP_PATH, navOpts())
+      else navigate(CONFIG_CHECKOUT_VENTAS_PATH, navOpts())
     } finally {
       setBusy(false)
     }

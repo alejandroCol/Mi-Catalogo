@@ -2,6 +2,11 @@ import type { McCatalogThemePreset } from '@/types/mc'
 
 export const LANDING_REGISTER_PATH = '/registro' as const
 
+export const landingRegisterCta = {
+  label: 'Crear mi tienda',
+  highlight: 'GRATIS',
+} as const
+
 export type LandingNavLink = {
   id: string
   label: string
@@ -159,7 +164,7 @@ export const howItWorksSteps: LandingStep[] = [
     id: 'registro',
     step: 1,
     title: 'Registrá tu tienda',
-    description: 'Nombre, WhatsApp y listo. Tu link queda en micatalogo.app/c/tu-tienda en minutos.',
+    description: 'Nombre, WhatsApp y listo. Tu link queda en mitienda.micatalogo.io en minutos.',
   },
   {
     id: 'productos',

@@ -1,0 +1,1042 @@
+winston:create-logger: Define prototype method for "error"
+winston:create-logger: Define prototype method for "warn"
+winston:create-logger: Define prototype method for "info"
+winston:create-logger: Define prototype method for "http"
+winston:create-logger: Define prototype method for "verbose"
+winston:create-logger: Define prototype method for "debug"
+winston:create-logger: Define prototype method for "silly"
+winston:create-logger: Define prototype method for "error"
+winston:create-logger: Define prototype method for "warn"
+winston:create-logger: Define prototype method for "info"
+winston:create-logger: Define prototype method for "http"
+winston:create-logger: Define prototype method for "verbose"
+winston:create-logger: Define prototype method for "debug"
+winston:create-logger: Define prototype method for "silly"
+2026-06-08T19:07:46.402Z portfinder:defaultHosts exports._defaultHosts is: [ '0.0.0.0', '127.0.0.1', '::1', 'fe80::1', 'fe80::fc6e:72df:5bb0:9cfc', 'fe80::f63d:381d:a635:7f7a', 'fe80::5dc8:ed15:ea7a:f01e', 'fe80::ce81:b1c:bd2c:69e', 'fe80::440:5994:4280:24c7', '2800:484:7c7a:d300:18ab:3ba2:5409:a886', '2800:484:7c7a:d300:3979:c611:bc96:afa8', '192.168.20.21', '2800:484:7c7a:d300:a036:7183:b1fe:1242', 'fe80::9cbb:76ff:febe:7a2c', 'fe80::9cbb:76ff:febe:7a2c', 'fe80::c37c:b990:bcef:1a1b', 'fe80::8eb1:913e:808d:65b1', 'fe80::e018:9614:93f:c476', 'fe80::ce81:b1c:bd2c:69e', null ]
+winston:file: written true false
+winston:file: written true false
+winston:file: written true false
+winston:file: written true false
+winston:file: written true false
+winston:file: written true false
+winston:file: written true false
+winston:file: written true false
+winston:file: logged 106 [debug] [2026-06-08T19:07:46.639Z] ----------------------------------------------------------------------
+
+winston:file: logged 260 [debug] [2026-06-08T19:07:46.640Z] Command:       /opt/homebrew/Cellar/node/24.10.0_1/bin/node /opt/homebrew/bin/firebase deploy --only functions --debug
+
+winston:file: logged 317 [debug] [2026-06-08T19:07:46.640Z] CLI Version:   15.5.1
+
+winston:file: logged 374 [debug] [2026-06-08T19:07:46.640Z] Platform:      darwin
+
+winston:file: logged 433 [debug] [2026-06-08T19:07:46.640Z] Node Version:  v24.10.0
+
+winston:file: logged 542 [debug] [2026-06-08T19:07:46.640Z] Time:          Mon Jun 08 2026 14:07:46 GMT-0500 (Colombia Standard Time)
+
+winston:file: logged 648 [debug] [2026-06-08T19:07:46.640Z] ----------------------------------------------------------------------
+
+winston:file: logged 657 [debug] 
+
+winston:file: written true false
+[2026-06-08T19:07:47.775Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+winston:file: written true false
+[2026-06-08T19:07:47.776Z] > authorizing via signed-in user (palmaappco@gmail.com)
+winston:file: written true false
+[2026-06-08T19:07:47.776Z] [iam] checking project mi-catalogo-de61a for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+winston:file: written true false
+[2026-06-08T19:07:47.776Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:47.776Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:47.777Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions [none]
+winston:file: written true false
+[2026-06-08T19:07:47.777Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions  x-goog-user-project=mi-catalogo-de61a
+winston:file: written true false
+[2026-06-08T19:07:47.777Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+winston:file: logged 895 [debug] [2026-06-08T19:07:47.775Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+
+winston:file: logged 986 [debug] [2026-06-08T19:07:47.776Z] > authorizing via signed-in user (palmaappco@gmail.com)
+
+winston:file: logged 1301 [debug] [2026-06-08T19:07:47.776Z] [iam] checking project mi-catalogo-de61a for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+
+winston:file: logged 1397 [debug] [2026-06-08T19:07:47.776Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 1493 [debug] [2026-06-08T19:07:47.776Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 1652 [debug] [2026-06-08T19:07:47.777Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions [none]
+
+winston:file: logged 1853 [debug] [2026-06-08T19:07:47.777Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions  x-goog-user-project=mi-catalogo-de61a
+
+winston:file: logged 2243 [debug] [2026-06-08T19:07:47.777Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+
+winston:file: stat done: firebase-debug.log { size: 62566 }
+winston:file: create stream start /Users/alejo/Documents/mi-catalogo/firebase-debug.log { flags: 'a' }
+winston:file: create stream ok /Users/alejo/Documents/mi-catalogo/firebase-debug.log
+winston:file: file open ok /Users/alejo/Documents/mi-catalogo/firebase-debug.log
+winston:file: written true false
+[2026-06-08T19:07:48.077Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions 200
+winston:file: written true false
+[2026-06-08T19:07:48.078Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+winston:file: written true false
+[2026-06-08T19:07:48.078Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:48.079Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:48.079Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/mi-catalogo-de61a/serviceAccounts/mi-catalogo-de61a@appspot.gserviceaccount.com:testIamPermissions [none]
+winston:file: written true false
+[2026-06-08T19:07:48.079Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/mi-catalogo-de61a/serviceAccounts/mi-catalogo-de61a@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+winston:file: logged 62723 [debug] [2026-06-08T19:07:48.077Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions 200
+
+winston:file: logged 63113 [debug] [2026-06-08T19:07:48.078Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+
+winston:file: logged 63209 [debug] [2026-06-08T19:07:48.078Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 63305 [debug] [2026-06-08T19:07:48.079Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 63509 [debug] [2026-06-08T19:07:48.079Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/mi-catalogo-de61a/serviceAccounts/mi-catalogo-de61a@appspot.gserviceaccount.com:testIamPermissions [none]
+
+winston:file: logged 63751 [debug] [2026-06-08T19:07:48.079Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/mi-catalogo-de61a/serviceAccounts/mi-catalogo-de61a@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+
+winston:file: written true false
+[2026-06-08T19:07:48.570Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/mi-catalogo-de61a/serviceAccounts/mi-catalogo-de61a@appspot.gserviceaccount.com:testIamPermissions 200
+winston:file: written true false
+[2026-06-08T19:07:48.570Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/mi-catalogo-de61a/serviceAccounts/mi-catalogo-de61a@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+winston:file: written true false
+
+winston:file: written true false
+=== Deploying to 'mi-catalogo-de61a'...
+winston:file: written true false
+
+winston:file: written true false
+i  deploying functions 
+winston:file: written true false
+Running command: node scripts/ensure-functions-lib.cjs
+winston:file: logged 63953 [debug] [2026-06-08T19:07:48.570Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/mi-catalogo-de61a/serviceAccounts/mi-catalogo-de61a@appspot.gserviceaccount.com:testIamPermissions 200
+
+winston:file: logged 64195 [debug] [2026-06-08T19:07:48.570Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/mi-catalogo-de61a/serviceAccounts/mi-catalogo-de61a@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+
+winston:file: logged 64203 [info] 
+
+winston:file: logged 64250 [info] === Deploying to 'mi-catalogo-de61a'...
+
+winston:file: logged 64258 [info] 
+
+winston:file: logged 64289 [info] i  deploying functions 
+
+winston:file: logged 64351 [info] Running command: node scripts/ensure-functions-lib.cjs
+
+winston:file: written true false
+Running command: npm --prefix "$RESOURCE_DIR" run build
+winston:file: logged 64414 [info] Running command: npm --prefix "$RESOURCE_DIR" run build
+
+
+> build
+> tsc
+
+winston:file: written true false
+✔  functions: Finished running predeploy script. 
+winston:file: written true false
+[2026-06-08T19:07:50.474Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:50.474Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:50.474Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a [none]
+winston:file: logged 64473 [info] ✔  functions: Finished running predeploy script. 
+
+winston:file: logged 64569 [debug] [2026-06-08T19:07:50.474Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 64665 [debug] [2026-06-08T19:07:50.474Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 64804 [debug] [2026-06-08T19:07:50.474Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a [none]
+
+winston:file: written true false
+[2026-06-08T19:07:50.603Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a 200
+winston:file: written true false
+[2026-06-08T19:07:50.603Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a {"projectNumber":"126482806042","projectId":"mi-catalogo-de61a","lifecycleState":"ACTIVE","name":"Mi Catalogo","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-03-28T15:59:48.230Z"}
+winston:file: written true false
+i  functions: preparing codebase default for deployment 
+winston:file: written true false
+i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+winston:file: written true false
+i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+winston:file: written true false
+i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+winston:file: written true false
+[2026-06-08T19:07:50.605Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:50.605Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:50.605Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/mi-catalogo-de61a/adminSdkConfig [none]
+winston:file: logged 64941 [debug] [2026-06-08T19:07:50.603Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a 200
+
+winston:file: logged 65283 [debug] [2026-06-08T19:07:50.603Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a {"projectNumber":"126482806042","projectId":"mi-catalogo-de61a","lifecycleState":"ACTIVE","name":"Mi Catalogo","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-03-28T15:59:48.230Z"}
+
+winston:file: logged 65347 [info] i  functions: preparing codebase default for deployment 
+
+winston:file: logged 65435 [info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+
+winston:file: logged 65519 [info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+
+winston:file: logged 65616 [info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+
+winston:file: logged 65712 [debug] [2026-06-08T19:07:50.605Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 65808 [debug] [2026-06-08T19:07:50.605Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 65955 [debug] [2026-06-08T19:07:50.605Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/mi-catalogo-de61a/adminSdkConfig [none]
+
+winston:file: written true false
+[2026-06-08T19:07:51.057Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/mi-catalogo-de61a/adminSdkConfig 200
+winston:file: written true false
+[2026-06-08T19:07:51.058Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/mi-catalogo-de61a/adminSdkConfig {"projectId":"mi-catalogo-de61a","storageBucket":"mi-catalogo-de61a.firebasestorage.app"}
+winston:file: written true false
+[2026-06-08T19:07:51.059Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:51.060Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:51.060Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/mi-catalogo-de61a/configs [none]
+winston:file: logged 66100 [debug] [2026-06-08T19:07:51.057Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/mi-catalogo-de61a/adminSdkConfig 200
+
+winston:file: logged 66329 [debug] [2026-06-08T19:07:51.058Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/mi-catalogo-de61a/adminSdkConfig {"projectId":"mi-catalogo-de61a","storageBucket":"mi-catalogo-de61a.firebasestorage.app"}
+
+winston:file: logged 66425 [debug] [2026-06-08T19:07:51.059Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 66521 [debug] [2026-06-08T19:07:51.060Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 66666 [debug] [2026-06-08T19:07:51.060Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/mi-catalogo-de61a/configs [none]
+
+winston:file: written true false
+[2026-06-08T19:07:51.530Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/mi-catalogo-de61a/configs 200
+winston:file: written true false
+[2026-06-08T19:07:51.530Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/mi-catalogo-de61a/configs {}
+winston:file: logged 66809 [debug] [2026-06-08T19:07:51.530Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/mi-catalogo-de61a/configs 200
+
+winston:file: logged 66949 [debug] [2026-06-08T19:07:51.530Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/mi-catalogo-de61a/configs {}
+
+winston:file: written true false
+[2026-06-08T19:07:51.533Z] Validating nodejs source
+winston:file: written true false
+⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+winston:file: written true false
+[2026-06-08T19:07:52.313Z] > [functions] package.json contents: {
+  "name": "mi-catalogo-functions",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.0.0",
+    "resend": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "typescript": "^5.9.3"
+  }
+}
+winston:file: written true false
+[2026-06-08T19:07:52.313Z] Building nodejs source
+winston:file: written true false
+i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+winston:file: logged 67009 [debug] [2026-06-08T19:07:51.533Z] Validating nodejs source
+
+winston:file: logged 67194 [warn] ⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+
+winston:file: logged 67706 [debug] [2026-06-08T19:07:52.313Z] > [functions] package.json contents: {
+  "name": "mi-catalogo-functions",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.0.0",
+    "resend": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "typescript": "^5.9.3"
+  }
+}
+
+winston:file: logged 67764 [debug] [2026-06-08T19:07:52.313Z] Building nodejs source
+
+winston:file: logged 67869 [info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+
+winston:file: written true false
+[2026-06-08T19:07:52.313Z] Could not find functions.yaml. Must use http discovery
+2026-06-08T19:07:52.313Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.314Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+winston:file: logged 67959 [debug] [2026-06-08T19:07:52.313Z] Could not find functions.yaml. Must use http discovery
+
+2026-06-08T19:07:52.314Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.314Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.314Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.314Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.314Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.314Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.314Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.314Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.314Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.314Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.314Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.314Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.314Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.314Z portfinder:getPort in eachSeries() iteration callback: host is fe80::1
+2026-06-08T19:07:52.314Z portfinder:testPort entered testPort(): trying fe80::1 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): failed fe80::1 w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::1:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::1',
+  port: 8236
+}
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.315Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.315Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.315Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback: host is fe80::fc6e:72df:5bb0:9cfc
+2026-06-08T19:07:52.315Z portfinder:testPort entered testPort(): trying fe80::fc6e:72df:5bb0:9cfc port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): failed fe80::fc6e:72df:5bb0:9cfc w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::fc6e:72df:5bb0:9cfc:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::fc6e:72df:5bb0:9cfc',
+  port: 8236
+}
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.315Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.315Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.315Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.315Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is fe80::f63d:381d:a635:7f7a
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying fe80::f63d:381d:a635:7f7a port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): failed fe80::f63d:381d:a635:7f7a w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::f63d:381d:a635:7f7a:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::f63d:381d:a635:7f7a',
+  port: 8236
+}
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is fe80::5dc8:ed15:ea7a:f01e
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying fe80::5dc8:ed15:ea7a:f01e port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): failed fe80::5dc8:ed15:ea7a:f01e w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::5dc8:ed15:ea7a:f01e:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::5dc8:ed15:ea7a:f01e',
+  port: 8236
+}
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is fe80::ce81:b1c:bd2c:69e
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying fe80::ce81:b1c:bd2c:69e port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): failed fe80::ce81:b1c:bd2c:69e w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::ce81:b1c:bd2c:69e:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::ce81:b1c:bd2c:69e',
+  port: 8236
+}
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is fe80::440:5994:4280:24c7
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying fe80::440:5994:4280:24c7 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): failed fe80::440:5994:4280:24c7 w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::440:5994:4280:24c7:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::440:5994:4280:24c7',
+  port: 8236
+}
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.316Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.316Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:18ab:3ba2:5409:a886
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:3979:c611:bc96:afa8
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 192.168.20.21
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 192.168.20.21 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 192.168.20.21 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 192.168.20.21 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:a036:7183:b1fe:1242
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is fe80::9cbb:76ff:febe:7a2c
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying fe80::9cbb:76ff:febe:7a2c port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): failed fe80::9cbb:76ff:febe:7a2c w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::9cbb:76ff:febe:7a2c:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::9cbb:76ff:febe:7a2c',
+  port: 8236
+}
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:18ab:3ba2:5409:a886
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:3979:c611:bc96:afa8
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 192.168.20.21
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 192.168.20.21 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 192.168.20.21 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 192.168.20.21 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:a036:7183:b1fe:1242
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback: host is fe80::9cbb:76ff:febe:7a2c
+2026-06-08T19:07:52.317Z portfinder:testPort entered testPort(): trying fe80::9cbb:76ff:febe:7a2c port 8236
+2026-06-08T19:07:52.317Z portfinder:testPort done w/ testPort(): failed fe80::9cbb:76ff:febe:7a2c w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.317Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::9cbb:76ff:febe:7a2c:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::9cbb:76ff:febe:7a2c',
+  port: 8236
+}
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:18ab:3ba2:5409:a886
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:3979:c611:bc96:afa8
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 192.168.20.21
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 192.168.20.21 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 192.168.20.21 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 192.168.20.21 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:a036:7183:b1fe:1242
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is fe80::c37c:b990:bcef:1a1b
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying fe80::c37c:b990:bcef:1a1b port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): failed fe80::c37c:b990:bcef:1a1b w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::c37c:b990:bcef:1a1b:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::c37c:b990:bcef:1a1b',
+  port: 8236
+}
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:18ab:3ba2:5409:a886
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:3979:c611:bc96:afa8
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 192.168.20.21
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 192.168.20.21 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 192.168.20.21 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 192.168.20.21 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:a036:7183:b1fe:1242
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is fe80::8eb1:913e:808d:65b1
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying fe80::8eb1:913e:808d:65b1 port 8236
+2026-06-08T19:07:52.318Z portfinder:testPort done w/ testPort(): failed fe80::8eb1:913e:808d:65b1 w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::8eb1:913e:808d:65b1:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::8eb1:913e:808d:65b1',
+  port: 8236
+}
+2026-06-08T19:07:52.318Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.318Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:18ab:3ba2:5409:a886
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:3979:c611:bc96:afa8
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 192.168.20.21
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 192.168.20.21 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 192.168.20.21 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 192.168.20.21 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:a036:7183:b1fe:1242
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is fe80::e018:9614:93f:c476
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying fe80::e018:9614:93f:c476 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): failed fe80::e018:9614:93f:c476 w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::e018:9614:93f:c476:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::e018:9614:93f:c476',
+  port: 8236
+}
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:18ab:3ba2:5409:a886
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:3979:c611:bc96:afa8
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.319Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.319Z portfinder:getPort in eachSeries() iteration callback: host is 192.168.20.21
+2026-06-08T19:07:52.319Z portfinder:testPort entered testPort(): trying 192.168.20.21 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK 192.168.20.21 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed 192.168.20.21 port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:a036:7183:b1fe:1242
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is fe80::ce81:b1c:bd2c:69e
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying fe80::ce81:b1c:bd2c:69e port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): failed fe80::ce81:b1c:bd2c:69e w/ port 8236 with error EADDRNOTAVAIL
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with an err: EADDRNOTAVAIL
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() result callback: err is Error: listen EADDRNOTAVAIL: address not available fe80::ce81:b1c:bd2c:69e:8236
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRNOTAVAIL',
+  errno: -49,
+  syscall: 'listen',
+  address: 'fe80::ce81:b1c:bd2c:69e',
+  port: 8236
+}
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is 0.0.0.0
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying 0.0.0.0 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK 0.0.0.0 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed 0.0.0.0 port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is 127.0.0.1
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying 127.0.0.1 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK 127.0.0.1 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed 127.0.0.1 port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is ::1
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying ::1 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK ::1 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed ::1 port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:18ab:3ba2:5409:a886
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:18ab:3ba2:5409:a886 port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:3979:c611:bc96:afa8
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:3979:c611:bc96:afa8 port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is 192.168.20.21
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying 192.168.20.21 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK 192.168.20.21 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed 192.168.20.21 port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is 2800:484:7c7a:d300:a036:7183:b1fe:1242
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed 2800:484:7c7a:d300:a036:7183:b1fe:1242 port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback: host is null
+2026-06-08T19:07:52.320Z portfinder:testPort entered testPort(): trying null port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): OK null port 8236
+2026-06-08T19:07:52.320Z portfinder:testPort done w/ testPort(): Server closed null port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() iteration callback testPort() callback with a success for port 8236
+2026-06-08T19:07:52.320Z portfinder:getPort in eachSeries() result callback: openPorts is [
+  8236, 8236, 8236,
+  8236, 8236, 8236,
+  8236, 8236
+]
+winston:file: written true false
+[2026-06-08T19:07:52.320Z] Found firebase-functions binary at '/Users/alejo/Documents/mi-catalogo/functions/node_modules/.bin/firebase-functions'
+winston:file: logged 68113 [debug] [2026-06-08T19:07:52.320Z] Found firebase-functions binary at '/Users/alejo/Documents/mi-catalogo/functions/node_modules/.bin/firebase-functions'
+
+winston:file: written true false
+Serving at port 8236
+
+winston:file: logged 68142 [info] Serving at port 8236
+
+
+winston:file: written true false
+[2026-06-08T19:07:53.389Z] Got response from /__/functions.yaml {"endpoints":{"mcBillingAddCard":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingAddCard"},"mcBillingAddNequi":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingAddNequi"},"mcBillingCancelAutoRenewCallable":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingCancelAutoRenewCallable"},"mcBillingCheckNequiReady":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingCheckNequiReady"},"mcBillingCompleteActivation":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingCompleteActivation"},"mcBillingCron":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"scheduleTrigger":{"schedule":"every 6 hours","retryConfig":{},"timeZone":"America/Bogota"},"entryPoint":"mcBillingCron"},"mcBillingEnsureCustomer":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingEnsureCustomer"},"mcBillingGetSdkContext":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingGetSdkContext"},"mcBillingGetSubscriptionState":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingGetSubscriptionState"},"mcBillingListNequiBanks":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingListNequiBanks"},"mcBillingListPaymentHistoryCallable":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingListPaymentHistoryCallable"},"mcBillingPaymentMethods":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingPaymentMethods"},"mcBillingSetDefaultPaymentMethod":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingSetDefaultPaymentMethod"},"mcBillingValidateDiscountCode":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingValidateDiscountCode"},"mcBillingValidateNequi":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingValidateNequi"},"mcCatalogOrderTracking":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcCatalogOrderTracking"},"mcCreateSalesRep":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcCreateSalesRep"},"mcFinalizeNewStoreOnboarding":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcFinalizeNewStoreOnboarding"},"mcOnTenantCreatedNotify":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","secretEnvironmentVariables":[{"key":"RESEND_API_KEY"}],"labels":{},"eventTrigger":{"eventType":"google.cloud.firestore.document.v1.created","eventFilters":{"database":"(default)","namespace":"(default)"},"eventFilterPathPatterns":{"document":"mc_tenants/{tenantId}"},"retry":false},"entryPoint":"mcOnTenantCreatedNotify"},"mcOnepayCatalogWebhook":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"RESEND_API_KEY"}],"labels":{},"httpsTrigger":{"invoker":["public"]},"entryPoint":"mcOnepayCatalogWebhook"},"mcOnepayCheckoutStatus":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayCheckoutStatus"},"mcOnepayLinkMerchant":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayLinkMerchant"},"mcOnepayLinkPlatformPasarela":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayLinkPlatformPasarela"},"mcOnepayListBanksForKyb":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayListBanksForKyb"},"mcOnepayListCitiesForKyb":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayListCitiesForKyb"},"mcOnepayListStatesForKyb":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayListStatesForKyb"},"mcOnepayMerchantBalance":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayMerchantBalance"},"mcOnepayMerchantPayments":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayMerchantPayments"},"mcOnepayMicatalogoRequestCashout":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayMicatalogoRequestCashout"},"mcOnepayMicatalogoSetupPayout":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayMicatalogoSetupPayout"},"mcOnepaySellerSaldoSummary":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepaySellerSaldoSummary"},"mcOnepaySetPlatformWebhookSecret":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepaySetPlatformWebhookSecret"},"mcOnepaySetWebhookSecret":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepaySetWebhookSecret"},"mcOnepayStartCatalogCheckout":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ENVIA_API_TOKEN"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayStartCatalogCheckout"},"mcOnepaySubmitCompanyKyb":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepaySubmitCompanyKyb"},"mcOnepayUnlinkMerchant":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayUnlinkMerchant"},"mcOnepayUnlinkPlatformPasarela":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayUnlinkPlatformPasarela"},"mcQuoteEnvioCheckout":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","secretEnvironmentVariables":[{"key":"ENVIA_API_TOKEN"}],"labels":{},"callableTrigger":{},"entryPoint":"mcQuoteEnvioCheckout"},"mcRecordStoreAnalytics":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcRecordStoreAnalytics"},"mcSendCarritoRecuperacionEmail":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"RESEND_API_KEY"}],"labels":{},"callableTrigger":{},"entryPoint":"mcSendCarritoRecuperacionEmail"},"mcSendEmailVerification":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"RESEND_API_KEY"}],"labels":{},"callableTrigger":{},"entryPoint":"mcSendEmailVerification"},"mcSetSalesRepActive":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcSetSalesRepActive"},"mcStartStoreImpersonation":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcStartStoreImpersonation"},"mcStopStoreImpersonation":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcStopStoreImpersonation"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}],"extensions":{},"params":[{"type":"secret","name":"ONEPAY_PLATFORM_SK"},{"type":"secret","name":"RESEND_API_KEY"},{"type":"secret","name":"ENVIA_API_TOKEN"},{"name":"MC_PUBLIC_ORIGIN","type":"string","default":"https://micatalogo.io"}]}
+winston:file: logged 82808 [debug] [2026-06-08T19:07:53.389Z] Got response from /__/functions.yaml {"endpoints":{"mcBillingAddCard":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingAddCard"},"mcBillingAddNequi":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingAddNequi"},"mcBillingCancelAutoRenewCallable":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingCancelAutoRenewCallable"},"mcBillingCheckNequiReady":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingCheckNequiReady"},"mcBillingCompleteActivation":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingCompleteActivation"},"mcBillingCron":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"scheduleTrigger":{"schedule":"every 6 hours","retryConfig":{},"timeZone":"America/Bogota"},"entryPoint":"mcBillingCron"},"mcBillingEnsureCustomer":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingEnsureCustomer"},"mcBillingGetSdkContext":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingGetSdkContext"},"mcBillingGetSubscriptionState":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingGetSubscriptionState"},"mcBillingListNequiBanks":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingListNequiBanks"},"mcBillingListPaymentHistoryCallable":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingListPaymentHistoryCallable"},"mcBillingPaymentMethods":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingPaymentMethods"},"mcBillingSetDefaultPaymentMethod":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingSetDefaultPaymentMethod"},"mcBillingValidateDiscountCode":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingValidateDiscountCode"},"mcBillingValidateNequi":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcBillingValidateNequi"},"mcCatalogOrderTracking":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcCatalogOrderTracking"},"mcCreateSalesRep":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcCreateSalesRep"},"mcFinalizeNewStoreOnboarding":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcFinalizeNewStoreOnboarding"},"mcOnTenantCreatedNotify":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","secretEnvironmentVariables":[{"key":"RESEND_API_KEY"}],"labels":{},"eventTrigger":{"eventType":"google.cloud.firestore.document.v1.created","eventFilters":{"database":"(default)","namespace":"(default)"},"eventFilterPathPatterns":{"document":"mc_tenants/{tenantId}"},"retry":false},"entryPoint":"mcOnTenantCreatedNotify"},"mcOnepayCatalogWebhook":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"RESEND_API_KEY"}],"labels":{},"httpsTrigger":{"invoker":["public"]},"entryPoint":"mcOnepayCatalogWebhook"},"mcOnepayCheckoutStatus":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayCheckoutStatus"},"mcOnepayLinkMerchant":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayLinkMerchant"},"mcOnepayLinkPlatformPasarela":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayLinkPlatformPasarela"},"mcOnepayListBanksForKyb":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayListBanksForKyb"},"mcOnepayListCitiesForKyb":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayListCitiesForKyb"},"mcOnepayListStatesForKyb":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayListStatesForKyb"},"mcOnepayMerchantBalance":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayMerchantBalance"},"mcOnepayMerchantPayments":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayMerchantPayments"},"mcOnepayMicatalogoRequestCashout":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayMicatalogoRequestCashout"},"mcOnepayMicatalogoSetupPayout":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayMicatalogoSetupPayout"},"mcOnepaySellerSaldoSummary":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepaySellerSaldoSummary"},"mcOnepaySetPlatformWebhookSecret":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepaySetPlatformWebhookSecret"},"mcOnepaySetWebhookSecret":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepaySetWebhookSecret"},"mcOnepayStartCatalogCheckout":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ENVIA_API_TOKEN"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayStartCatalogCheckout"},"mcOnepaySubmitCompanyKyb":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"ONEPAY_PLATFORM_SK"}],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepaySubmitCompanyKyb"},"mcOnepayUnlinkMerchant":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayUnlinkMerchant"},"mcOnepayUnlinkPlatformPasarela":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"mcOnepayUnlinkPlatformPasarela"},"mcQuoteEnvioCheckout":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","secretEnvironmentVariables":[{"key":"ENVIA_API_TOKEN"}],"labels":{},"callableTrigger":{},"entryPoint":"mcQuoteEnvioCheckout"},"mcRecordStoreAnalytics":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcRecordStoreAnalytics"},"mcSendCarritoRecuperacionEmail":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"RESEND_API_KEY"}],"labels":{},"callableTrigger":{},"entryPoint":"mcSendCarritoRecuperacionEmail"},"mcSendEmailVerification":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"RESEND_API_KEY"}],"labels":{},"callableTrigger":{},"entryPoint":"mcSendEmailVerification"},"mcSetSalesRepActive":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcSetSalesRepActive"},"mcStartStoreImpersonation":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcStartStoreImpersonation"},"mcStopStoreImpersonation":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"mcStopStoreImpersonation"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}],"extensions":{},"params":[{"type":"secret","name":"ONEPAY_PLATFORM_SK"},{"type":"secret","name":"RESEND_API_KEY"},{"type":"secret","name":"ENVIA_API_TOKEN"},{"name":"MC_PUBLIC_ORIGIN","type":"string","default":"https://micatalogo.io"}]}
+
+winston:file: written true false
+i  extensions: ensuring required API firebaseextensions.googleapis.com is enabled... 
+winston:file: written true false
+[2026-06-08T19:07:57.426Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+winston:file: written true false
+[2026-06-08T19:07:57.426Z] > authorizing via signed-in user (palmaappco@gmail.com)
+winston:file: written true false
+[2026-06-08T19:07:57.426Z] [iam] checking project mi-catalogo-de61a for permissions ["firebase.projects.get","firebaseextensions.instances.list"]
+winston:file: written true false
+[2026-06-08T19:07:57.426Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:57.426Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:57.426Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions [none]
+winston:file: written true false
+[2026-06-08T19:07:57.426Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions  x-goog-user-project=mi-catalogo-de61a
+winston:file: written true false
+[2026-06-08T19:07:57.426Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions {"permissions":["firebase.projects.get","firebaseextensions.instances.list"]}
+winston:file: logged 82901 [info] i  extensions: ensuring required API firebaseextensions.googleapis.com is enabled... 
+
+winston:file: logged 83139 [debug] [2026-06-08T19:07:57.426Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+
+winston:file: logged 83230 [debug] [2026-06-08T19:07:57.426Z] > authorizing via signed-in user (palmaappco@gmail.com)
+
+winston:file: logged 83384 [debug] [2026-06-08T19:07:57.426Z] [iam] checking project mi-catalogo-de61a for permissions ["firebase.projects.get","firebaseextensions.instances.list"]
+
+winston:file: logged 83480 [debug] [2026-06-08T19:07:57.426Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 83576 [debug] [2026-06-08T19:07:57.426Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 83735 [debug] [2026-06-08T19:07:57.426Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions [none]
+
+winston:file: logged 83936 [debug] [2026-06-08T19:07:57.426Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions  x-goog-user-project=mi-catalogo-de61a
+
+winston:file: logged 84165 [debug] [2026-06-08T19:07:57.426Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions {"permissions":["firebase.projects.get","firebaseextensions.instances.list"]}
+
+winston:file: written true false
+[2026-06-08T19:07:57.641Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions 200
+winston:file: written true false
+[2026-06-08T19:07:57.642Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions {"permissions":["firebase.projects.get","firebaseextensions.instances.list"]}
+winston:file: written true false
+[2026-06-08T19:07:57.642Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:57.642Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:57.643Z] >>> [apiv2][query] GET https://firebaseextensions.googleapis.com/v1beta/projects/mi-catalogo-de61a/instances pageSize=100&pageToken=
+winston:file: logged 84322 [debug] [2026-06-08T19:07:57.641Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions 200
+
+winston:file: logged 84551 [debug] [2026-06-08T19:07:57.642Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/mi-catalogo-de61a:testIamPermissions {"permissions":["firebase.projects.get","firebaseextensions.instances.list"]}
+
+winston:file: logged 84647 [debug] [2026-06-08T19:07:57.642Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 84743 [debug] [2026-06-08T19:07:57.642Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 84911 [debug] [2026-06-08T19:07:57.643Z] >>> [apiv2][query] GET https://firebaseextensions.googleapis.com/v1beta/projects/mi-catalogo-de61a/instances pageSize=100&pageToken=
+
+winston:file: written true false
+[2026-06-08T19:07:58.403Z] <<< [apiv2][status] GET https://firebaseextensions.googleapis.com/v1beta/projects/mi-catalogo-de61a/instances 200
+winston:file: written true false
+[2026-06-08T19:07:58.404Z] <<< [apiv2][body] GET https://firebaseextensions.googleapis.com/v1beta/projects/mi-catalogo-de61a/instances {}
+winston:file: written true false
+i  functions: Loaded environment variables from .env.mi-catalogo-de61a. 
+winston:file: written true false
+[2026-06-08T19:07:58.408Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:58.409Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:58.409Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK [none]
+winston:file: logged 85060 [debug] [2026-06-08T19:07:58.403Z] <<< [apiv2][status] GET https://firebaseextensions.googleapis.com/v1beta/projects/mi-catalogo-de61a/instances 200
+
+winston:file: logged 85206 [debug] [2026-06-08T19:07:58.404Z] <<< [apiv2][body] GET https://firebaseextensions.googleapis.com/v1beta/projects/mi-catalogo-de61a/instances {}
+
+winston:file: logged 85286 [info] i  functions: Loaded environment variables from .env.mi-catalogo-de61a. 
+
+winston:file: logged 85382 [debug] [2026-06-08T19:07:58.408Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 85478 [debug] [2026-06-08T19:07:58.409Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 85637 [debug] [2026-06-08T19:07:58.409Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK [none]
+
+winston:file: written true false
+[2026-06-08T19:07:59.033Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK 200
+winston:file: written true false
+[2026-06-08T19:07:59.033Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK {"name":"projects/126482806042/secrets/ONEPAY_PLATFORM_SK","replication":{"automatic":{}},"createTime":"2026-05-17T19:39:08.250518Z","labels":{"firebase-managed":"functions"},"etag":"\"165208997cee45\""}
+winston:file: written true false
+[2026-06-08T19:07:59.033Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.034Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.034Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK/versions/latest [none]
+winston:file: logged 85794 [debug] [2026-06-08T19:07:59.033Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK 200
+
+winston:file: logged 86149 [debug] [2026-06-08T19:07:59.033Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK {"name":"projects/126482806042/secrets/ONEPAY_PLATFORM_SK","replication":{"automatic":{}},"createTime":"2026-05-17T19:39:08.250518Z","labels":{"firebase-managed":"functions"},"etag":"\"165208997cee45\""}
+
+winston:file: logged 86245 [debug] [2026-06-08T19:07:59.033Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 86341 [debug] [2026-06-08T19:07:59.034Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 86516 [debug] [2026-06-08T19:07:59.034Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK/versions/latest [none]
+
+winston:file: written true false
+[2026-06-08T19:07:59.215Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK/versions/latest 200
+winston:file: written true false
+[2026-06-08T19:07:59.215Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK/versions/latest {"name":"projects/126482806042/secrets/ONEPAY_PLATFORM_SK/versions/1","createTime":"2026-05-17T19:39:09.194232Z","state":"ENABLED","replicationStatus":{"automatic":{}},"etag":"\"165208998647f8\""}
+winston:file: written true false
+[2026-06-08T19:07:59.215Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.216Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.216Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY [none]
+winston:file: logged 86689 [debug] [2026-06-08T19:07:59.215Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK/versions/latest 200
+
+winston:file: logged 87053 [debug] [2026-06-08T19:07:59.215Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ONEPAY_PLATFORM_SK/versions/latest {"name":"projects/126482806042/secrets/ONEPAY_PLATFORM_SK/versions/1","createTime":"2026-05-17T19:39:09.194232Z","state":"ENABLED","replicationStatus":{"automatic":{}},"etag":"\"165208998647f8\""}
+
+winston:file: logged 87149 [debug] [2026-06-08T19:07:59.215Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 87245 [debug] [2026-06-08T19:07:59.216Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 87400 [debug] [2026-06-08T19:07:59.216Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY [none]
+
+winston:file: written true false
+[2026-06-08T19:07:59.470Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY 200
+winston:file: written true false
+[2026-06-08T19:07:59.470Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY {"name":"projects/126482806042/secrets/RESEND_API_KEY","replication":{"automatic":{}},"createTime":"2026-05-18T16:31:01.584997Z","labels":{"firebase-managed":"functions"},"etag":"\"16521a1694b136\""}
+winston:file: written true false
+[2026-06-08T19:07:59.471Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.471Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.471Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY/versions/latest [none]
+winston:file: logged 87553 [debug] [2026-06-08T19:07:59.470Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY 200
+
+winston:file: logged 87900 [debug] [2026-06-08T19:07:59.470Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY {"name":"projects/126482806042/secrets/RESEND_API_KEY","replication":{"automatic":{}},"createTime":"2026-05-18T16:31:01.584997Z","labels":{"firebase-managed":"functions"},"etag":"\"16521a1694b136\""}
+
+winston:file: logged 87996 [debug] [2026-06-08T19:07:59.471Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 88092 [debug] [2026-06-08T19:07:59.471Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 88263 [debug] [2026-06-08T19:07:59.471Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY/versions/latest [none]
+
+winston:file: written true false
+[2026-06-08T19:07:59.701Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY/versions/latest 200
+winston:file: written true false
+[2026-06-08T19:07:59.702Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY/versions/latest {"name":"projects/126482806042/secrets/RESEND_API_KEY/versions/1","createTime":"2026-05-18T16:31:02.385705Z","state":"ENABLED","replicationStatus":{"automatic":{}},"etag":"\"16521a169ea029\""}
+winston:file: written true false
+[2026-06-08T19:07:59.702Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.703Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.703Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN [none]
+winston:file: logged 88432 [debug] [2026-06-08T19:07:59.701Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY/versions/latest 200
+
+winston:file: logged 88788 [debug] [2026-06-08T19:07:59.702Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/RESEND_API_KEY/versions/latest {"name":"projects/126482806042/secrets/RESEND_API_KEY/versions/1","createTime":"2026-05-18T16:31:02.385705Z","state":"ENABLED","replicationStatus":{"automatic":{}},"etag":"\"16521a169ea029\""}
+
+winston:file: logged 88884 [debug] [2026-06-08T19:07:59.702Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 88980 [debug] [2026-06-08T19:07:59.703Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 89136 [debug] [2026-06-08T19:07:59.703Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN [none]
+
+winston:file: written true false
+[2026-06-08T19:07:59.853Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN 200
+winston:file: written true false
+[2026-06-08T19:07:59.854Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN {"name":"projects/126482806042/secrets/ENVIA_API_TOKEN","replication":{"automatic":{}},"createTime":"2026-05-23T20:47:17.031572Z","labels":{"firebase-managed":"functions"},"etag":"\"165282404031cb\""}
+winston:file: written true false
+[2026-06-08T19:07:59.854Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.855Z] Checked if tokens are valid: true, expires at: 1780947851653
+winston:file: written true false
+[2026-06-08T19:07:59.855Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN/versions/latest [none]
+winston:file: logged 89290 [debug] [2026-06-08T19:07:59.853Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN 200
+
+winston:file: logged 89639 [debug] [2026-06-08T19:07:59.854Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN {"name":"projects/126482806042/secrets/ENVIA_API_TOKEN","replication":{"automatic":{}},"createTime":"2026-05-23T20:47:17.031572Z","labels":{"firebase-managed":"functions"},"etag":"\"165282404031cb\""}
+
+winston:file: logged 89735 [debug] [2026-06-08T19:07:59.854Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 89831 [debug] [2026-06-08T19:07:59.855Z] Checked if tokens are valid: true, expires at: 1780947851653
+
+winston:file: logged 90003 [debug] [2026-06-08T19:07:59.855Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN/versions/latest [none]
+
+winston:file: written true false
+[2026-06-08T19:08:00.129Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN/versions/latest 200
+winston:file: written true false
+[2026-06-08T19:08:00.132Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN/versions/latest {"name":"projects/126482806042/secrets/ENVIA_API_TOKEN/versions/1","createTime":"2026-05-23T20:47:18.118169Z","state":"ENABLED","replicationStatus":{"automatic":{}},"etag":"\"165282404a8f19\""}
+winston:file: written true false
+i  functions: preparing functions directory for uploading... 
+winston:file: written true false
+[2026-06-08T19:08:00.184Z] Error: EACCES: permission denied, open '/private/var/folders/zz/zyxvpxvq6csfxvn_n0000000000000/T/firebase-functions--34473-7X2YAyXGNTm7-.zip'
+    at Object.openSync (node:fs:560:18)
+    at Object.fileSync (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/tmp/lib/tmp.js:174:15)
+    at packageSource (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/functions/prepareFunctionsUpload.js:48:25)
+    at prepareFunctionsUpload (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/functions/prepareFunctionsUpload.js:114:12)
+    at prepare (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/functions/prepare.js:168:94)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async chain (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/index.js:43:9)
+    at async deploy (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/index.js:122:9)
+winston:file: written true false
+
+winston:file: written true false
+Error: An unexpected error has occurred.
+winston:file: logged 90173 [debug] [2026-06-08T19:08:00.129Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN/versions/latest 200
+
+winston:file: logged 90531 [debug] [2026-06-08T19:08:00.132Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/mi-catalogo-de61a/secrets/ENVIA_API_TOKEN/versions/latest {"name":"projects/126482806042/secrets/ENVIA_API_TOKEN/versions/1","createTime":"2026-05-23T20:47:18.118169Z","state":"ENABLED","replicationStatus":{"automatic":{}},"etag":"\"165282404a8f19\""}
+
+winston:file: logged 90600 [info] i  functions: preparing functions directory for uploading... 
+
+winston:file: logged 91548 [debug] [2026-06-08T19:08:00.184Z] Error: EACCES: permission denied, open '/private/var/folders/zz/zyxvpxvq6csfxvn_n0000000000000/T/firebase-functions--34473-7X2YAyXGNTm7-.zip'
+    at Object.openSync (node:fs:560:18)
+    at Object.fileSync (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/tmp/lib/tmp.js:174:15)
+    at packageSource (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/functions/prepareFunctionsUpload.js:48:25)
+    at prepareFunctionsUpload (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/functions/prepareFunctionsUpload.js:114:12)
+    at prepare (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/functions/prepare.js:168:94)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async chain (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/index.js:43:9)
+    at async deploy (/opt/homebrew/lib/node_modules/firebase-tools/lib/deploy/index.js:122:9)
+
+winston:file: logged 91557 [error] 
+
+winston:file: logged 91606 [error] Error: An unexpected error has occurred.
+

@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { signInWithEmailAndPassword } from 'firebase/auth'
-import { firebaseConfigured, getAuthApp } from '@/lib/firebase'
+import { doc, getDoc } from 'firebase/firestore'
+import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
+import { MC } from '@/lib/mcCollections'
+import { mapFirestoreDataToMcUser, resolveMcHomePath } from '@/lib/mcUserFromFirestore'
 import { AuthBrandHeader } from '@/brand/AuthBrandHeader'
 
 export function LoginPage() {
@@ -20,9 +23,12 @@ export function LoginPage() {
     }
     setBusy(true)
     try {
-      await signInWithEmailAndPassword(getAuthApp(), email.trim(), password)
-      /** La verificación de correo la decide `RequireMcAuth` (bypass para super admin vía Firestore). */
-      nav('/app', { replace: true })
+      const cred = await signInWithEmailAndPassword(getAuthApp(), email.trim(), password)
+      const userSnap = await getDoc(doc(getDb(), MC.users, cred.user.uid))
+      const mapped = userSnap.exists()
+        ? mapFirestoreDataToMcUser(userSnap.id, userSnap.data())
+        : null
+      nav(resolveMcHomePath(mapped), { replace: true })
     } catch {
       setErr('No pudimos iniciar sesión. Revisa correo y contraseña.')
     } finally {

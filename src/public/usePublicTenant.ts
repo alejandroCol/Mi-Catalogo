@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
+import { isTenantMembershipActive } from '@/lib/subscription'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 
 export function usePublicTenant(slug: string | undefined) {
@@ -41,7 +42,7 @@ export function usePublicTenant(slug: string | undefined) {
           return
         }
         const t = { id: ts.id, ...(ts.data() as Omit<McTenant, 'id'>) }
-        if (t.subscriptionEndsAt <= Date.now()) {
+        if (!isTenantMembershipActive(t)) {
           setError('Esta tienda tiene la membresía pausada.')
           setLoading(false)
           return

@@ -1,3 +1,4 @@
+import { isSubscriptionEndsAtActive } from './subscriptionMs.js';
 export function isFreeBillingPlan(tenant) {
     return tenant?.billingPlan !== 'expert';
 }
@@ -7,5 +8,5 @@ export function isTenantMembershipActive(tenant, nowMs = Date.now()) {
         return false;
     if (isFreeBillingPlan(tenant))
         return true;
-    return typeof tenant.subscriptionEndsAt === 'number' && tenant.subscriptionEndsAt > nowMs;
+    return isSubscriptionEndsAtActive(tenant.subscriptionEndsAt, nowMs);
 }

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { doc, updateDoc } from 'firebase/firestore'
+import { useNavigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
-import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
+import { navigateConfigReturn, useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
@@ -15,7 +16,8 @@ import {
 
 export function CuentaWhatsAppPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
-  const { returnTo, returnLabel } = useConfigSubpageNav()
+  const navigate = useNavigate()
+  const { returnTo, returnLabel, navState, publishFromHome } = useConfigSubpageNav()
   const [waPrefix, setWaPrefix] = useState(DEFAULT_WA_PREFIX)
   const [waLocal, setWaLocal] = useState('')
   const [intro, setIntro] = useState('')
@@ -55,7 +57,10 @@ export function CuentaWhatsAppPage() {
         whatsappNumero: digits,
         mensajeIntro: intro.trim() || '',
       })
-      showSaveSuccess({ message: 'WhatsApp y mensaje de pedidos actualizados.' })
+      showSaveSuccess({
+        message: 'WhatsApp y mensaje de pedidos actualizados.',
+        onAfterClose: publishFromHome ? () => navigateConfigReturn(navigate, navState) : undefined,
+      })
     } catch {
       setErr('No se pudo guardar.')
     } finally {

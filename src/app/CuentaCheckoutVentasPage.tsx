@@ -1,20 +1,69 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ConfiguracionesSubpageLayout } from '@/app/configuraciones'
-import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
+import {
+  navigateConfigReturn,
+  PAGOS_PASARELA_RETURN_FROM_CHECKOUT_VENTAS,
+  useConfigSubpageNav,
+  type ConfigSubpageNavState,
+} from '@/app/configuraciones/configSubpageNav'
 import { useMcAuth } from '@/auth/McAuthContext'
-import { explicitCheckoutVentasModo, isCheckoutVentasConfigured } from '@/lib/checkoutVentasModo'
+import {
+  explicitCheckoutVentasModo,
+  isCheckoutVentasConfigured,
+  onepayPasarelaGateUi,
+} from '@/lib/checkoutVentasModo'
 import { checkoutVentasModoDisplay } from '@/lib/checkoutVentasModoDisplay'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 import { IconBankCard } from '@/icons/McIcons'
 import type { McPlatformSettings } from '@/types/mc'
 
+function PasarelaStatusPanel({
+  gate,
+  configurado,
+  pasarelaLinkState,
+}: {
+  gate: ReturnType<typeof onepayPasarelaGateUi>
+  configurado: boolean
+  pasarelaLinkState: ConfigSubpageNavState
+}) {
+  if (configurado) {
+    return <p className="mt-3 text-[12px] font-medium text-emerald-800">Listo para cobrar en tu checkout.</p>
+  }
+
+  const toneClasses =
+    gate.tone === 'info'
+      ? 'border-sky-200/80 bg-sky-50/55 text-sky-950'
+      : gate.tone === 'error'
+        ? 'border-red-200/80 bg-red-50/55 text-red-950'
+        : 'border-amber-200/80 bg-amber-50/55 text-amber-950'
+
+  return (
+    <div className={`mt-3 rounded-xl border px-3.5 py-3 ${toneClasses}`}>
+      <p className="text-[12px] font-semibold">{gate.title}</p>
+      <p className="mt-1 text-[12px] leading-relaxed opacity-90">{gate.message}</p>
+      {gate.ctaLabel ? (
+        <Link
+          to="/app/pagos-pasarela"
+          state={pasarelaLinkState}
+          className="mt-2.5 inline-flex text-[12px] font-semibold underline underline-offset-2 hover:no-underline"
+        >
+          {gate.ctaLabel}
+        </Link>
+      ) : null}
+    </div>
+  )
+}
+
 export function CuentaCheckoutVentasPage() {
   const { tenant } = useMcAuth()
-  const { returnTo, returnLabel, navState } = useConfigSubpageNav()
+  const navigate = useNavigate()
+  const { returnTo, returnLabel, navState, publishFromHome } = useConfigSubpageNav()
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
+
+  const onepayPasarelaGate = useMemo(() => onepayPasarelaGateUi(tenant), [tenant])
 
   useEffect(() => {
     if (!firebaseConfigured) return
@@ -25,6 +74,12 @@ export function CuentaCheckoutVentasPage() {
 
   const checkoutVentasModo = explicitCheckoutVentasModo(tenant)
   const configurado = isCheckoutVentasConfigured(tenant, platformSettings)
+  const pasarelaLinkState = publishFromHome ? navState : PAGOS_PASARELA_RETURN_FROM_CHECKOUT_VENTAS
+
+  useEffect(() => {
+    if (!publishFromHome || !configurado) return
+    navigateConfigReturn(navigate, navState)
+  }, [publishFromHome, configurado, navigate, navState])
 
   return (
     <ConfiguracionesSubpageLayout title="Método de pago" backTo={returnTo} backLabel={returnLabel}>
@@ -44,15 +99,28 @@ export function CuentaCheckoutVentasPage() {
         ) : (
           (() => {
             const info = checkoutVentasModoDisplay(checkoutVentasModo)
+            const pasarelaPendiente = checkoutVentasModo === 'pasarela' && !configurado
             return (
-              <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/40 p-4">
+              <div
+                className={`rounded-xl border p-4 ${
+                  pasarelaPendiente
+                    ? 'border-sky-200/70 bg-sky-50/25'
+                    : configurado
+                      ? 'border-neutral-200/70 bg-neutral-50/40'
+                      : 'border-amber-200/70 bg-amber-50/30'
+                }`}
+              >
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-mc-500/10 text-mc-600">
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                      configurado ? 'bg-mc-500/10 text-mc-600' : 'bg-neutral-100 text-[var(--cat-muted)]'
+                    }`}
+                  >
                     <IconBankCard size={20} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--cat-muted)]">
-                      Método activo
+                      {configurado ? 'Método activo' : 'Método elegido — pendiente de activar'}
                     </p>
                     <p className="mt-0.5 text-[16px] font-semibold text-[var(--cat-text)]">{info.title}</p>
                     <p className="mt-1 text-[13px] leading-relaxed text-[var(--cat-muted)]">{info.summary}</p>
@@ -78,14 +146,29 @@ export function CuentaCheckoutVentasPage() {
                     ))}
                   </div>
                 ) : null}
-                {!configurado ? (
-                  <p className="mt-3 text-[12px] font-medium text-amber-800">
-                    {checkoutVentasModo === 'pasarela'
-                      ? 'Completá la vinculación con OnePay para activar cobros.'
-                      : checkoutVentasModo === 'whatsapp'
+                {checkoutVentasModo === 'pasarela' ? (
+                  <PasarelaStatusPanel
+                    gate={onepayPasarelaGate}
+                    configurado={configurado}
+                    pasarelaLinkState={pasarelaLinkState}
+                  />
+                ) : !configurado ? (
+                  <div className="mt-3">
+                    <p className="text-[12px] font-medium text-amber-800">
+                      {checkoutVentasModo === 'whatsapp'
                         ? 'Configurá tu número de WhatsApp para recibir pedidos.'
                         : 'Esperá a que el equipo active la pasarela de Mi Catálogo.'}
-                  </p>
+                    </p>
+                    {checkoutVentasModo === 'whatsapp' && publishFromHome ? (
+                      <Link
+                        to="/app/cuenta/whatsapp"
+                        state={navState}
+                        className="mt-2 inline-flex text-[12px] font-semibold text-amber-950 underline underline-offset-2 hover:no-underline"
+                      >
+                        Configurar WhatsApp →
+                      </Link>
+                    ) : null}
+                  </div>
                 ) : (
                   <p className="mt-3 text-[12px] font-medium text-emerald-800">Listo para cobrar en tu checkout.</p>
                 )}

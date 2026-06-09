@@ -1,4 +1,3 @@
-import { billingPlanOf } from '@/lib/catalogTheme'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 
 export const DEFAULT_PLAN_FREE_MAX_PRODUCTOS = 20
@@ -49,12 +48,10 @@ export function resolvePlanConfig(settings: McPlatformSettings | null | undefine
 }
 
 export function maxProductosForTenant(
-  tenant: Pick<McTenant, 'billingPlan'>,
+  _tenant: Pick<McTenant, 'billingPlan'>,
   config: McPlanConfig,
 ): number {
-  return billingPlanOf(tenant as McTenant) === 'expert'
-    ? config.expertMaxProductos
-    : config.freeMaxProductos
+  return config.expertMaxProductos
 }
 
 export function canAddProductos(
@@ -74,8 +71,5 @@ export function productLimitMessage(
 ): string | null {
   const max = maxProductosForTenant(tenant, config)
   if (currentCount < max) return null
-  if (billingPlanOf(tenant as McTenant) === 'free') {
-    return `Alcanzaste el límite de ${max} productos del plan Free. Pasá a Expert para ampliar tu inventario.`
-  }
-  return `Alcanzaste el límite de ${max} productos de tu plan.`
+  return `Alcanzaste el límite de ${max} productos.`
 }

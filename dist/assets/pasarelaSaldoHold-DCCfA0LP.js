@@ -1,0 +1,1 @@
+var e=1440*60*1e3;e/(3600*1e3);function t(t){return t+e}function n(e,n=Date.now()){if(e<=0)return`Pendiente de confirmación`;let r=t(e);if(n>=r)return`Liberado`;let i=r-n,a=Math.ceil(i/(3600*1e3));return a<=1?`Libera en menos de 1 h`:`Libera en ${a} h`}export{n as t};

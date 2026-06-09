@@ -1,6 +1,8 @@
+import { isSubscriptionEndsAtActive } from './subscriptionMs.js'
+
 export type TenantMembershipSlice = {
   billingPlan?: string
-  subscriptionEndsAt?: number
+  subscriptionEndsAt?: unknown
 }
 
 export function isFreeBillingPlan(tenant: TenantMembershipSlice | null | undefined): boolean {
@@ -14,5 +16,5 @@ export function isTenantMembershipActive(
 ): boolean {
   if (!tenant) return false
   if (isFreeBillingPlan(tenant)) return true
-  return typeof tenant.subscriptionEndsAt === 'number' && tenant.subscriptionEndsAt > nowMs
+  return isSubscriptionEndsAtActive(tenant.subscriptionEndsAt, nowMs)
 }

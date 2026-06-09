@@ -4,6 +4,7 @@ import { useMcAuth } from '@/auth/McAuthContext'
 import { getAuthApp } from '@/lib/firebase'
 import { LandingBrandLogo } from '@/landing/components/LandingBrandLogo'
 import { IconChevronLeft } from '@/icons/McIcons'
+import { McOutletBoundary } from '@/components/McOutletBoundary'
 
 export function VendedorShell() {
   const { profile } = useMcAuth()
@@ -21,7 +22,9 @@ export function VendedorShell() {
     return (
       <div className="mc-landing mc-vendedor mc-vendedor--pitch">
         <div className="mc-vendedor__bg" aria-hidden />
-        <Outlet />
+        <McOutletBoundary>
+          <Outlet />
+        </McOutletBoundary>
       </div>
     )
   }
@@ -61,7 +64,9 @@ export function VendedorShell() {
         </div>
       </header>
       <main className="mc-landing-container mc-vendedor-main">
-        <Outlet />
+        <McOutletBoundary>
+          <Outlet />
+        </McOutletBoundary>
       </main>
     </div>
   )

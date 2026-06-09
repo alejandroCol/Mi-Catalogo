@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { collection, doc, getDoc, setDoc } from 'firebase/firestore'
 import { mcCarritosIniciadosCollection } from '@/lib/mcCollections'
 import { buscarCuponActivo, normalizeCuponCodigo } from '@/lib/checkoutPricing'
-import { hasExpertFeatureAccess } from '@/lib/billingAccess'
 import {
   buildCarritoIniciadoPayload,
   carritoIniciadoDocPath,
@@ -35,8 +34,7 @@ export function useCarritoIniciadoCheckoutSync(opts: {
   const restoreDoneRef = useRef(false)
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const expertTracking =
-    Boolean(slug && tenantId && tenant && hasExpertFeatureAccess(tenant) && firebaseConfigured)
+  const expertTracking = Boolean(slug && tenantId && tenant && firebaseConfigured)
 
   useEffect(() => {
     if (!slug) return

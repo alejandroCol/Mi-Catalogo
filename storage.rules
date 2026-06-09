@@ -11,17 +11,37 @@ service firebase.storage {
     function mcUserIsSuperAdmin() {
       return request.auth != null
         && firestore.exists(/databases/(default)/documents/mc_users/$(request.auth.uid))
-        && firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.isSuperAdmin == true;
+        && (
+          firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.isSuperAdmin == true
+          || firestore.get(/databases/(default)/documents/mc_users/$(request.auth.uid)).data.isSuperAdmin == 1
+        );
+    }
+
+    function mcUserImpersonatingTenant(tenantId) {
+      return request.auth != null
+        && request.auth.token.keys().hasAny(['mcImpersonateTenantId'])
+        && request.auth.token.mcImpersonateTenantId == tenantId;
     }
 
     function mcUserCanAccessTenant(tenantId) {
-      return mcUserBelongsToTenant(tenantId) || mcUserIsSuperAdmin();
+      return mcUserBelongsToTenant(tenantId)
+        || mcUserIsSuperAdmin()
+        || mcUserImpersonatingTenant(tenantId);
     }
 
     function mcUserCanWriteImage(tenantId, maxBytes) {
       return mcUserCanAccessTenant(tenantId)
         && request.resource.size < maxBytes
         && request.resource.contentType.matches('image/.*');
+    }
+
+    function mcUserCanWriteSeasonBanner(tenantId, fileName) {
+      return mcUserCanAccessTenant(tenantId)
+        && (
+          (fileName == 'hero.jpg' && request.resource.size < 6 * 1024 * 1024 && request.resource.contentType.matches('image/.*'))
+          || (fileName == 'poster.jpg' && request.resource.size < 4 * 1024 * 1024 && request.resource.contentType.matches('image/.*'))
+          || (fileName == 'hero.mp4' && request.resource.size < 12 * 1024 * 1024 && request.resource.contentType == 'video/mp4')
+        );
     }
 
     /** Imágenes del catálogo (públicas para /catalogo). Escritura solo administrador. */
@@ -50,10 +70,10 @@ service firebase.storage {
       allow write: if mcUserCanWriteImage(tenantId, 4 * 1024 * 1024);
     }
 
-    /** Banner temporada fullscreen (plan Expert) */
+    /** Banner temporada fullscreen — imagen (hero.jpg), video (hero.mp4) y poster (poster.jpg) */
     match /mc_tenants/{tenantId}/season_banner/{fileName} {
       allow read: if true;
-      allow write: if mcUserCanWriteImage(tenantId, 6 * 1024 * 1024);
+      allow write: if mcUserCanWriteSeasonBanner(tenantId, fileName);
     }
 
     match /mc_tenants/{tenantId}/onepay_kyb/{fileName} {

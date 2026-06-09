@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
+import { PAGOS_PASARELA_RETURN_FROM_ONEPAY_RESUMEN } from '@/app/configuraciones/configSubpageNav'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
 import { IconBankCard, IconChevronLeft, IconChevronRight } from '@/icons/McIcons'
@@ -162,6 +163,7 @@ export function OnepayPasarelaResumenPage() {
         </p>
         <Link
           to="/app/pagos-pasarela"
+          state={PAGOS_PASARELA_RETURN_FROM_ONEPAY_RESUMEN}
           className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--cat-text)] underline underline-offset-4"
         >
           Ir a solicitud OnePay

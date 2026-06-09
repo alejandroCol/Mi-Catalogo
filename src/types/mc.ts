@@ -13,10 +13,25 @@ export interface McCatalogThemeColors {
   muted?: string
 }
 
+/** Familias tipográficas elegibles para personalizar la tienda. */
+export type McCatalogFontId = 'inter-tight' | 'playfair' | 'fredoka' | 'quicksand' | 'dm-serif'
+
+/** `store`: catálogo completo; `banner`: solo título y descripción del banner principal. */
+export type McCatalogFontScope = 'store' | 'banner'
+
+export interface McCatalogThemeFonts {
+  family: McCatalogFontId
+  scope?: McCatalogFontScope
+}
+
 export interface McCatalogTheme {
   preset: McCatalogThemePreset
   colors?: McCatalogThemeColors
+  fonts?: McCatalogThemeFonts
 }
+
+/** Tipo de fondo del banner de temporada. */
+export type McSeasonBannerMediaType = 'image' | 'video'
 
 /** Anuncio editorial fullscreen en el catálogo público (plan Expert). */
 export interface McSeasonBanner {
@@ -27,7 +42,14 @@ export interface McSeasonBanner {
   subheadline?: string
   /** Texto del botón principal al cerrar el splash. */
   ctaLabel?: string
+  /** Fondo estático (JPEG en Storage). */
   imageUrl?: string
+  /** Fondo en video (MP4 optimizado en Storage). */
+  videoUrl?: string
+  /** Miniatura del video (JPEG) para carga rápida y `poster` del reproductor. */
+  posterUrl?: string
+  /** Por defecto `image` si hay `imageUrl` sin `videoUrl`. */
+  mediaType?: McSeasonBannerMediaType
   /** Cambia al guardar; invalida cierre en sessionStorage del visitante. */
   updatedAt?: number
 }
@@ -99,13 +121,24 @@ export interface McTenant {
   ownerUid: string
   slug: string
   nombreTienda: string
+  /** Millis UTC del último cambio de dominio (slug); cooldown 6 meses entre cambios. */
+  storeSlugChangedAtMs?: number
   whatsappNumero: string
   mensajeIntro?: string
   /** Millis UTC: vencimiento Expert; plan Free no usa este campo. */
   subscriptionEndsAt?: number
   createdAt: number
-  /** Plan de producto: expert desbloquea temas y colores del catálogo. */
+  /** Plan de producto: expert desbloquea publicar la tienda online. */
   billingPlan?: McBillingPlan
+  /** Catálogo visible para clientes en URL pública (requiere Expert activo en tiendas nuevas). */
+  catalogPublished?: boolean
+  /** Millis UTC del primer publish exitoso. */
+  catalogPublishedAt?: number
+  /**
+   * Tiendas existentes antes del modelo publish: permanecen públicas sin Expert.
+   * Seteado por backfill o súper admin.
+   */
+  catalogPublishGrandfathered?: boolean
   /** Tema del catálogo (preset + colores; colores solo relevantes en expert). */
   catalogTheme?: McCatalogTheme
   /** Logo de tienda (solo plan Expert). URL pública en Storage. */
@@ -338,9 +371,11 @@ export interface McProductoVariante {
 export interface McCategoria {
   id: string
   nombre: string
-  /** Orden de aparición en el sidebar (menor = primero). */
+  /** Orden de aparición entre hermanos (menor = primero). */
   orden: number
   activa: boolean
+  /** Ausente o null = categoría raíz; id del padre = subcategoría (máx. 2 niveles). */
+  parentId?: string | null
   createdAt: number
   updatedAt: number
 }
@@ -363,6 +398,8 @@ export interface McProducto {
   tallas?: McProductoTalla[]
   activo: boolean
   enCatalogo: boolean
+  /** Producto incompleto guardado automáticamente al crear; no visible en catálogo hasta publicar. */
+  esBorrador?: boolean
   orden: number
   createdAt: number
   updatedAt: number
@@ -370,6 +407,8 @@ export interface McProducto {
   marcarNovedad?: boolean
   /** Muestra el botón «Descargar imagen» en el catálogo (útil para mayoristas). */
   mostrarDescargaImagen?: boolean
+  /** Muestra el botón «Añadir 1 docena» en la ficha pública del producto. */
+  mostrarBotonDocena?: boolean
   /** Descuento visible en catálogo (sobre precio base o variante). */
   descuentoActivo?: boolean
   descuentoTipo?: 'porcentaje' | 'monto_fijo'
@@ -498,6 +537,10 @@ export interface McPlatformSettings {
    * Default: activado (undefined = true).
    */
   newStoreExpertPromoBannerEnabled?: boolean
+  /** Slug de la tienda demo enlazada desde la landing («Ver tienda demo»). */
+  landingDemoSlug?: string
+  /** Nombre de la tienda para mostrar en el selector de súper admin (cache UI). */
+  landingDemoDisplayName?: string
 }
 
 /** Métricas diarias del catálogo público (`mc_tenants/{tid}/analytics_daily/{YYYY-MM-DD}`). */

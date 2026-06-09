@@ -25,9 +25,17 @@ type ProviderProps = {
   children: ReactNode
   /** Slug explícito (ruta legada /c/:slug en modo path). */
   slugOverride?: string | null
+  /** Base de rutas en vista previa admin (ej. `/app/vista-previa`). */
+  adminPreviewBase?: string
 }
 
-export function PublicStoreProvider({ children, slugOverride }: ProviderProps) {
+function joinPreviewPath(base: string, path: string): string {
+  const normalizedBase = base.replace(/\/$/, '')
+  const normalizedPath = path === '/' ? '' : path.startsWith('/') ? path : `/${path}`
+  return `${normalizedBase}${normalizedPath}` || normalizedBase
+}
+
+export function PublicStoreProvider({ children, slugOverride, adminPreviewBase }: ProviderProps) {
   const { slug: slugParam } = useParams<{ slug?: string }>()
 
   const value = useMemo((): PublicStoreContextValue | null => {
@@ -35,6 +43,18 @@ export function PublicStoreProvider({ children, slugOverride }: ProviderProps) {
       typeof window !== 'undefined' ? parseStoreSlugFromHostname(window.location.hostname) : null
     const slug = (slugOverride ?? hostnameSlug ?? slugParam)?.trim().toLowerCase()
     if (!slug) return null
+
+    const previewBase = adminPreviewBase?.trim()
+    if (previewBase) {
+      return {
+        slug,
+        surface: 'platform',
+        mode: 'path',
+        pathBase: previewBase,
+        to: (path = '/') => joinPreviewPath(previewBase, path),
+        storePublicUrl: (path = '/') => buildStorePublicUrl(slug, path, 'path'),
+      }
+    }
 
     const surface: McAppSurface = hostnameSlug ? 'store' : resolveAppSurface()
     const mode = mcStoreUrlMode()
@@ -48,7 +68,7 @@ export function PublicStoreProvider({ children, slugOverride }: ProviderProps) {
       to: (path = '/') => buildStorePublicPath(slug, path, { surface, mode }),
       storePublicUrl: (path = '/') => buildStorePublicUrl(slug, path, mode),
     }
-  }, [slugOverride, slugParam])
+  }, [slugOverride, slugParam, adminPreviewBase])
 
   if (!value) {
     return null

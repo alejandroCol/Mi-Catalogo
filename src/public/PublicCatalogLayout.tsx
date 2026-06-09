@@ -17,16 +17,18 @@ import {
   resolvePublicCatalogTheme,
 } from '@/lib/catalogTheme'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
-import { usePublicTenant } from '@/public/usePublicTenant'
+import { CatalogPreviewBanner } from '@/public/CatalogPreviewBanner'
+import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicCatalogVisitTracking } from '@/public/usePublicCatalogAnalytics'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { McCatalogModal } from '@/public/McCatalogModal'
+import { McOutletBoundary } from '@/components/McOutletBoundary'
 
 function CartChrome() {
   const { slug, pathBase, to } = usePublicStore()
   usePublicCatalogVisitTracking()
   const { pathname } = useLocation()
-  const { tenant } = usePublicTenant(slug)
+  const { tenant, isPreview } = useCatalogTenant()
   const { lines, totalPiezas, updateQty, clear, highlightProductId, cartBumpGeneration } =
     useCatalogoSimpleCart()
   const { registerCartTarget, cartReceiving } = useCartAddAnimation()
@@ -176,7 +178,9 @@ function CartChrome() {
       <main
         className={clsx('mc-public-catalog-main', isCatalogListHome && 'mc-public-catalog-main--list-home')}
       >
-        <Outlet />
+        <McOutletBoundary variant="public">
+          <Outlet />
+        </McOutletBoundary>
       </main>
 
       <footer className="mt-auto border-t mc-pc-border py-6 sm:py-8">
@@ -227,7 +231,7 @@ function CartChrome() {
                 Vaciar
               </button>
             </div>
-            {lines.length > 0 && slug && (
+            {lines.length > 0 && slug && !isPreview ? (
               <Link
                 to={to('/checkout')}
                 onClick={() => setCartOpen(false)}
@@ -235,8 +239,13 @@ function CartChrome() {
               >
                 Comprar en línea
               </Link>
-            )}
-            {waUrl ? (
+            ) : null}
+            {isPreview && lines.length > 0 ? (
+              <p className="text-center text-xs leading-relaxed text-amber-800 sm:text-left">
+                El checkout se habilita cuando publiques tu tienda.
+              </p>
+            ) : null}
+            {!isPreview && waUrl ? (
               <a
                 href={waUrl}
                 target="_blank"
@@ -245,9 +254,9 @@ function CartChrome() {
               >
                 WhatsApp
               </a>
-            ) : (
+            ) : !isPreview ? (
               <span className="text-center text-xs leading-relaxed mc-pc-muted sm:text-left">La tienda aún no configuró WhatsApp.</span>
-            )}
+            ) : null}
           </div>
         }
       >
@@ -303,7 +312,7 @@ function Chrome() {
 export function PublicCatalogLayout() {
   const { slug } = usePublicStore()
   const key = slug ? `mc_cart_${slug}` : 'mc_cart'
-  const { tenant } = usePublicTenant(slug)
+  const { tenant, isPreview } = useCatalogTenant()
   const { preset } = resolvePublicCatalogTheme(tenant)
 
   return (
@@ -311,6 +320,7 @@ export function PublicCatalogLayout() {
       className={`mc-public-catalog-page flex min-h-svh flex-col ${publicCatalogPresetClass(preset)}`}
       style={publicCatalogCssVars(tenant)}
     >
+      {isPreview ? <CatalogPreviewBanner /> : null}
       <CatalogoSimpleCartProvider storageKey={key}>
         <CartAddAnimationProvider>
           <Chrome />

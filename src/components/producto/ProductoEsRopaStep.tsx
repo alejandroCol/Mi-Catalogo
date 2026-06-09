@@ -34,7 +34,7 @@ export function ProductoEsRopaStep({ onSelect, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" role="dialog">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Cerrar" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-t-2xl border border-neutral-200/50 bg-neutral-50 p-5 sm:rounded-2xl">
+      <div className="relative w-full max-w-lg rounded-t-2xl border border-neutral-200/50 bg-neutral-50 p-6 sm:rounded-2xl sm:p-8">
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"

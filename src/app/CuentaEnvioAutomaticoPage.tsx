@@ -48,7 +48,7 @@ function empaqueResumenText(peso: string, largo: string, ancho: string, alto: st
 export function CuentaEnvioAutomaticoPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
   const navigate = useNavigate()
-  const { returnTo, navState } = useConfigSubpageNav()
+  const { returnTo, navState, fromOutsideConfig } = useConfigSubpageNav()
   const [gratisDesdeInput, setGratisDesdeInput] = useState('')
   const [origenDepartamento, setOrigenDepartamento] = useState('')
   const [origenCiudad, setOrigenCiudad] = useState('')
@@ -166,7 +166,7 @@ export function CuentaEnvioAutomaticoPage() {
       })
       showSaveSuccess({
         title: 'Configuración de envío exitosa',
-        onAfterClose: () => navigate(returnTo),
+        onAfterClose: () => navigate(returnTo, fromOutsideConfig ? { state: navState } : undefined),
       })
     } catch (err) {
       console.error('[CuentaEnvioAutomaticoPage] guardar envío', err)

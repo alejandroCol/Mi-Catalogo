@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
-import { usePublicTenant } from '@/public/usePublicTenant'
+import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 
@@ -51,7 +51,7 @@ function PolicyPanel({
 
 export function PublicPoliciesPage() {
   const { slug, to } = usePublicStore()
-  const { tenant, loading, error } = usePublicTenant(slug)
+  const { tenant, loading, error } = useCatalogTenant()
   const [openKey, setOpenKey] = useState<PanelKey | null>(null)
 
   useEffect(() => {

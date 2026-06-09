@@ -10,4 +10,8 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  build: {
+    // Evita mezclar hashes de builds distintos en dist/ (causa MIME text/html en chunks faltantes).
+    emptyOutDir: true,
+  },
 })

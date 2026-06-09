@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
@@ -8,11 +8,12 @@ import { formatCop } from '@/lib/formatCop'
 import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
 import { buildStorePublicUrl } from '@/lib/storePublicUrl'
 import {
-  catalogoVendedorGate,
   explicitCheckoutVentasModo,
   hasCheckoutVentasModoSelected,
-  isCatalogoVendedorListo,
 } from '@/lib/checkoutVentasModo'
+import { CatalogPublishPanel } from '@/components/catalog/CatalogPublishPanel'
+import { CatalogPublishStatusBadge } from '@/components/catalog/CatalogPublishStatusBadge'
+import { isCatalogPubliclyAccessible } from '@/lib/catalogPublish'
 import { isTenantMembershipActive, membershipExpiryLabel } from '@/lib/subscription'
 import { useTenantPedidosSales } from '@/hooks/useTenantPedidosSales'
 import { useTenantHasProducts } from '@/hooks/useTenantHasProducts'
@@ -36,7 +37,7 @@ import { OnboardingExpertRewardCard } from '@/components/onboarding/OnboardingEx
 import { CompartirMiTiendaButton } from '@/components/dashboard/CompartirMiTiendaButton'
 import { MobilePullToRefresh } from '@/components/MobilePullToRefresh'
 import { useOnboardingRewardWindow } from '@/hooks/useOnboardingRewardWindow'
-import { DASHBOARD_RETURN_NAV } from '@/app/configuraciones/configSubpageNav'
+import { DASHBOARD_RETURN_NAV, type ConfigSubpageNavState } from '@/app/configuraciones/configSubpageNav'
 import {
   isNewStoreChecklistEligible,
   isNewStoreExpertPromoBannerVisible,
@@ -46,6 +47,7 @@ import {
 
 export function DashboardPage() {
   const { profile, tenant, loading, effectiveTenantId, isActingAsStoreOwner } = useMcAuth()
+  const location = useLocation()
   const { platformSettings, ready: platformSettingsReady, reload: reloadPlatformSettings } =
     usePlatformSettings()
   const [onepayBalancePreview, setOnepayBalancePreview] = useState<string | null>(null)
@@ -63,15 +65,20 @@ export function DashboardPage() {
   const { hasProducts, loading: productsLoading } = useTenantHasProducts(effectiveTenantId)
   const { visits: todayVisits, loading: visitsLoading, reload: reloadTodayVisits } =
     useTenantTodayVisits(effectiveTenantId)
-  const active = tenant ? isTenantMembershipActive(tenant) : false
+  const catalogoPublico = tenant ? isCatalogPubliclyAccessible(tenant) : false
+  const expertPaused =
+    tenant?.billingPlan === 'expert' &&
+    tenant.catalogPublished === true &&
+    !catalogoPublico &&
+    !tenant.catalogPublishGrandfathered
 
   const loadOnepayBalancePreview = useCallback(async () => {
     const modo = explicitCheckoutVentasModo(tenant)
     if (
       !tenant ||
       !profile ||
-      !active ||
       !isActingAsStoreOwner ||
+      !isTenantMembershipActive(tenant) ||
       (modo !== 'pasarela' && modo !== 'pasarela_micatalogo') ||
       !firebaseConfigured
     ) {
@@ -80,6 +87,14 @@ export function DashboardPage() {
       return
     }
     if (modo === 'pasarela' && tenant.onepayPaymentsEnabled !== true) {
+      setOnepayBalancePreview(null)
+      setOnepayBalancePreviewLoading(false)
+      return
+    }
+    if (
+      modo === 'pasarela_micatalogo' &&
+      (!platformSettingsReady || platformSettings?.pasarelaMicatalogoActiva !== true)
+    ) {
       setOnepayBalancePreview(null)
       setOnepayBalancePreviewLoading(false)
       return
@@ -105,11 +120,27 @@ export function DashboardPage() {
     } finally {
       setOnepayBalancePreviewLoading(false)
     }
-  }, [tenant, profile, active])
+  }, [tenant, profile, isActingAsStoreOwner, platformSettings, platformSettingsReady])
 
   useEffect(() => {
     void loadOnepayBalancePreview()
   }, [loadOnepayBalancePreview])
+
+  useEffect(() => {
+    const state = (location.state ?? null) as ConfigSubpageNavState | null
+    const targetId = state?.scrollTo
+    if (!targetId) return
+
+    const timer = window.setTimeout(() => {
+      const el = document.getElementById(targetId)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('mc-publish-return-highlight')
+      window.setTimeout(() => el.classList.remove('mc-publish-return-highlight'), 2400)
+    }, 120)
+
+    return () => window.clearTimeout(timer)
+  }, [location.key, location.state])
 
   const refreshDashboard = useCallback(async () => {
     await Promise.all([
@@ -119,6 +150,8 @@ export function DashboardPage() {
       loadOnepayBalancePreview(),
     ])
   }, [reloadSales, reloadTodayVisits, reloadPlatformSettings, loadOnepayBalancePreview])
+
+  const { nowMs } = useOnboardingRewardWindow(tenant)
 
   if (loading || !tenant || !profile) {
     return (
@@ -130,20 +163,6 @@ export function DashboardPage() {
   }
 
   const publicUrl = buildStorePublicUrl(tenant.slug)
-  const catalogoListo = isCatalogoVendedorListo(tenant, platformSettings)
-
-  function abrirCatalogoPublico() {
-    const gate = catalogoVendedorGate(tenant, platformSettings)
-    if (gate === 'ventas') {
-      setVentasRequiredModalOpen(true)
-      return
-    }
-    if (gate === 'envio') {
-      setEnvioRequiredModalOpen(true)
-      return
-    }
-    window.open(publicUrl, '_blank', 'noopener,noreferrer')
-  }
   const plan = billingPlanOf(tenant)
   const planBadgeClass =
     plan === 'expert'
@@ -158,9 +177,8 @@ export function DashboardPage() {
   const saldoPath =
     checkoutModo === 'pasarela' || checkoutModo === 'pasarela_micatalogo' ? '/app/mi-saldo' : null
   const showOnepayEnableCta =
-    active && isActingAsStoreOwner && !hasCheckoutVentasModoSelected(tenant)
+    isActingAsStoreOwner && !hasCheckoutVentasModoSelected(tenant)
 
-  const { nowMs } = useOnboardingRewardWindow(tenant)
   const showNewStoreChecklist = isNewStoreChecklistEligible(tenant)
   const showReadyToSharePrompt = shouldShowNewStoreReadyToSharePrompt(tenant)
   const showExpertPromoBanner =
@@ -202,11 +220,11 @@ export function DashboardPage() {
         <OnboardingExpertRewardCard tenant={tenant} />
       )}
 
-      {!active && (
-        <div className="border border-neutral-200/60 bg-neutral-50/50 px-5 py-4 text-[13px] leading-relaxed text-[var(--cat-text)]">
-          Tu membresía expiró. Renová para que el catálogo público siga activo.
+      {expertPaused ? (
+        <div className="border border-amber-200/60 bg-amber-50/50 px-5 py-4 text-[13px] leading-relaxed text-amber-950">
+          Tu membresía Expert venció y tu tienda fue despublicada. Renová el plan para volver a publicar.
         </div>
-      )}
+      ) : null}
 
       {!productsLoading && !hasProducts && (
         <section>
@@ -317,9 +335,12 @@ export function DashboardPage() {
         </Link>
       </section>
 
-      {active &&
-        isActingAsStoreOwner &&
-        (checkoutModo === 'pasarela_micatalogo' || tenant.onepayPaymentsEnabled === true) && (
+      {isActingAsStoreOwner &&
+        isTenantMembershipActive(tenant) &&
+        ((checkoutModo === 'pasarela_micatalogo' &&
+          platformSettingsReady &&
+          platformSettings?.pasarelaMicatalogoActiva === true) ||
+          (checkoutModo === 'pasarela' && tenant.onepayPaymentsEnabled === true)) && (
         <section aria-label="Dinero en pasarela">
           <Link
             to={checkoutModo === 'pasarela_micatalogo' ? '/app/mi-saldo' : '/app/pagos-pasarela/onepay'}
@@ -383,58 +404,56 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {active && (
-        <section className="space-y-3" aria-label="Catálogo público">
-          <CompartirMiTiendaButton storeUrl={publicUrl} />
-          {catalogoListo ? (
+      <Link
+        to="/app/personalizar"
+        className="group flex items-center gap-4 border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-5 no-underline transition duration-200 ease-in-out hover:border-neutral-300/70 hover:bg-neutral-50/50"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-violet-200/70 bg-gradient-to-br from-violet-100 via-fuchsia-50 to-indigo-50 text-violet-700 shadow-[0_1px_3px_rgba(91,33,182,0.12)] transition group-hover:from-violet-200/80 group-hover:to-fuchsia-100/80">
+          <IconMagicBrush size={22} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium tracking-tight text-[var(--cat-text)]">Personalizar mi tienda</p>
+          <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
+            Banner, logo y estilo del catálogo
+          </p>
+        </div>
+        <IconChevronRight size={17} className="shrink-0 text-[var(--cat-muted)] opacity-60 transition group-hover:opacity-100" />
+      </Link>
+
+      <section
+        id="publicar-tienda"
+        className="space-y-3 border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-5 transition-shadow duration-700 sm:px-6 sm:py-6"
+        aria-label="Publicar tu tienda"
+      >
+        {catalogoPublico ? (
+          <>
+            <CatalogPublishStatusBadge tenant={tenant} />
+            <CompartirMiTiendaButton storeUrl={publicUrl} />
             <a
               href={publicUrl}
               target="_blank"
               rel="noreferrer"
-              className="group flex items-center gap-4 border border-neutral-200/50 bg-[var(--cat-accent)] px-5 py-5 text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
+              className="group flex items-center gap-4 border border-neutral-200/45 bg-[var(--cat-accent)] px-4 py-4 text-[var(--cat-accent-text)] no-underline transition duration-200 ease-in-out hover:opacity-90 sm:px-5"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
-                <IconLink size={20} />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
+                <IconLink size={18} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-medium tracking-tight">Ver tienda como cliente</p>
-                <p className="mt-1 break-all text-[12px] leading-relaxed opacity-90">{publicUrl}</p>
+                <p className="text-[14px] font-medium tracking-tight">Ver tienda publicada</p>
+                <p className="mt-0.5 break-all text-[11px] leading-relaxed opacity-90">{publicUrl}</p>
               </div>
-              <IconChevronRight size={17} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
+              <IconChevronRight size={16} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
             </a>
-          ) : (
-            <button
-              type="button"
-              onClick={abrirCatalogoPublico}
-              className="group flex w-full cursor-pointer items-center gap-4 border border-neutral-200/50 bg-[var(--cat-accent)] px-5 py-5 text-left text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 text-[var(--cat-accent-text)]">
-                <IconLink size={20} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium tracking-tight">Ver tienda como cliente</p>
-                <p className="mt-1 break-all text-[12px] leading-relaxed opacity-90">{publicUrl}</p>
-              </div>
-              <IconChevronRight size={17} className="shrink-0 opacity-70 transition group-hover:opacity-100" />
-            </button>
-          )}
-          <Link
-            to="/app/personalizar"
-            className="group flex items-center gap-4 border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-5 no-underline transition duration-200 ease-in-out hover:border-neutral-300/70 hover:bg-neutral-50/50"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-violet-200/70 bg-gradient-to-br from-violet-100 via-fuchsia-50 to-indigo-50 text-violet-700 shadow-[0_1px_3px_rgba(91,33,182,0.12)] transition group-hover:from-violet-200/80 group-hover:to-fuchsia-100/80">
-              <IconMagicBrush size={22} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium tracking-tight text-[var(--cat-text)]">Personalizar mi tienda</p>
-              <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
-                Banner, logo y estilo del catálogo
-              </p>
-            </div>
-            <IconChevronRight size={17} className="shrink-0 text-[var(--cat-muted)] opacity-60 transition group-hover:opacity-100" />
-          </Link>
-        </section>
-      )}
+          </>
+        ) : (
+          <CatalogPublishPanel
+            tenant={tenant}
+            platformSettings={platformSettings}
+            catalogoUrl={publicUrl}
+            variant="home"
+          />
+        )}
+      </section>
 
       <footer className="space-y-2 pb-1 text-center">
         {plan === 'expert' && (

@@ -4,6 +4,9 @@ export { ConfiguracionesSubpageLayout } from '@/app/configuraciones/Configuracio
 export {
   DASHBOARD_RETURN_NAV,
   PERSONALIZAR_SUBPAGE_NAV,
+  PUBLISH_FROM_HOME_NAV,
+  isPublishFromHomeNav,
+  navigateConfigReturn,
   useConfigSubpageNav,
   type ConfigSubpageNavState,
 } from '@/app/configuraciones/configSubpageNav'

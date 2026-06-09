@@ -11,7 +11,7 @@ export function planExpertDisplayName(settings: McPlatformSettings | null | unde
   return n && n.length > 0 ? n : DEFAULT_PLAN_EXPERT_DISPLAY_NAME
 }
 
-/** Acceso a funciones Expert (plan + membresía o gracia por pago vencido). */
+/** Suscripción Expert activa (o gracia): requisito para publicar la tienda. */
 export function hasExpertFeatureAccess(tenant: McTenant | null | undefined): boolean {
   if (!tenant || billingPlanOf(tenant) !== 'expert') return false
   if (isSubscriptionActive(tenant.subscriptionEndsAt)) return true

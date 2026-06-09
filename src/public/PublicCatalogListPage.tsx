@@ -13,9 +13,10 @@ import { resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { usePublicCategorias } from '@/hooks/usePublicCategorias'
 import {
+  buildCategoryCountMap,
   categoriaSubtituloCatalogo,
   categoriaTituloCatalogo,
-  contarProductosPorCategoria,
+  categoriasPublicasVisibles,
   filtrarProductosPorCategoria,
 } from '@/lib/catalogCategorias'
 import {
@@ -35,7 +36,7 @@ import { CatalogProductPrice, CatalogDiscountBadge } from '@/public/CatalogProdu
 import { CatalogViewTabs, type CatalogViewTab } from '@/public/CatalogViewTabs'
 import { SeasonBannerHero } from '@/public/SeasonBannerHero'
 import { usePublicStore } from '@/public/PublicStoreContext'
-import { usePublicTenant } from '@/public/usePublicTenant'
+import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { isSeasonBannerActive, MC_CATALOGO_PRODUCTOS_ID } from '@/lib/seasonBanner'
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 
@@ -235,9 +236,13 @@ function sectionHeading(preset: McCatalogThemePreset, key: 'novedades' | 'resto'
 
 export function PublicCatalogListPage() {
   const { slug, to } = usePublicStore()
-  const { tenantId, tenant, loading, error } = usePublicTenant(slug)
+  const { tenantId, tenant, loading, error } = useCatalogTenant()
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
-  const { categorias: categoriasActivas } = usePublicCategorias(tenantId)
+  const { categorias: categoriasRaw } = usePublicCategorias(tenantId)
+  const categoriasActivas = useMemo(
+    () => categoriasPublicasVisibles(categoriasRaw),
+    [categoriasRaw],
+  )
   const [selectedCategoriaId, setSelectedCategoriaId] = useState<string | null>(null)
   const [filter, setFilter] = useState(getDefaultCatalogListFilter)
   const [viewTab, setViewTab] = useState<CatalogViewTab>('todos')
@@ -265,17 +270,15 @@ export function PublicCatalogListPage() {
 
   const showCategoriasSidebar = categoriasActivas.length > 0
 
-  const categoryCounts = useMemo(() => {
-    const conConteo = contarProductosPorCategoria(rows, categoriasActivas)
-    const byId: Record<string, number> = {}
-    for (const cat of conConteo) byId[cat.id] = cat.productCount
-    return { todos: rows.length, byId }
-  }, [rows, categoriasActivas])
+  const categoryCounts = useMemo(
+    () => buildCategoryCountMap(rows, categoriasActivas),
+    [rows, categoriasActivas],
+  )
 
   const scopedRows = useMemo(() => {
     const base = viewTab === 'descuentos' ? descuentos : rows
-    return filtrarProductosPorCategoria(base, selectedCategoriaId)
-  }, [viewTab, rows, descuentos, selectedCategoriaId])
+    return filtrarProductosPorCategoria(base, selectedCategoriaId, categoriasActivas)
+  }, [viewTab, rows, descuentos, selectedCategoriaId, categoriasActivas])
 
   const { novedades, resto } = useMemo(() => {
     const n: (McProducto & { id: string })[] = []
@@ -382,7 +385,12 @@ export function PublicCatalogListPage() {
   const noHeroBeforeSearch = preset === 'morning'
   const showSeasonHero = isSeasonBannerActive(tenant)
   const catalogTitle = categoriaTituloCatalogo(selectedCategoriaId, categoriasActivas)
-  const catalogSubtitle = categoriaSubtituloCatalogo(scopedRows.length, tenant.nombreTienda)
+  const catalogSubtitle = categoriaSubtituloCatalogo(
+    scopedRows.length,
+    tenant.nombreTienda,
+    selectedCategoriaId,
+    categoriasActivas,
+  )
 
   const catalogMain = (
     <>

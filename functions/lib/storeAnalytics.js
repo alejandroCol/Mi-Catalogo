@@ -1,7 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from './firebaseAdmin.js';
-import { isTenantMembershipActive } from './tenantMembership.js';
+import { isCatalogPubliclyAccessible } from './catalogPublish.js';
 const VALID_EVENTS = new Set([
     'catalog_visit',
     'product_view',
@@ -47,7 +47,7 @@ async function resolveActiveTenantBySlug(slug) {
         throw new HttpsError('not-found', 'Tienda no encontrada.');
     }
     const tenant = tenantSnap.data();
-    if (!isTenantMembershipActive(tenant)) {
+    if (!isCatalogPubliclyAccessible(tenant)) {
         throw new HttpsError('failed-precondition', 'Tienda inactiva.');
     }
     return { tenantId };

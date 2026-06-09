@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Despliegue robusto de Cloud Functions para Mi Catálogo.
+# Deploy completo (hosting + rules + storage + functions): ./scripts/deploy.sh
 # Uso:
 #   ./scripts/deploy-functions.sh
 #   ./scripts/deploy-functions.sh --debug

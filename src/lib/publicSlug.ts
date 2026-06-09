@@ -92,6 +92,28 @@ export async function probePublicSlugAvailability(
   return { status: 'available', slug }
 }
 
+/** Disponibilidad al cambiar slug: el slug actual de la tienda cuenta como disponible. */
+export async function probePublicSlugForTenantChange(
+  db: Firestore,
+  rawSlug: string,
+  currentSlug: string,
+): Promise<{ status: PublicSlugAvailabilityStatus; slug: string; issue?: PublicSlugValidationIssue }> {
+  const validation = validatePublicStoreSlug(rawSlug)
+  if (!validation.ok) {
+    const status: PublicSlugAvailabilityStatus =
+      validation.issue === 'reserved' ? 'reserved' : 'invalid'
+    return { status, slug: normalizePublicStoreSlug(rawSlug), issue: validation.issue }
+  }
+
+  const slug = validation.slug
+  const current = currentSlug.trim().toLowerCase()
+  if (slug === current) {
+    return { status: 'available', slug }
+  }
+
+  return probePublicSlugAvailability(db, rawSlug)
+}
+
 /** @deprecated Prefer explicit slug + probePublicSlugAvailability at registration. */
 export async function resolveAvailablePublicSlug(db: Firestore, nombreTienda: string): Promise<string> {
   const base = slugifyStoreName(nombreTienda)

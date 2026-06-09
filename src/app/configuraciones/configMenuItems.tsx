@@ -9,9 +9,12 @@ import {
   IconSwatches,
   IconWhatsApp,
 } from '@/icons/McIcons'
+import { PAGOS_PASARELA_RETURN_FROM_CUENTA } from '@/app/configuraciones/configSubpageNav'
 import type { ConfigMenuItem } from '@/app/configuraciones/types'
 import type { McTenant } from '@/types/mc'
+import { isCatalogPubliclyAccessible } from '@/lib/catalogPublish'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
+import { formatStorePublicUrlLabel } from '@/lib/storePublicUrl'
 
 export type ConfigMenuContext = {
   tenant: McTenant
@@ -39,7 +42,11 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       to: '/app/cuenta/tienda',
       size: 'large',
       icon: <IconLink size={20} />,
-      hint: catalogoListo ? 'Listo para compartir' : 'Completá checkout para publicar',
+      hint: isCatalogPubliclyAccessible(tenant)
+        ? 'Publicada'
+        : catalogoListo
+          ? 'Lista para publicar con Expert'
+          : 'Completá checkout para publicar',
     },
     {
       id: 'checkout-ventas',
@@ -72,17 +79,32 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       description: 'Plantilla y colores',
       to: '/app/cuenta/estilo',
       size: 'normal',
-      expert: true,
-      expertGateOnSave: true,
       icon: <IconSwatches size={20} />,
+    },
+    {
+      id: 'fuentes',
+      title: 'Tipografía',
+      description: 'Fuente de la tienda o del banner',
+      to: '/app/cuenta/fuentes',
+      size: 'normal',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+          <path
+            d="M4 7.5V5.75A1.75 1.75 0 0 1 5.75 4h12.5A1.75 1.75 0 0 1 20 5.75V7.5M9 20h6M12 4v16"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path d="M7.5 10h9M7.5 14h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      ),
     },
     {
       id: 'logo',
       title: 'Logo',
       to: '/app/cuenta/logo',
       size: 'compact',
-      expert: true,
-      expertGateOnSave: true,
       icon: <IconLogo size={18} />,
     },
     {
@@ -90,15 +112,12 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       title: 'Banner temporada',
       to: '/app/cuenta/banner-temporada',
       size: 'compact',
-      expert: true,
-      expertGateOnSave: true,
     },
     {
       id: 'carritos',
       title: 'Carritos abandonados',
       to: '/app/cuenta/carritos-abandonados',
       size: 'wide',
-      expert: true,
       icon: <IconChartBars size={20} />,
     },
     {
@@ -114,6 +133,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       title: 'Pasarela OnePay',
       description: 'Clave API y webhook',
       to: '/app/pagos-pasarela',
+      linkState: PAGOS_PASARELA_RETURN_FROM_CUENTA,
       size: 'normal',
       icon: <IconBankCard size={20} />,
     },
@@ -139,6 +159,30 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       to: '/app/cuenta/tutoriales',
       size: 'wide',
       icon: <IconPlayCircle size={20} />,
+    },
+    {
+      id: 'identidad-tienda',
+      title: 'Nombre y dominio',
+      description: 'Nombre visible y enlace',
+      to: '/app/cuenta/identidad-tienda',
+      size: 'compact',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]" aria-hidden>
+          <path
+            d="M4 7.5h16M4 12h10M4 16.5h7"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+          <path
+            d="M16.5 10.5 19 12l-2.5 1.5V10.5Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ),
+      hint: formatStorePublicUrlLabel(tenant.slug),
     },
     {
       id: 'perfil',

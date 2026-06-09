@@ -1,6 +1,11 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { ConfigSubpageNavState } from '@/app/configuraciones/configSubpageNav'
+import {
+  isPublishFromHomeNav,
+  navigateConfigReturn,
+  PAGOS_PASARELA_RETURN_FROM_SELECCION,
+  type ConfigSubpageNavState,
+} from '@/app/configuraciones/configSubpageNav'
 import type { McCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { checkoutVentasModoDisplay } from '@/lib/checkoutVentasModoDisplay'
 import { CONFIG_CHECKOUT_VENTAS_PATH } from '@/app/CheckoutVentasRequiredModal'
@@ -33,14 +38,30 @@ export function CheckoutVentasModoSuccessModal({
 
   function volverAlResumen() {
     onClose()
+    if (isPublishFromHomeNav(navState)) {
+      if (modo === 'whatsapp') {
+        navigate('/app/cuenta/whatsapp', { state: navState })
+        return
+      }
+      if (modo === 'pasarela') {
+        navigate('/app/pagos-pasarela', { state: navState })
+        return
+      }
+      navigateConfigReturn(navigate, navState!)
+      return
+    }
     navigate(CONFIG_CHECKOUT_VENTAS_PATH, navState ? { state: navState } : undefined)
   }
 
   function irAConfiguracionExtra() {
     onClose()
-    if (modo === 'pasarela') navigate('/app/pagos-pasarela')
-    else if (modo === 'whatsapp') navigate('/app/cuenta/whatsapp')
-    else navigate(CONFIG_CHECKOUT_VENTAS_PATH)
+    if (modo === 'pasarela') {
+      navigate('/app/pagos-pasarela', {
+        state: isPublishFromHomeNav(navState) ? navState : PAGOS_PASARELA_RETURN_FROM_SELECCION,
+      })
+    } else if (modo === 'whatsapp') {
+      navigate('/app/cuenta/whatsapp', isPublishFromHomeNav(navState) ? { state: navState } : undefined)
+    } else navigate(CONFIG_CHECKOUT_VENTAS_PATH)
   }
 
   const extraLabel =

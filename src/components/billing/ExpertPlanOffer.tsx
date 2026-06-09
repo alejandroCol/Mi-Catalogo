@@ -26,7 +26,7 @@ export function ExpertPlanOffer({ expertName, planConfig, titleId = 'plan-benefi
           id={titleId}
           className="text-[18px] font-semibold leading-snug tracking-tight text-[var(--cat-text)] sm:text-[19px]"
         >
-          Usá Expert y obtené uso de:
+          Con Expert publicás tu tienda online:
         </h2>
       </div>
       <ul className="flex flex-col gap-2">

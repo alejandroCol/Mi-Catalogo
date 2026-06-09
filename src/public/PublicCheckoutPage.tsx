@@ -18,7 +18,7 @@ import { MC_ENVIO_CHECKOUT_ETIQUETA } from '@/lib/envioCotizacion'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { useEnvioCheckoutQuote } from '@/hooks/useEnvioCheckoutQuote'
 import type { McCuponTienda, McOrdenCatalogoLinea } from '@/types/mc'
-import { usePublicTenant } from '@/public/usePublicTenant'
+import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { buildStorePublicPath } from '@/lib/storePublicUrl'
 import { usePublicCheckoutStartTracking } from '@/public/usePublicCatalogAnalytics'
@@ -62,7 +62,7 @@ export function PublicCheckoutPage() {
   usePublicCheckoutStartTracking()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { tenantId, tenant, platformSettings, loading, error } = usePublicTenant(slug)
+  const { tenantId, tenant, platformSettings, loading, error, isPreview } = useCatalogTenant()
   const { lines, totalPiezas, clear, restoreLines } = useCatalogoSimpleCart()
 
   const [nombre, setNombre] = useState('')
@@ -551,6 +551,23 @@ export function PublicCheckoutPage() {
   }
 
   if (!slug) return null
+
+  if (isPreview) {
+    return (
+      <div className="mc-public-catalog-inset max-w-lg space-y-4 py-12">
+        <p className="text-sm font-medium mc-pc-text">Checkout no disponible en vista previa</p>
+        <p className="text-sm leading-relaxed mc-pc-muted">
+          Publicá tu tienda con el plan Expert para que tus clientes puedan comprar.
+        </p>
+        <Link
+          to={to('/')}
+          className="inline-block text-sm font-medium mc-pc-text underline decoration-neutral-300 underline-offset-4"
+        >
+          Volver al catálogo
+        </Link>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

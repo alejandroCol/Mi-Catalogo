@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { StoreImpersonationBanner } from '@/auth/StoreImpersonationBanner'
 import { SellerOnboardingOverlay, useAssignSellerOnboardingTabAnchors } from '@/app/SellerOnboardingOverlay'
+import { McOutletBoundary } from '@/components/McOutletBoundary'
 import { McSaveSuccessProvider } from '@/components/McSaveSuccessModal'
 import { clearPendingSellerOnboarding, shouldShowSellerOnboarding } from '@/lib/onboardingStorage'
 import { tenantThemeCssVars } from '@/lib/catalogTheme'
@@ -10,6 +11,8 @@ import { IconCart, IconCube, IconHome, IconSliders } from '@/icons/McIcons'
 
 export function AppShell() {
   const { tenant, isImpersonating } = useMcAuth()
+  const { pathname } = useLocation()
+  const hideAdminTabBar = pathname.startsWith('/app/vista-previa')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const { tabAnchorsRef, tabAnchorAssignRefs } = useAssignSellerOnboardingTabAnchors()
 
@@ -41,7 +44,10 @@ export function AppShell() {
         onDismiss={closeOnboarding}
         tabAnchorsRef={tabAnchorsRef}
       />
-      <Outlet />
+      <McOutletBoundary>
+        <Outlet />
+      </McOutletBoundary>
+      {hideAdminTabBar ? null : (
       <nav className="mc-tabbar mc-app-desktop-tabbar flex justify-around border-[var(--cat-muted)]/40">
         <span ref={tabAnchorAssignRefs[0]} className="flex min-h-[48px] min-w-0 flex-1 justify-center">
           <NavLink
@@ -89,6 +95,7 @@ export function AppShell() {
           </NavLink>
         </span>
       </nav>
+      )}
     </div>
     </McSaveSuccessProvider>
   )

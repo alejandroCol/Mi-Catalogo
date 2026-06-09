@@ -1,0 +1,1 @@
+function e(e,t=Date.now()){if(e.marcarNovedad===!0)return!0;let n=typeof e.createdAt==`number`&&Number.isFinite(e.createdAt)?e.createdAt:0;return n<=0?!1:n>=t-21*864e5}export{e as t};

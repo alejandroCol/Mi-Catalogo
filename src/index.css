@@ -9,6 +9,7 @@
   --font-luxury-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-playful: 'Fredoka', 'Segoe UI Rounded', 'Hiragino Maru Gothic ProN', ui-rounded, system-ui, sans-serif;
   --font-soft: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
+  --font-classic-display: 'DM Serif Display', Georgia, 'Times New Roman', serif;
 
   --color-ios-blue: #404040;
   --color-ios-red: #dc2626;
@@ -115,6 +116,13 @@
   .mc-config-page__footer {
     @apply mt-1 space-y-2 rounded-md border border-neutral-200/50 px-4 py-4;
     background-color: var(--cat-surface, #fff);
+  }
+
+  /** Destello al volver a «Publicar mi tienda» desde un requisito completado. */
+  .mc-publish-return-highlight {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, #10b981 45%, transparent),
+      0 12px 40px -20px color-mix(in srgb, #10b981 35%, transparent);
   }
 
   /** Panel vendedor — alineado a landing (mc-landing + utilidades propias) */
@@ -308,6 +316,36 @@
   .mc-vendedor-pitch__compare-row--highlight {
     @apply bg-[color-mix(in_srgb,var(--mc-landing-gold)_8%,white)];
   }
+  .mc-vendedor-pitch__pasarela-commission {
+    @apply rounded-2xl border border-[color-mix(in_srgb,var(--mc-landing-gold)_32%,white)] bg-white px-5 py-4 sm:px-6 sm:py-5;
+    box-shadow: 0 10px 32px -18px rgba(197, 163, 103, 0.4);
+  }
+  .mc-vendedor-pitch__pasarela-commission-icon {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[color-mix(in_srgb,var(--mc-landing-gold)_28%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_10%,white)] text-mc-brand-gold;
+  }
+  .mc-vendedor-pitch__pasarela-commission-value {
+    @apply text-[clamp(1.05rem,2.4vw,1.35rem)] font-semibold tracking-tight text-mc-brand-gray;
+  }
+  .mc-vendedor-pitch__pasarela-trust {
+    @apply rounded-2xl border border-neutral-200/50 bg-[#f5f3ef]/80 px-4 py-3.5 sm:px-5;
+  }
+  .mc-vendedor-pitch__pasarela-trust-chip {
+    @apply rounded-full border border-neutral-200/70 bg-white px-3 py-1 text-[12px] font-semibold tracking-tight text-mc-brand-gray shadow-[0_1px_0_color-mix(in_srgb,var(--mc-brand-gray)_6%,transparent)];
+  }
+  .mc-vendedor-pitch__pasarela-mode {
+    @apply rounded-2xl border border-neutral-200/55 bg-white p-4 sm:p-5;
+    box-shadow: 0 6px 24px -16px rgba(0, 0, 0, 0.12);
+  }
+  .mc-vendedor-pitch__pasarela-mode--recommended {
+    @apply border-[color-mix(in_srgb,var(--mc-landing-gold)_38%,white)];
+    box-shadow: 0 12px 36px -18px rgba(197, 163, 103, 0.35);
+  }
+  .mc-vendedor-pitch__pasarela-methods {
+    @apply rounded-2xl border border-dashed border-neutral-300/70 bg-white/70 px-4 py-3.5;
+  }
+  .mc-vendedor-pitch__pasarela-method-chip {
+    @apply rounded-lg border border-neutral-200/80 bg-neutral-50 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-mc-brand-gray;
+  }
   .mc-vendedor-pitch__slide-enter {
     animation: mc-vendedor-slide-in 0.32s ease-out both;
   }
@@ -329,6 +367,78 @@
   }
   .mc-vendedor-cap-card__body {
     @apply space-y-3 px-5 py-5 sm:px-6;
+  }
+  .mc-vendedor-cap-pasarela {
+    @apply overflow-hidden rounded-2xl border border-neutral-200/50 bg-white;
+    box-shadow: 0 16px 48px -28px rgba(0, 0, 0, 0.18);
+  }
+  .mc-vendedor-cap-pasarela__hero {
+    @apply bg-mc-brand-gray px-5 py-6 sm:px-6 sm:py-7;
+    background-image: radial-gradient(
+      ellipse 80% 60% at 100% 0%,
+      color-mix(in srgb, var(--mc-landing-gold) 22%, transparent),
+      transparent 55%
+    );
+  }
+  .mc-vendedor-cap-pasarela__pitch-link {
+    @apply rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-white/18;
+  }
+  .mc-vendedor-cap-pasarela__body {
+    @apply px-5 py-5 sm:px-6 sm:py-6;
+  }
+  .mc-vendedor-cap-pasarela__commission {
+    @apply rounded-2xl border border-[color-mix(in_srgb,var(--mc-landing-gold)_32%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_6%,white)] px-4 py-4;
+  }
+  .mc-vendedor-cap-pasarela__commission-icon {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[color-mix(in_srgb,var(--mc-landing-gold)_28%,white)] bg-white text-mc-brand-gold;
+  }
+  .mc-vendedor-cap-pasarela__mode {
+    @apply rounded-2xl border border-neutral-200/55 bg-white p-4;
+    box-shadow: 0 4px 18px -12px rgba(0, 0, 0, 0.1);
+  }
+  .mc-vendedor-cap-pasarela__mode--recommended {
+    @apply border-[color-mix(in_srgb,var(--mc-landing-gold)_38%,white)];
+    box-shadow: 0 10px 28px -16px rgba(197, 163, 103, 0.3);
+  }
+  .mc-vendedor-cap-pasarela__trust {
+    @apply rounded-2xl border border-neutral-200/50 bg-[#f5f3ef]/80 px-4 py-3.5;
+  }
+  .mc-vendedor-cap-pasarela__trust-chip {
+    @apply rounded-full border border-neutral-200/70 bg-white px-3 py-1 text-[12px] font-semibold text-mc-brand-gray;
+  }
+  .mc-vendedor-cap-pasarela__methods {
+    @apply rounded-2xl border border-dashed border-neutral-300/70 bg-neutral-50/50 px-4 py-3.5;
+  }
+  .mc-vendedor-cap-pasarela__method-chip {
+    @apply rounded-lg border border-neutral-200/80 bg-white px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-mc-brand-gray;
+  }
+  .mc-vendedor-cap-pasarela__script,
+  .mc-vendedor-cap-pasarela__when {
+    @apply rounded-2xl border border-neutral-200/50 bg-[#faf9f7] px-4 py-4;
+  }
+  .mc-vendedor-cap-faq {
+    @apply overflow-hidden rounded-2xl border border-neutral-200/50 bg-white;
+  }
+  .mc-vendedor-cap-faq__head {
+    @apply border-b border-neutral-200/50 bg-[#f5f3ef] px-5 py-5 sm:px-6;
+  }
+  .mc-vendedor-cap-faq__list {
+    @apply divide-y divide-neutral-200/50;
+  }
+  .mc-vendedor-cap-faq__item--open {
+    @apply bg-[color-mix(in_srgb,var(--mc-landing-gold)_5%,white)];
+  }
+  .mc-vendedor-cap-faq__trigger {
+    @apply flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-neutral-50/80 sm:px-6;
+  }
+  .mc-vendedor-cap-faq__chevron {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-mc-600 transition duration-200;
+  }
+  .mc-vendedor-cap-faq__chevron--open {
+    @apply rotate-90 border-[color-mix(in_srgb,var(--mc-landing-gold)_35%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_12%,white)] text-mc-brand-gold;
+  }
+  .mc-vendedor-cap-faq__answer {
+    @apply border-t border-neutral-200/40 px-5 pb-4 pt-3 sm:px-6;
   }
   .mc-vendedor-demo-stat {
     @apply rounded-2xl border border-neutral-200/50 bg-white p-5;
@@ -582,6 +692,9 @@
   .mc-producto-form-section .mc-input:focus {
     @apply border-neutral-400 ring-1 ring-neutral-900/12;
   }
+  .mc-variante-nueva {
+    @apply border-[var(--cat-accent)]/50 ring-2 ring-[color-mix(in_srgb,var(--cat-accent)_25%,transparent)];
+  }
   .mc-fab {
     @apply fixed right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-neutral-200/40 transition duration-200 ease-in-out active:opacity-85;
     bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 5.5rem));
@@ -661,14 +774,14 @@
     @apply sm:px-6 md:mx-auto md:max-w-3xl lg:max-w-5xl;
   }
 
-  /** Catálogo público: colores vía --cat-*; forma vía .mc-pub-preset-* */
+  /** Catálogo público: colores vía --cat-*; tipografía vía --cat-font-*; forma vía .mc-pub-preset-* */
   .mc-public-catalog-page {
     @apply min-h-svh;
-    font-family: var(--font-morning);
+    font-family: var(--cat-font-body, var(--font-morning));
   }
 
   .mc-pc-display {
-    font-family: var(--font-display);
+    font-family: var(--cat-font-display, var(--font-display));
     @apply tracking-tighter;
   }
 
@@ -909,24 +1022,25 @@
   /* —— Variante por plantilla (layout; colores --cat-*) —— */
   .mc-public-catalog-page.mc-pub-preset-morning {
     background: var(--cat-bg);
-    font-family: var(--font-morning);
+    font-family: var(--cat-font-body, var(--font-morning));
   }
 
   .mc-public-catalog-page.mc-pub-preset-ios {
     background: var(--cat-bg);
-    font-family: var(--font-morning);
+    font-family: var(--cat-font-body, var(--font-morning));
     letter-spacing: -0.01em;
   }
   .mc-public-catalog-page.mc-pub-preset-ios .mc-pc-display {
+    font-family: var(--cat-font-display, var(--font-display));
     @apply tracking-tight;
   }
 
   .mc-public-catalog-page.mc-pub-preset-minimal {
     background: var(--cat-bg);
-    font-family: var(--font-sans);
+    font-family: var(--cat-font-body, var(--font-sans));
   }
   .mc-public-catalog-page.mc-pub-preset-minimal .mc-pc-display {
-    font-family: var(--font-luxury-display);
+    font-family: var(--cat-font-display, var(--font-luxury-display));
     @apply tracking-tight;
   }
   .mc-public-catalog-page.mc-pub-preset-minimal .mc-pc-card {
@@ -939,10 +1053,11 @@
 
   .mc-public-catalog-page.mc-pub-preset-bold {
     background: var(--cat-bg);
-    font-family: var(--font-playful);
+    font-family: var(--cat-font-body, var(--font-playful));
     letter-spacing: 0.01em;
   }
   .mc-public-catalog-page.mc-pub-preset-bold .mc-pc-display {
+    font-family: var(--cat-font-display, var(--font-playful));
     @apply font-semibold tracking-tight;
   }
   .mc-public-catalog-page.mc-pub-preset-bold .mc-pc-card {
@@ -957,10 +1072,11 @@
 
   .mc-public-catalog-page.mc-pub-preset-boutique {
     background: var(--cat-bg);
-    font-family: var(--font-soft);
+    font-family: var(--cat-font-body, var(--font-soft));
     letter-spacing: 0.02em;
   }
   .mc-public-catalog-page.mc-pub-preset-boutique .mc-pc-display {
+    font-family: var(--cat-font-display, var(--font-soft));
     @apply font-semibold tracking-tight;
   }
   .mc-public-catalog-page.mc-pub-preset-boutique .mc-pc-card {
@@ -1035,6 +1151,7 @@
     line-height: 0;
   }
   .mc-season-hero__img,
+  .mc-season-hero__video,
   .mc-season-hero__img-placeholder {
     @apply absolute inset-0 block h-full w-full object-cover;
     min-height: 100%;
@@ -1042,8 +1159,13 @@
     transition: transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .mc-season-hero--in .mc-season-hero__img,
+  .mc-season-hero--in .mc-season-hero__video,
   .mc-season-hero--in .mc-season-hero__img-placeholder {
     transform: scale(1);
+  }
+  .mc-season-hero__video {
+    pointer-events: none;
+    object-position: center;
   }
   .mc-season-hero__img-placeholder {
     background:
@@ -1110,17 +1232,18 @@
     text-shadow: 0 1px 12px color-mix(in srgb, var(--cat-text) 35%, transparent);
   }
   .mc-season-hero__headline {
-    font-family: var(--font-luxury-display);
+    font-family: var(--cat-font-banner-title, var(--font-luxury-display));
     @apply text-[clamp(2.15rem,8vw,3.75rem)] font-medium leading-[1.02] tracking-tight text-[var(--cat-accent-text)];
     text-wrap: balance;
     text-shadow: 0 2px 28px color-mix(in srgb, var(--cat-text) 42%, transparent);
   }
   .mc-public-catalog-page.mc-pub-preset-morning .mc-season-hero__headline,
   .mc-public-catalog-page.mc-pub-preset-ios .mc-season-hero__headline {
-    font-family: var(--font-morning);
+    font-family: var(--cat-font-banner-title, var(--font-morning));
     @apply font-semibold tracking-[-0.03em];
   }
   .mc-season-hero__sub {
+    font-family: var(--cat-font-banner-sub, inherit);
     @apply mt-4 max-w-md text-[15px] leading-relaxed text-[color-mix(in_srgb,var(--cat-accent-text)_84%,transparent)] sm:mt-5 sm:text-base;
     text-shadow: 0 1px 12px color-mix(in srgb, var(--cat-text) 32%, transparent);
   }
@@ -1165,6 +1288,7 @@
   @media (prefers-reduced-motion: reduce) {
     .mc-season-hero__content,
     .mc-season-hero__img,
+    .mc-season-hero__video,
     .mc-season-hero__img-placeholder,
     .mc-season-hero__cta {
       transition: none;
@@ -1174,8 +1298,12 @@
       transform: none;
     }
     .mc-season-hero__img,
+    .mc-season-hero__video,
     .mc-season-hero__img-placeholder {
       transform: none;
+    }
+    .mc-season-hero--video .mc-season-hero__video {
+      animation: none;
     }
     .mc-season-hero__scroll-line {
       animation: none;
@@ -1267,6 +1395,9 @@
   }
   .mc-landing-btn-nav .mc-landing-btn__badge {
     @apply px-1.5 py-0.5 text-[9px];
+  }
+  .mc-landing-hero__examples-link {
+    @apply w-full text-center text-[14px] sm:w-auto;
   }
 
   /* Nav */

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { ConfigSubpageNavState } from '@/app/configuraciones/configSubpageNav'
 
 /** Tamaño visual del tile en la grilla bento (mobile-first, 2 columnas). */
 export type ConfigTileSize = 'large' | 'wide' | 'normal' | 'compact'
@@ -17,4 +18,6 @@ export type ConfigMenuItem = {
   icon?: ReactNode
   /** Texto secundario (ej. contador de cupones). */
   hint?: string
+  /** Estado de navegación para el botón atrás en la pantalla destino. */
+  linkState?: ConfigSubpageNavState
 }

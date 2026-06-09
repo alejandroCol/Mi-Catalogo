@@ -4,13 +4,11 @@ import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
-import { ExpertStar } from '@/components/billing/ExpertStar'
-import { ExpertUpgradeSheet } from '@/components/billing/ExpertUpgradeSheet'
-import { hasExpertFeatureAccess } from '@/lib/billingAccess'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
-import { buildStorePublicUrl } from '@/lib/storePublicUrl'
+import { ADMIN_CATALOG_PREVIEW_BASE } from '@/app/AdminCatalogPreviewLayout'
 import { buildCatalogThemeForSave, defaultColorsForPreset } from '@/lib/catalogTheme'
+import { productSaveErrorMessage } from '@/lib/mcSaveError'
 import { CatalogPresetPickerGrid } from '@/app/CatalogPresetPickerGrid'
 import { PublicCatalogThemePreview } from '@/app/PublicCatalogThemePreview'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
@@ -21,10 +19,8 @@ const HEX = /^#[0-9A-Fa-f]{6}$/
 export function CuentaEstiloPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
   const { returnTo, returnLabel, navState } = useConfigSubpageNav()
-  const expertAccess = hasExpertFeatureAccess(tenant)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [expertSheetOpen, setExpertSheetOpen] = useState(false)
   const { showSaveSuccess } = useSaveSuccess()
 
   const [preset, setPreset] = useState<McCatalogThemePreset>('morning')
@@ -50,10 +46,6 @@ export function CuentaEstiloPage() {
 
   async function guardarTema() {
     if (!effectiveTenantId || !tenant) return
-    if (!expertAccess) {
-      setExpertSheetOpen(true)
-      return
-    }
     setBusy(true)
     setErr(null)
     try {
@@ -66,14 +58,14 @@ export function CuentaEstiloPage() {
         ...(HEX.test(cMuted) ? { muted: cMuted } : {}),
       }
       await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), {
-        catalogTheme: buildCatalogThemeForSave(preset, colors),
+        catalogTheme: buildCatalogThemeForSave(preset, colors, tenant.catalogTheme),
       })
       showSaveSuccess({
         title: 'Tema actualizado',
-        message: 'Los cambios ya se ven en tu catálogo público y en el panel.',
+        message: 'Los cambios ya se ven en tu catálogo y en la vista previa.',
       })
-    } catch {
-      setErr('No se pudo guardar el tema.')
+    } catch (saveErr: unknown) {
+      setErr(productSaveErrorMessage(saveErr, 'No se pudo guardar el tema.'))
     } finally {
       setBusy(false)
     }
@@ -94,12 +86,9 @@ export function CuentaEstiloPage() {
     <div className="mc-shell mc-config-subpage">
       <div>
         <ConfiguracionesBackLink to={returnTo} label={returnLabel} state={navState} />
-        <h1 className="ios-large-title mt-3 inline-flex items-center gap-2">
-          <ExpertStar />
-          Estilo del portal de venta
-        </h1>
+        <h1 className="ios-large-title mt-3">Estilo del portal de venta</h1>
         <p className="ios-subhead mt-2 max-w-xl leading-relaxed text-[var(--cat-muted)]">
-          Definí cómo se ve tu catálogo público: plantilla, colores y vista previa antes de publicar.
+          Definí cómo se ve tu catálogo: plantilla, colores y vista previa antes de publicar.
         </p>
       </div>
 
@@ -107,26 +96,18 @@ export function CuentaEstiloPage() {
         <p className="text-[15px] text-[var(--cat-muted)]">Cargando tienda…</p>
       ) : (
         <div className="mc-card space-y-6">
-          {!expertAccess && (
-            <p className="ios-footnote border border-neutral-200/60 bg-neutral-50/50 px-3 py-2">
-              <ExpertStar className="mr-1 inline" /> Función Expert —{' '}
-              <Link to="/app/plan" className="font-medium underline">activá tu plan</Link> para guardar.
-            </p>
-          )}
           <div>
-            <p className="ios-headline inline-flex items-center gap-1.5"><ExpertStar />Tema del catálogo</p>
+            <p className="ios-headline">Tema del catálogo</p>
             <p className="ios-subhead mt-2 leading-relaxed">
               Elegí <strong className="font-medium text-[var(--cat-text)]">cómo se ve el catálogo</strong>: cada plantilla
               tiene un layout distinto (lista, cuadrícula, vidriera, fotos grandes…). Los colores del panel siguen el tema.
-              Guardá para publicar en{' '}
-              <a
-                href={buildStorePublicUrl(tenant.slug)}
-                target="_blank"
-                rel="noreferrer"
+              Miralo en{' '}
+              <Link
+                to={ADMIN_CATALOG_PREVIEW_BASE}
                 className="font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4"
               >
-                tu URL pública
-              </a>
+                vista previa
+              </Link>
               .
             </p>
           </div>
@@ -188,12 +169,6 @@ export function CuentaEstiloPage() {
           </button>
         </div>
       )}
-
-      <ExpertUpgradeSheet
-        open={expertSheetOpen}
-        onClose={() => setExpertSheetOpen(false)}
-        title="Estilo del catálogo — Plan Expert"
-      />
     </div>
   )
 }

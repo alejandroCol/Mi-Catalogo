@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { collection, doc, getDoc, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { deleteObject, ref } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
@@ -11,9 +12,6 @@ import type { McPlatformSettings, McProducto } from '@/types/mc'
 import { BulkAddProductsModal } from '@/app/BulkAddProductsModal'
 import { EditProductModal } from '@/app/EditProductModal'
 import { QuickAddProductModal } from '@/app/QuickAddProductModal'
-import { ExpertUpgradeSheet } from '@/components/billing/ExpertUpgradeSheet'
-import { billingPlanOf } from '@/lib/catalogTheme'
-import { hasExpertFeatureAccess } from '@/lib/billingAccess'
 import {
   maxProductosForTenant,
   productLimitMessage,
@@ -27,24 +25,38 @@ import {
   mcToggleProductoNovedad,
 } from '@/lib/mcWrites'
 import { isProductNovedad } from '@/lib/catalogNovedad'
+import { isProductoBorrador } from '@/lib/productoFormDraft'
 import { IconPlus } from '@/icons/McIcons'
 import { InventarioCategoriasLink } from '@/public/CatalogCategorySidebar'
+import { categoriaEtiquetaProducto } from '@/lib/catalogCategorias'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
+import {
+  clearQuickAddDraft,
+  INVENTARIO_PATH,
+  loadQuickAddDraft,
+  mergeCategoriaId,
+  type InventarioResumeState,
+  type QuickAddProductDraft,
+} from '@/lib/productFormCategoriaNav'
 
 export function InventarioPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
-  const [expertSheetOpen, setExpertSheetOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<(McProducto & { id: string }) | null>(null)
+  const [editInitialCategoriaIds, setEditInitialCategoriaIds] = useState<string[] | undefined>()
+  const [quickAddDraft, setQuickAddDraft] = useState<QuickAddProductDraft | null>(null)
+  const [pendingResume, setPendingResume] = useState<InventarioResumeState | null>(null)
   const [limitHint, setLimitHint] = useState<string | null>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
   const syncRef = useRef(false)
   const { categorias } = useTenantCategorias(effectiveTenantId)
 
-  const categoriaNombre = (id: string) => categorias.find((c) => c.id === id)?.nombre
+  const categoriaLabel = (id: string) => categoriaEtiquetaProducto(id, categorias)
 
   useEffect(() => {
     if (!firebaseConfigured) return
@@ -82,6 +94,43 @@ export function InventarioPage() {
     })
   }, [effectiveTenantId, tenant, tenant?.productCount, rows.length])
 
+  useEffect(() => {
+    const state = location.state as InventarioResumeState | null
+    if (!state?.reopenProductForm) return
+    setPendingResume(state)
+    navigate(INVENTARIO_PATH, { replace: true, state: null })
+  }, [location.state, navigate])
+
+  useEffect(() => {
+    if (!pendingResume?.reopenProductForm) return
+
+    const { reopenProductForm, newCategoriaId } = pendingResume
+
+    if (reopenProductForm.mode === 'add') {
+      const draft = loadQuickAddDraft()
+      if (draft) {
+        if (newCategoriaId) {
+          draft.categoriaIds = mergeCategoriaId(draft.categoriaIds, newCategoriaId)
+        }
+        setQuickAddDraft(draft)
+        setModalOpen(true)
+      }
+      clearQuickAddDraft()
+      setPendingResume(null)
+      return
+    }
+
+    const product = rows.find((p) => p.id === reopenProductForm.productId)
+    if (!product) return
+
+    const categoriaIds = newCategoriaId
+      ? mergeCategoriaId(reopenProductForm.categoriaIds, newCategoriaId)
+      : reopenProductForm.categoriaIds
+    setEditInitialCategoriaIds(categoriaIds)
+    setEditProduct(product)
+    setPendingResume(null)
+  }, [pendingResume, rows])
+
   async function toggleCatalogo(p: McProducto & { id: string }) {
     if (!effectiveTenantId) return
     await mcToggleProductoCatalogo(effectiveTenantId, p)
@@ -111,10 +160,8 @@ export function InventarioPage() {
     await mcDeleteProductoDoc(effectiveTenantId, p.id)
   }
 
-  const expert = tenant ? billingPlanOf(tenant) === 'expert' : false
-  const expertAccess = hasExpertFeatureAccess(tenant)
   const planConfig = resolvePlanConfig(platformSettings)
-  const productMax = tenant ? maxProductosForTenant(tenant, planConfig) : planConfig.freeMaxProductos
+  const productMax = tenant ? maxProductosForTenant(tenant, planConfig) : planConfig.expertMaxProductos
   const atLimit = rows.length >= productMax
   const limitMsg = tenant ? productLimitMessage(tenant, planConfig, rows.length) : null
 
@@ -124,11 +171,12 @@ export function InventarioPage() {
       return
     }
     setLimitHint(null)
+    const sessionDraft = loadQuickAddDraft()
+    setQuickAddDraft(sessionDraft?.step === 'form' ? sessionDraft : null)
     setModalOpen(true)
   }
 
   function openBulkModal() {
-    if (!expertAccess) return
     if (atLimit && limitMsg) {
       setLimitHint(limitMsg)
       return
@@ -141,24 +189,11 @@ export function InventarioPage() {
     <div className="mc-shell">
       <h1 className="ios-large-title">Inventario</h1>
       <p className="ios-subhead mt-2 max-w-2xl leading-relaxed">
-        {rows.length} de {productMax} productos
-        {expert ? ' · plan Expert' : ' · plan Free'}.
+        {rows.length} de {productMax} productos.
       </p>
       {atLimit && limitMsg && (
         <div className="mt-4 border border-amber-200/80 bg-amber-50/60 px-4 py-3 text-[13px] leading-relaxed text-amber-950">
           {limitMsg}
-          {!expert && (
-            <>
-              {' '}
-              <button
-                type="button"
-                className="font-semibold underline underline-offset-2"
-                onClick={() => setExpertSheetOpen(true)}
-              >
-                Ver plan Expert
-              </button>
-            </>
-          )}
         </div>
       )}
       {limitHint && !atLimit && (
@@ -178,20 +213,31 @@ export function InventarioPage() {
           <IconPlus size={20} className="text-[var(--cat-accent-text)]" />
           Agregar producto
         </button>
-        {expertAccess && (
-          <button
-            type="button"
-            className="mc-btn-secondary inline-flex w-full items-center justify-center px-5 py-3 text-[15px] sm:w-auto"
-            onClick={() => openBulkModal()}
-          >
-            Carga masiva de fotos
-          </button>
-        )}
+        <button
+          type="button"
+          className="mc-btn-secondary inline-flex w-full items-center justify-center px-5 py-3 text-[15px] sm:w-auto"
+          onClick={() => openBulkModal()}
+        >
+          Carga masiva de fotos
+        </button>
       </div>
 
       <ul className="mt-8 space-y-4">
-        {rows.map((p) => (
-          <li key={p.id} className="mc-card flex gap-4 py-4">
+        {[...rows]
+          .sort((a, b) => {
+            if (isProductoBorrador(a) && !isProductoBorrador(b)) return -1
+            if (!isProductoBorrador(a) && isProductoBorrador(b)) return 1
+            return a.orden - b.orden
+          })
+          .map((p) => (
+          <li
+            key={p.id}
+            className={
+              isProductoBorrador(p)
+                ? 'mc-card flex gap-4 border-amber-200/80 bg-amber-50/40 py-4'
+                : 'mc-card flex gap-4 py-4'
+            }
+          >
             <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md border border-neutral-200/40 bg-mc-100">
               {p.imageUrl ? (
                 <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
@@ -200,7 +246,14 @@ export function InventarioPage() {
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="ios-headline">{p.nombre}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="ios-headline">{p.nombre}</p>
+                {isProductoBorrador(p) ? (
+                  <span className="inline-block rounded-full bg-amber-200/90 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
+                    Borrador
+                  </span>
+                ) : null}
+              </div>
               <p className="ios-subhead tabular-nums">
                 {productoTieneDescuento(p) ? (
                   <>
@@ -225,7 +278,7 @@ export function InventarioPage() {
                 {(p.categoriaIds ?? []).length > 0 && (
                   <span className="ml-2 inline-flex flex-wrap gap-1">
                     {(p.categoriaIds ?? []).map((cid) => {
-                      const nom = categoriaNombre(cid)
+                      const nom = categoriaLabel(cid)
                       if (!nom) return null
                       return (
                         <span
@@ -243,7 +296,10 @@ export function InventarioPage() {
                 <button
                   type="button"
                   className="rounded-md border border-[var(--cat-accent)]/35 bg-[color-mix(in_srgb,var(--cat-accent)_8%,transparent)] px-3 py-1.5 text-[13px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out hover:opacity-90"
-                  onClick={() => setEditProduct(p)}
+                  onClick={() => {
+                    setEditInitialCategoriaIds(undefined)
+                    setEditProduct(p)
+                  }}
                 >
                   Editar
                 </button>
@@ -301,8 +357,11 @@ export function InventarioPage() {
           tenant={tenant}
           platformSettings={platformSettings}
           currentCount={rows.length}
-          onClose={() => setModalOpen(false)}
+          onClose={() => {
+            setModalOpen(false)
+          }}
           nextOrden={rows.length}
+          initialDraft={quickAddDraft}
         />
       )}
 
@@ -310,11 +369,15 @@ export function InventarioPage() {
         <EditProductModal
           tenantId={effectiveTenantId}
           product={editProduct}
-          onClose={() => setEditProduct(null)}
+          initialCategoriaIds={editInitialCategoriaIds}
+          onClose={() => {
+            setEditProduct(null)
+            setEditInitialCategoriaIds(undefined)
+          }}
         />
       )}
 
-      {bulkOpen && effectiveTenantId && expertAccess && tenant && (
+      {bulkOpen && effectiveTenantId && tenant && (
         <BulkAddProductsModal
           tenantId={effectiveTenantId}
           tenant={tenant}
@@ -325,11 +388,6 @@ export function InventarioPage() {
         />
       )}
 
-      <ExpertUpgradeSheet
-        open={expertSheetOpen}
-        onClose={() => setExpertSheetOpen(false)}
-        title="Más productos con Expert"
-      />
     </div>
   )
 }

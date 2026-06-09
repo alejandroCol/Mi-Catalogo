@@ -25,7 +25,7 @@ import { DepartamentoCombobox } from '@/public/DepartamentoCombobox'
 export function CuentaEnvioManualPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
   const navigate = useNavigate()
-  const { returnTo, navState } = useConfigSubpageNav()
+  const { returnTo, navState, fromOutsideConfig } = useConfigSubpageNav()
   const [gratisDesdeInput, setGratisDesdeInput] = useState('')
   const [rows, setRows] = useState<EnvioCiudadRow[]>([])
   const [busy, setBusy] = useState(false)
@@ -99,7 +99,7 @@ export function CuentaEnvioManualPage() {
       })
       showSaveSuccess({
         title: 'Configuración de envío exitosa',
-        onAfterClose: () => navigate(returnTo),
+        onAfterClose: () => navigate(returnTo, fromOutsideConfig ? { state: navState } : undefined),
       })
     } catch (err) {
       console.error('[CuentaEnvioManualPage] guardar envío', err)

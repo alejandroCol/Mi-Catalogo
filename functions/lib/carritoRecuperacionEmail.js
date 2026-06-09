@@ -190,14 +190,6 @@ export async function mcSendCarritoRecuperacionEmailHandler(db, uid, dataRaw, re
     if (tenant.ownerUid !== uid) {
         throw new HttpsError('permission-denied', 'Solo el dueño puede enviar recordatorios.');
     }
-    if (tenant.billingPlan !== 'expert') {
-        throw new HttpsError('failed-precondition', 'Los recordatorios por correo requieren plan Expert.');
-    }
-    const subActive = typeof tenant.subscriptionEndsAt === 'number' && tenant.subscriptionEndsAt > Date.now();
-    const inGrace = typeof tenant.billingGraceUntilMs === 'number' && tenant.billingGraceUntilMs > Date.now();
-    if (!subActive && !inGrace) {
-        throw new HttpsError('failed-precondition', 'Tu plan Expert no está activo. Renová la suscripción para enviar correos.');
-    }
     const slug = tenant.slug?.trim();
     if (!slug) {
         throw new HttpsError('failed-precondition', 'La tienda no tiene URL pública.');

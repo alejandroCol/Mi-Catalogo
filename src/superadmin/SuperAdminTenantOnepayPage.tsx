@@ -139,11 +139,11 @@ export function SuperAdminTenantOnepayPage() {
   return (
     <div className="mc-shell space-y-6 pb-32">
       <Link
-        to="/superadmin"
+        to={tenantId ? `/superadmin/tienda/${tenantId}` : '/superadmin'}
         className="inline-flex items-center gap-1 text-[15px] font-medium text-mc-900 underline decoration-neutral-300 underline-offset-4 transition hover:opacity-70"
       >
         <IconChevronLeft size={18} />
-        Volver a tiendas
+        Volver al detalle de la tienda
       </Link>
 
       <div>

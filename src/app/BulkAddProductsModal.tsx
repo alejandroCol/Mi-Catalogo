@@ -6,6 +6,7 @@ import { compressImageForUpload } from '@/lib/compressImageForUpload'
 import { canAddProductos, maxProductosForTenant, resolvePlanConfig } from '@/lib/billingPlans'
 import { formatIntegerEsCo } from '@/lib/formatCop'
 import { mcProductosCollection } from '@/lib/mcCollections'
+import { productSaveErrorMessage } from '@/lib/mcSaveError'
 import { mcCreateProducto, ProductLimitError } from '@/lib/mcWrites'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
@@ -188,7 +189,12 @@ export function BulkAddProductsModal({
       if (e instanceof ProductLimitError) {
         setErr(e.message)
       } else {
-        setErr('No se pudo completar la carga. Revisá conexión y reglas de Storage/Firestore.')
+        setErr(
+          productSaveErrorMessage(
+            e,
+            'No se pudo completar la carga. Revisá conexión e intentá de nuevo.',
+          ),
+        )
       }
       setProgress(null)
     } finally {
@@ -202,7 +208,7 @@ export function BulkAddProductsModal({
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Cerrar" onClick={onClose} />
       <div className="relative max-h-[92vh] w-full max-w-lg overflow-hidden rounded-t-lg border border-neutral-200/50 bg-white sm:max-h-[90vh] sm:rounded-lg">
         <div className="max-h-[92vh] overflow-y-auto p-5 sm:max-h-[90vh]">
-          <h2 className="ios-headline">Carga masiva · Expert</h2>
+          <h2 className="ios-headline">Carga masiva de fotos</h2>
           <p className="ios-footnote mt-1.5 text-mc-600">
             Elegí varias fotos de la galería. Para cada una indicá nombre y precio (y stock si hace falta). Las fotos se
             comprimen al subir para ahorrar espacio y datos.

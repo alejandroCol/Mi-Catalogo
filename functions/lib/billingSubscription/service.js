@@ -3,18 +3,8 @@ import { MC_BILLING_GRACE_MS, MC_BILLING_METADATA_KEYS, MC_BILLING_PAYMENTS_COLL
 import { resolveBillingDiscountCode } from './discountCodes.js';
 import { billingPhoneE164Co } from './phone.js';
 import { billingMetadataForApi, chargeStatusFailed, chargeStatusPaid, onepayCreateBillingCharge, onepayCreateBillingCustomer, readBillingMeta, } from './onepayBillingApi.js';
+import { mcCatalogUnpublishIfNeeded } from '../catalogPublish.js';
 import { advancePeriodEndMs, computeFirstPeriodEndMs, computeFreeMonthsEndMs, idempotencyKeyForBillingDebit, nextDebitDueFromPeriodEnd, } from './schedule.js';
-const FREE_THEME_RESET = {
-    preset: 'morning',
-    colors: {
-        accent: '#171717',
-        accentText: '#fafaf9',
-        bg: '#f4f3f0',
-        surface: '#ffffff',
-        text: '#0a0a0a',
-        muted: '#737373',
-    },
-};
 function paymentsRef(db, tenantId, chargeId) {
     return db.doc(`mc_tenants/${tenantId}/${MC_BILLING_PAYMENTS_COLLECTION}/${chargeId}`);
 }
@@ -187,6 +177,8 @@ export async function mcBillingDowngradeToFree(db, tenantId) {
         status: 'canceled',
         updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
+    const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get();
+    const tenantData = tenantSnap.exists ? tenantSnap.data() : null;
     await db.doc(`mc_tenants/${tenantId}`).set({
         billingPlan: 'free',
         billingSubStatus: 'canceled',
@@ -196,10 +188,17 @@ export async function mcBillingDowngradeToFree(db, tenantId) {
         billingPastDueSinceMs: FieldValue.delete(),
         billingPinnedCardId: FieldValue.delete(),
         billingPinnedAccountId: FieldValue.delete(),
-        catalogTheme: FREE_THEME_RESET,
-        storeLogoUrl: FieldValue.delete(),
         updatedAt: now,
     }, { merge: true });
+    if (tenantData) {
+        await mcCatalogUnpublishIfNeeded(db, tenantId, {
+            ...tenantData,
+            billingPlan: 'free',
+            subscriptionEndsAt: undefined,
+            billingSubStatus: 'canceled',
+            billingGraceUntilMs: undefined,
+        });
+    }
 }
 /** Activa suscripción V2: primer cargo directo (tarjeta o Nequi). */
 export async function mcBillingActivateWithCharge(params) {

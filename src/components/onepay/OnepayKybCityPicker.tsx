@@ -215,23 +215,7 @@ export function OnepayKybCityPicker({
 
   return (
     <div className="space-y-4 rounded-lg border border-neutral-200/55 bg-[color-mix(in_srgb,var(--cat-surface)_88%,transparent)] p-4">
-      <div className="space-y-1">
-        <p className="text-[13px] font-semibold text-[var(--cat-text)]">Ciudad del comercio</p>
-        <p className="text-[12px] leading-relaxed text-[var(--cat-muted)]">
-          Elegí departamento y municipio según el catálogo de OnePay. El{' '}
-          <code className="rounded bg-neutral-500/15 px-1 py-0.5 text-[11px]">city_id</code> correcto evita
-          rechazos en KYB (
-          <a
-            className="text-[var(--cat-accent)] underline"
-            href="https://docs.onepay.la/client/companies/create#param-city-id"
-            target="_blank"
-            rel="noreferrer"
-          >
-            documentación
-          </a>
-          ).
-        </p>
-      </div>
+      <p className="text-[13px] font-semibold text-[var(--cat-text)]">Ciudad del comercio</p>
 
       <label className="block space-y-1.5">
         <span className="text-[12px] font-medium text-[var(--cat-muted)]">Departamento</span>

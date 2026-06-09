@@ -31,11 +31,12 @@ import {
 } from '@/lib/productoTallas'
 import { buildProductShareData, canUseWebShare, shareSafe } from '@/lib/webShare'
 import type { McProducto, McProductoTalla, McProductoVariante } from '@/types/mc'
-import { usePublicTenant } from '@/public/usePublicTenant'
+import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { usePublicProductViewTracking } from '@/public/usePublicCatalogAnalytics'
 import { useCartAddAnimation } from '@/public/cart-animation/CartAddAnimationContext'
 import { CART_FLY_DURATION_MS } from '@/public/cart-animation/flyBezier'
+import { McPublicPageLoadingFallback } from '@/components/McPublicPageLoadingFallback'
 
 const DOCENA = 12
 
@@ -74,7 +75,13 @@ function stockOriginalUi(prod: McProducto, lines: LineaCarritoSimple[]): number 
   return Math.max(0, Math.floor(prod.stock ?? 0) - totalCart)
 }
 
-function buildGalleryUrls(prod: McProducto, variante?: McProductoVariante): string[] {
+function buildGalleryUrls(
+  prod: McProducto,
+  opts: {
+    hasVariants: boolean
+    selected?: McProductoVariante
+  },
+): string[] {
   const seen = new Set<string>()
   const out: string[] = []
   const add = (url?: string) => {
@@ -82,7 +89,17 @@ function buildGalleryUrls(prod: McProducto, variante?: McProductoVariante): stri
     seen.add(url)
     out.push(url)
   }
-  if (variante?.imageUrl) add(variante.imageUrl)
+
+  const { hasVariants, selected } = opts
+
+  if (hasVariants && selected) {
+    if (selected.imageUrl) {
+      add(selected.imageUrl)
+      return out
+    }
+    // Variante sin foto propia: mostrar solo las del producto base (no otras variantes).
+  }
+
   add(prod.imageUrl)
   for (const url of prod.galeriaImagenes ?? []) add(url)
   return out
@@ -91,10 +108,11 @@ function buildGalleryUrls(prod: McProducto, variante?: McProductoVariante): stri
 export function PublicProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
   const { slug, to, storePublicUrl } = usePublicStore()
-  const { tenantId, tenant, loading, error } = usePublicTenant(slug)
+  const { tenantId, tenant, loading, error } = useCatalogTenant()
   const { add, lines } = useCatalogoSimpleCart()
   const { playAddToCartFly } = useCartAddAnimation()
   const [p, setP] = useState<(McProducto & { id: string }) | null>(null)
+  const [productResolved, setProductResolved] = useState(false)
   const [fullscreen, setFullscreen] = useState<{ index: number; alt: string } | null>(null)
   const [selectedOption, setSelectedOption] = useState<'none' | 'original' | string>('none')
   const [selectedTid, setSelectedTid] = useState<string | null>(null)
@@ -103,21 +121,34 @@ export function PublicProductDetailPage() {
   const preset = tenant ? resolvePublicCatalogTheme(tenant).preset : 'morning'
 
   useEffect(() => {
-    if (!firebaseConfigured || !tenantId || !productId) return
+    if (!firebaseConfigured || !tenantId || !productId) {
+      setP(null)
+      setProductResolved(!productId)
+      return
+    }
+    setProductResolved(false)
     const db = getDb()
     const ref = doc(db, mcProductosCollection(tenantId), productId)
-    return onSnapshot(ref, (snap) => {
-      if (!snap.exists()) {
+    return onSnapshot(
+      ref,
+      (snap) => {
+        setProductResolved(true)
+        if (!snap.exists()) {
+          setP(null)
+          return
+        }
+        const d = { id: snap.id, ...(snap.data() as Omit<McProducto, 'id'>) }
+        if (!d.activo || !d.enCatalogo) {
+          setP(null)
+          return
+        }
+        setP(d)
+      },
+      () => {
+        setProductResolved(true)
         setP(null)
-        return
-      }
-      const d = { id: snap.id, ...(snap.data() as Omit<McProducto, 'id'>) }
-      if (!d.activo || !d.enCatalogo) {
-        setP(null)
-        return
-      }
-      setP(d)
-    })
+      },
+    )
   }, [tenantId, productId])
 
   const prod = p
@@ -158,8 +189,14 @@ export function PublicProductDetailPage() {
   }, [prod?.id, prod?.updatedAt, prod?.esRopa])
 
   const galeriaUrls = useMemo(
-    () => (prod ? buildGalleryUrls(prod, selected) : []),
-    [prod, selected],
+    () =>
+      prod
+        ? buildGalleryUrls(prod, {
+            hasVariants,
+            selected,
+          })
+        : [],
+    [prod, hasVariants, selected],
   )
 
   const listaPrice =
@@ -221,6 +258,9 @@ export function PublicProductDetailPage() {
   }
   if (error || !tenant) {
     return <p className="text-red-600">{error ?? 'No disponible'}</p>
+  }
+  if (!productResolved) {
+    return <McPublicPageLoadingFallback />
   }
   if (!prod || !slug) {
     return (
@@ -538,10 +578,11 @@ export function PublicProductDetailPage() {
       >
         Añadir al carrito
       </button>
-      {disp >= DOCENA ? (
+      {product.mostrarBotonDocena && disp >= DOCENA ? (
         <button
           type="button"
-          className="mc-pc-add-to-cart-btn min-h-[48px] w-full rounded-2xl border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out"
+          className="mc-pc-add-to-cart-btn min-h-[48px] w-full rounded-2xl border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out hover:border-[color-mix(in_srgb,var(--cat-text)_28%,transparent)] hover:bg-[color-mix(in_srgb,var(--cat-text)_4%,var(--cat-surface))] active:scale-[0.99] disabled:opacity-40"
+          disabled={disp < DOCENA || (hasTallas && !selectedTalla)}
           onClick={(e) => sumar(DOCENA, e.currentTarget)}
         >
           Añadir 1 docena

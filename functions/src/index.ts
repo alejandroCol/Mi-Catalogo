@@ -1855,22 +1855,26 @@ export const mcOnepaySubmitCompanyKyb = onCall(
 
     const fiscalIn = d.fiscal_responsibilities
     if (!Array.isArray(fiscalIn) || fiscalIn.length === 0) {
-      throw new HttpsError('invalid-argument', 'Indicá al menos una responsabilidad fiscal DIAN.')
+      throw new HttpsError('invalid-argument', 'Indicá la responsabilidad fiscal que figura en tu RUT.')
     }
-    /** OnePay documenta estos códigos con guiones bajos, ej. `["O_47","R_99_PN"]`; normalizamos guiones `-` desde la UI. */
+    /** Validado contra api.onepay.la: solo O_13, O_15, O_23, O_47 (no acepta R_99_PN). */
+    const ONEPAY_FISCAL_ALLOWED = new Set(['O_13', 'O_15', 'O_23', 'O_47'])
     const normalizeOnePayFiscalCode = (raw: string) =>
       raw.trim().replace(/\s+/g, '').replace(/-/g, '_').toUpperCase()
     const fiscal_responsibilities: string[] = []
     for (const x of fiscalIn) {
       if (typeof x !== 'string') continue
       const f = normalizeOnePayFiscalCode(x)
-      if (f.length < 2 || f.length > 32 || !/^[A-Z0-9_]+$/.test(f)) {
-        throw new HttpsError('invalid-argument', `Código fiscal inválido: ${f}`)
+      if (!ONEPAY_FISCAL_ALLOWED.has(f)) {
+        throw new HttpsError(
+          'invalid-argument',
+          'Código fiscal no válido para OnePay. Elegí O_47 (régimen simple), O_23, O_15 u O_13 según tu RUT. OnePay no acepta R-99-PN.',
+        )
       }
       if (!fiscal_responsibilities.includes(f)) fiscal_responsibilities.push(f)
     }
     if (fiscal_responsibilities.length === 0) {
-      throw new HttpsError('invalid-argument', 'Responsabilidades fiscales vacías.')
+      throw new HttpsError('invalid-argument', 'Responsabilidad fiscal no válida.')
     }
 
     const ret: { iva?: boolean; ica?: boolean; fuente?: boolean } = {}
@@ -3022,6 +3026,12 @@ export { mcQuoteEnvioCheckout } from './shipping/mcQuoteEnvioCheckout.js'
 export { mcStartStoreImpersonation, mcStopStoreImpersonation } from './storeImpersonation.js'
 export { mcCreateSalesRep, mcSetSalesRepActive } from './salesRep.js'
 export { mcAdminCreateStore } from './adminCreateStore.js'
+export {
+  mcCatalogPublish,
+  mcCatalogUnpublish,
+  mcBackfillCatalogPublishGrandfather,
+} from './catalogPublishHandlers.js'
+export { mcChangeStoreSlug } from './storeIdentityHandlers.js'
 
 export {
   mcBillingGetSdkContext,

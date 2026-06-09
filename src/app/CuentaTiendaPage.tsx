@@ -1,33 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { deleteField, doc, getDoc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
-import { CheckoutEnvioRequiredModal } from '@/app/CheckoutEnvioRequiredModal'
-import { CheckoutVentasRequiredModal } from '@/app/CheckoutVentasRequiredModal'
-import { CompartirCatalogoChecklistView } from '@/app/CompartirCatalogoChecklistView'
 import { ConfiguracionesBackLink, ConfiguracionesSubpageLayout } from '@/app/configuraciones'
 import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { McToggleSwitch } from '@/components/McToggleSwitch'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
+import { CatalogPublishPanel } from '@/components/catalog/CatalogPublishPanel'
+import { isCatalogPubliclyAccessible } from '@/lib/catalogPublish'
 import { IconClipboard, IconLink } from '@/icons/McIcons'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
-import {
-  catalogoVendedorGate,
-  isCatalogoVendedorListo,
-  isCheckoutVentasConfigured,
-} from '@/lib/checkoutVentasModo'
-import { isEnvioCheckoutConfigured } from '@/lib/checkoutShipping'
 import { MC } from '@/lib/mcCollections'
 import { buildStorePublicUrl } from '@/lib/storePublicUrl'
 import type { McPlatformSettings } from '@/types/mc'
 
 export function CuentaTiendaPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
-  const { returnTo, returnLabel, navState, fromOutsideConfig } = useConfigSubpageNav()
+  const { returnTo, returnLabel, fromOutsideConfig } = useConfigSubpageNav()
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [copiedCatalogo, setCopiedCatalogo] = useState(false)
-  const [ventasRequiredModalOpen, setVentasRequiredModalOpen] = useState(false)
-  const [envioRequiredModalOpen, setEnvioRequiredModalOpen] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [descuentosTabEnabled, setDescuentosTabEnabled] = useState(false)
   const [descuentosTabLabel, setDescuentosTabLabel] = useState('')
@@ -53,25 +43,9 @@ export function CuentaTiendaPage() {
     return buildStorePublicUrl(tenant.slug)
   }, [tenant?.slug])
 
-  const catalogoListo = tenant ? isCatalogoVendedorListo(tenant, platformSettings) : false
-  const ventasOk = tenant ? isCheckoutVentasConfigured(tenant, platformSettings) : false
-  const envioOk = tenant ? isEnvioCheckoutConfigured(tenant, platformSettings) : false
-  const gate = tenant ? catalogoVendedorGate(tenant, platformSettings) : 'ventas'
-
-  function solicitarAccesoCatalogo(): boolean {
-    if (gate === 'ventas') {
-      setVentasRequiredModalOpen(true)
-      return false
-    }
-    if (gate === 'envio') {
-      setEnvioRequiredModalOpen(true)
-      return false
-    }
-    return true
-  }
-
+  const catalogoPublico = tenant ? isCatalogPubliclyAccessible(tenant) : false
   async function copiarUrlCatalogo() {
-    if (!solicitarAccesoCatalogo()) return
+    if (!catalogoPublico) return
     if (!catalogoUrlAbsolute || !navigator.clipboard?.writeText) return
     try {
       await navigator.clipboard.writeText(catalogoUrlAbsolute)
@@ -127,43 +101,30 @@ export function CuentaTiendaPage() {
       <div className="mc-shell flex flex-col gap-5 sm:gap-6">
         <ConfiguracionesBackLink to={returnTo} label={returnLabel} />
         <header className="space-y-1">
-          <h1 className="ios-large-title">Compartí tu catálogo</h1>
+          <h1 className="ios-large-title">Publicá tu catálogo</h1>
           <p className="ios-footnote max-w-lg leading-relaxed text-[var(--cat-muted)]">
-            Este es el último paso del checklist. Compartí tu enlace cuando esté listo.
+            Último paso: activá Expert, publicá tu tienda y compartí el enlace con tus clientes.
           </p>
         </header>
 
-        <CompartirCatalogoChecklistView
-          tenantName={tenant.nombreTienda}
-          catalogoUrl={catalogoUrlAbsolute}
-          catalogoListo={catalogoListo}
-          ventasOk={ventasOk}
-          envioOk={envioOk}
-          copied={copiedCatalogo}
-          msg={msg}
-          navState={navState}
-          onCopy={() => void copiarUrlCatalogo()}
-          onOpenCatalog={(e) => {
-            if (catalogoListo) return
-            e.preventDefault()
-            void solicitarAccesoCatalogo()
-          }}
-        />
+        <section className="overflow-hidden rounded-2xl border border-neutral-200/60 bg-[var(--cat-surface)] px-4 py-5 sm:px-6 sm:py-6">
+          <CatalogPublishPanel
+            tenant={tenant}
+            platformSettings={platformSettings}
+            catalogoUrl={catalogoUrlAbsolute}
+          />
+          {catalogoPublico ? (
+            <button
+              type="button"
+              className="mc-btn-primary mt-4 inline-flex w-full items-center justify-center gap-2 py-3 text-[15px]"
+              onClick={() => void copiarUrlCatalogo()}
+            >
+              <IconClipboard size={17} />
+              {copiedCatalogo ? '¡Copiado!' : 'Copiar enlace público'}
+            </button>
+          ) : null}
+        </section>
 
-        <CheckoutVentasRequiredModal
-          open={ventasRequiredModalOpen}
-          onClose={() => setVentasRequiredModalOpen(false)}
-          context="dashboard"
-          tenant={tenant}
-          tenantId={effectiveTenantId}
-          platformSettings={platformSettings}
-          returnNav={navState}
-        />
-        <CheckoutEnvioRequiredModal
-          open={envioRequiredModalOpen}
-          onClose={() => setEnvioRequiredModalOpen(false)}
-          returnNav={navState}
-        />
       </div>
     )
   }
@@ -181,93 +142,30 @@ export function CuentaTiendaPage() {
                 {tenant.nombreTienda}
               </h2>
               <p className="mt-1 text-[12px] leading-relaxed text-[var(--cat-muted)] sm:text-[13px]">
-                Enlace público de tu catálogo online.
+                Publicá tu tienda con Expert o explorá cómo se ve en vista previa.
               </p>
             </div>
           </div>
-
-          {catalogoListo ? (
-            <span className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-medium text-emerald-800">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
-              Listo para compartir
-            </span>
-          ) : (
-            <span className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-amber-200/70 bg-amber-50/80 px-2.5 py-1 text-[11px] font-medium text-amber-900">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden />
-              Completá cobro y envío para activar
-            </span>
-          )}
         </div>
 
         <div className="px-4 py-5 sm:px-6 sm:py-6">
-          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/60 px-3.5 py-3 sm:px-4 sm:py-3.5">
-            <p className="break-all font-mono text-[12px] leading-relaxed text-[var(--cat-text)] sm:text-[13px]">
-              {catalogoUrlAbsolute}
-            </p>
-          </div>
+          <CatalogPublishPanel
+            tenant={tenant}
+            platformSettings={platformSettings}
+            catalogoUrl={catalogoUrlAbsolute}
+          />
 
-          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
+          {catalogoPublico ? (
             <button
               type="button"
-              className="mc-btn-primary inline-flex flex-1 items-center justify-center gap-2 py-3 text-[15px]"
+              className="mc-btn-primary mt-4 inline-flex w-full items-center justify-center gap-2 py-3 text-[15px] sm:w-auto"
               disabled={!catalogoUrlAbsolute}
               onClick={() => void copiarUrlCatalogo()}
             >
               <IconClipboard size={17} />
-              {copiedCatalogo ? '¡Copiado!' : 'Copiar enlace'}
+              {copiedCatalogo ? '¡Copiado!' : 'Copiar enlace público'}
             </button>
-            <a
-              href={catalogoUrlAbsolute || '#'}
-              target={catalogoListo ? '_blank' : undefined}
-              rel={catalogoListo ? 'noreferrer' : undefined}
-              className="mc-btn-secondary inline-flex flex-1 items-center justify-center py-3 text-[15px] no-underline"
-              onClick={(e) => {
-                if (catalogoListo) return
-                e.preventDefault()
-                void solicitarAccesoCatalogo()
-              }}
-            >
-              Ver catálogo
-            </a>
-          </div>
-
-          {!catalogoListo && (
-            <div className="mt-4 space-y-3 rounded-xl border border-amber-200/55 bg-amber-50/35 px-4 py-3.5">
-              <p className="text-[13px] leading-relaxed text-amber-950">
-                Para que tus clientes puedan comprar, completá estos pasos:
-              </p>
-              <ul className="space-y-2">
-                {!ventasOk && (
-                  <li>
-                    <Link
-                      to="/app/cuenta/checkout-ventas"
-                      state={navState}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-amber-200/50 bg-white/70 px-3 py-2.5 text-[13px] font-medium text-[var(--cat-text)] no-underline transition hover:bg-white"
-                    >
-                      Elegí cómo cobrás
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-amber-800">
-                        Ir →
-                      </span>
-                    </Link>
-                  </li>
-                )}
-                {!envioOk && (
-                  <li>
-                    <Link
-                      to="/app/cuenta/envio"
-                      state={navState}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-amber-200/50 bg-white/70 px-3 py-2.5 text-[13px] font-medium text-[var(--cat-text)] no-underline transition hover:bg-white"
-                    >
-                      Configurá el envío
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-amber-800">
-                        Ir →
-                      </span>
-                    </Link>
-                  </li>
-                )}
-              </ul>
-            </div>
-          )}
+          ) : null}
 
           {msg && <p className="mt-3 text-[14px] text-[var(--cat-text)] opacity-90">{msg}</p>}
         </div>
@@ -331,20 +229,6 @@ export function CuentaTiendaPage() {
         </div>
       </div>
 
-      <CheckoutVentasRequiredModal
-        open={ventasRequiredModalOpen}
-        onClose={() => setVentasRequiredModalOpen(false)}
-        context="dashboard"
-        tenant={tenant}
-        tenantId={effectiveTenantId}
-        platformSettings={platformSettings}
-        returnNav={navState}
-      />
-      <CheckoutEnvioRequiredModal
-        open={envioRequiredModalOpen}
-        onClose={() => setEnvioRequiredModalOpen(false)}
-        returnNav={navState}
-      />
     </ConfiguracionesSubpageLayout>
   )
 }

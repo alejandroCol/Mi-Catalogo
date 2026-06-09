@@ -2,6 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import {
+  CONFIG_SUBPAGE_DEFAULT_LABEL,
+  CONFIG_SUBPAGE_DEFAULT_RETURN,
+  configSubpageBackText,
+  useConfigSubpageNav,
+} from '@/app/configuraciones/configSubpageNav'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { firebaseConfigured, firebaseStorageConfigured, getFirebaseFunctions, getStorageApp } from '@/lib/firebase'
 import { buildStorePublicUrl } from '@/lib/storePublicUrl'
@@ -9,10 +15,12 @@ import { IconBankCard, IconChevronLeft, IconChevronRight } from '@/icons/McIcons
 import {
   ONEPAY_KYB_ACCOUNT_TYPES_ORDER,
   ONEPAY_KYB_FISCAL_PRESETS,
+  resolveOnepayFiscalResponsibilities,
   ONEPAY_KYB_SALES_OPTIONS,
   ONEPAY_KYB_TERMS_VERSION,
   isOnePayKybBankAccountType,
   onePayKybAccountTypeLabel,
+  onePayKybSalesLabel,
   type OnePayKybBankAccountType,
 } from '@/lib/onepayKyb'
 import {
@@ -22,6 +30,7 @@ import {
 } from '@/lib/onepayFundWithdrawalPeriod'
 import { isTenantMembershipActive } from '@/lib/subscription'
 import { KybPdfUploadField, type KybPdfFieldKey } from '@/components/onepay/KybPdfUploadField'
+import { OnepayKybCiiuPicker } from '@/components/onepay/OnepayKybCiiuPicker'
 import { OnepayKybCityPicker } from '@/components/onepay/OnepayKybCityPicker'
 
 function callableErrorMessage(e: unknown): string {
@@ -36,12 +45,85 @@ function callableErrorMessage(e: unknown): string {
   return 'No se pudo completar el envío.'
 }
 
+function OnepayKybAlertDialog({
+  open,
+  message,
+  onClose,
+}: {
+  open: boolean
+  message: string | null
+  onClose: () => void
+}) {
+  useEffect(() => {
+    if (!open) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  if (!open || !message) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="mc-onepay-kyb-err-title"
+      aria-describedby="mc-onepay-kyb-err-desc"
+    >
+      <button type="button" className="absolute inset-0 cursor-default" aria-label="Cerrar" onClick={onClose} />
+      <div className="relative mx-4 mb-4 w-full max-w-md rounded-t-xl border border-red-200/55 bg-[var(--cat-surface)] p-5 shadow-lg sm:mx-0 sm:mb-0 sm:rounded-xl">
+        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-red-100 text-red-700">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M12 8v5M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </div>
+        <h2 id="mc-onepay-kyb-err-title" className="ios-headline mt-4 text-center text-[var(--cat-text)]">
+          Revisá estos datos
+        </h2>
+        <p
+          id="mc-onepay-kyb-err-desc"
+          className="ios-footnote mt-2 text-center leading-relaxed text-[var(--cat-muted)]"
+        >
+          {message}
+        </p>
+        <button
+          type="button"
+          className="mc-btn-primary mt-5 inline-flex w-full items-center justify-center py-3 text-[15px]"
+          onClick={onClose}
+        >
+          Entendido
+        </button>
+      </div>
+    </div>
+  )
+}
+
 type CompanyKind = 'organization' | 'individual'
 
 type KybBankRow = { id: string; name: string; supported_types: string[] }
 
+function PagosPasarelaBackLink({ to, label }: { to: string; label: string }) {
+  return (
+    <Link
+      to={to}
+      className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4"
+    >
+      <IconChevronLeft size={18} />
+      {configSubpageBackText(label)}
+    </Link>
+  )
+}
+
 export function PagosPasarelaPage() {
   const { profile, tenant, firebaseUser, isActingAsStoreOwner } = useMcAuth()
+  const { returnTo, returnLabel } = useConfigSubpageNav(
+    CONFIG_SUBPAGE_DEFAULT_RETURN,
+    CONFIG_SUBPAGE_DEFAULT_LABEL,
+  )
   const idemNonceRef = useRef<string | null>(null)
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto && !idemNonceRef.current) {
     idemNonceRef.current = crypto.randomUUID()
@@ -52,10 +134,10 @@ export function PagosPasarelaPage() {
   const [err, setErr] = useState<string | null>(null)
   const [doneId, setDoneId] = useState<string | null>(null)
 
-  const [companyType, setCompanyType] = useState<CompanyKind>('organization')
+  const [companyType, setCompanyType] = useState<CompanyKind>('individual')
   const [name, setName] = useState('')
   const [legalName, setLegalName] = useState('')
-  const [documentType, setDocumentType] = useState('NIT')
+  const [documentType, setDocumentType] = useState('CC')
   const [documentNumber, setDocumentNumber] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -63,7 +145,7 @@ export function PagosPasarelaPage() {
   const [economicActivity, setEconomicActivity] = useState('')
   const [industry, setIndustry] = useState('')
   const [sales, setSales] = useState<number>(10)
-  const [fiscalSelected, setFiscalSelected] = useState<string[]>(['R_99_PN'])
+  const [fiscalSelected, setFiscalSelected] = useState<string[]>([])
   const [retentionIva, setRetentionIva] = useState(false)
   const [retentionIca, setRetentionIca] = useState(false)
   const [retentionFuente, setRetentionFuente] = useState(false)
@@ -276,7 +358,9 @@ export function PagosPasarelaPage() {
         if (!address.trim()) return 'Completá la dirección.'
         if (!addressHint.trim()) return 'Completá complemento (piso, local, etc.).'
         if (!/^\d{5,9}$/.test(zipcode.trim())) return 'Código postal: 5 a 9 dígitos.'
-        if (fiscalSelected.length === 0) return 'Marcá al menos una responsabilidad fiscal.'
+        if (resolveOnepayFiscalResponsibilities(fiscalSelected).length === 0) {
+          return 'Elegí la responsabilidad fiscal que figura en tu RUT: régimen simple (O-47), agente de retención IVA (O-23), autorretenedor (O-15) o gran contribuyente (O-13).'
+        }
       }
       if (s === 2) {
         if (!docRutUrl.startsWith('https://')) return 'Subí el RUT en PDF.'
@@ -285,8 +369,8 @@ export function PagosPasarelaPage() {
             ? 'Subí el documento de identidad del representante en PDF.'
             : 'Subí tu documento de identidad en PDF.'
         }
-        if (fiscalSelected.includes('O_47') && !docSimpleUrl.startsWith('https://')) {
-          return 'Con régimen simple (O_47) tenés que subir el certificado en PDF.'
+        if (resolveOnepayFiscalResponsibilities(fiscalSelected).includes('O_47') && !docSimpleUrl.startsWith('https://')) {
+          return 'Con régimen simple (O-47) tenés que subir el certificado en PDF.'
         }
         if (esPersonaJuridica) {
           if (!docCccUrl.startsWith('https://')) return 'Subí el certificado de cámara de comercio en PDF.'
@@ -406,7 +490,7 @@ export function PagosPasarelaPage() {
         economic_activity: economicActivity.trim(),
         industry: industry.trim() || undefined,
         sales,
-        fiscal_responsibilities: fiscalSelected,
+        fiscal_responsibilities: resolveOnepayFiscalResponsibilities(fiscalSelected),
         retention_iva: retentionIva,
         retention_ica: retentionIca,
         retention_fuente: retentionFuente,
@@ -452,13 +536,7 @@ export function PagosPasarelaPage() {
   if (!isOwner) {
     return (
       <div className="mc-shell space-y-6 pb-28">
-        <Link
-          to="/app"
-          className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4"
-        >
-          <IconChevronLeft size={18} />
-          Inicio
-        </Link>
+        <PagosPasarelaBackLink to={returnTo} label={returnLabel} />
         <p className="text-[15px] leading-relaxed text-[var(--cat-muted)]">
           Solo el dueño de la tienda puede iniciar la solicitud de pasarela de pagos.
         </p>
@@ -469,13 +547,7 @@ export function PagosPasarelaPage() {
   if (doneId) {
     return (
       <div className="mc-shell space-y-8 pb-28">
-        <Link
-          to="/app"
-          className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4"
-        >
-          <IconChevronLeft size={18} />
-          Volver al inicio
-        </Link>
+        <PagosPasarelaBackLink to={returnTo} label={returnLabel} />
         <div className="border border-emerald-200/60 bg-emerald-50/40 px-5 py-6 text-[15px] leading-relaxed text-emerald-950">
           <p className="font-medium">Solicitud enviada a OnePay</p>
           <p className="mt-2">
@@ -491,13 +563,7 @@ export function PagosPasarelaPage() {
   return (
     <div className="mc-shell space-y-8 pb-32">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <Link
-          to="/app"
-          className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--cat-text)] underline decoration-neutral-300 underline-offset-4"
-        >
-          <IconChevronLeft size={18} />
-          Inicio
-        </Link>
+        <PagosPasarelaBackLink to={returnTo} label={returnLabel} />
       </div>
 
       <header className="border border-neutral-200/45 bg-[color-mix(in_srgb,var(--cat-accent)_10%,var(--cat-surface))] px-5 py-6 sm:px-8 sm:py-8">
@@ -614,37 +680,10 @@ export function PagosPasarelaPage() {
             ))}
           </div>
 
-          {err && (
-            <p className="border border-red-200/50 bg-red-50/40 px-3 py-2 text-[13px] leading-relaxed text-red-950">{err}</p>
-          )}
-
           <div className="space-y-5 max-w-2xl">
             {step === 0 && (
               <>
                 <div className="flex flex-col gap-3 sm:flex-row" role="radiogroup" aria-label="Tipo de constitución del comercio">
-                  <label
-                    className={`flex min-h-[52px] flex-1 cursor-pointer flex-col justify-center gap-1 border px-4 py-3 text-left transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--cat-text)] has-[:focus-visible]:ring-offset-2 sm:gap-2 ${
-                      esPersonaJuridica
-                        ? 'border-[var(--cat-text)] bg-[color-mix(in_srgb,var(--cat-accent)_12%,transparent)]'
-                        : 'border-neutral-200/60 hover:border-neutral-300/80'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="mc-onepay-company-kind"
-                      className="sr-only"
-                      checked={esPersonaJuridica}
-                      disabled={!subActive || busy}
-                      onChange={() => setCompanyType('organization')}
-                    />
-                    <span
-                      className={`text-[13px] font-semibold uppercase tracking-[0.08em] ${
-                        esPersonaJuridica ? 'text-[var(--cat-text)]' : 'text-[var(--cat-muted)]'
-                      }`}
-                    >
-                      Empresa
-                    </span>
-                  </label>
                   <label
                     className={`flex min-h-[52px] flex-1 cursor-pointer flex-col justify-center gap-1 border px-4 py-3 text-left transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--cat-text)] has-[:focus-visible]:ring-offset-2 sm:gap-2 ${
                       !esPersonaJuridica
@@ -666,6 +705,29 @@ export function PagosPasarelaPage() {
                       }`}
                     >
                       Persona natural
+                    </span>
+                  </label>
+                  <label
+                    className={`flex min-h-[52px] flex-1 cursor-pointer flex-col justify-center gap-1 border px-4 py-3 text-left transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--cat-text)] has-[:focus-visible]:ring-offset-2 sm:gap-2 ${
+                      esPersonaJuridica
+                        ? 'border-[var(--cat-text)] bg-[color-mix(in_srgb,var(--cat-accent)_12%,transparent)]'
+                        : 'border-neutral-200/60 hover:border-neutral-300/80'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="mc-onepay-company-kind"
+                      className="sr-only"
+                      checked={esPersonaJuridica}
+                      disabled={!subActive || busy}
+                      onChange={() => setCompanyType('organization')}
+                    />
+                    <span
+                      className={`text-[13px] font-semibold uppercase tracking-[0.08em] ${
+                        esPersonaJuridica ? 'text-[var(--cat-text)]' : 'text-[var(--cat-muted)]'
+                      }`}
+                    >
+                      Empresa
                     </span>
                   </label>
                 </div>
@@ -754,23 +816,16 @@ export function PagosPasarelaPage() {
                   <input className="mc-input w-full" value={website} onChange={(e) => setWebsite(e.target.value)} disabled={busy} />
                 </label>
                 <div className={`grid gap-3 ${esPersonaJuridica ? 'sm:grid-cols-2' : ''}`}>
-                  <label className="block space-y-1">
+                  <div className="block space-y-1">
                     <span className="text-[12px] font-medium text-[var(--cat-muted)]">
                       CIIU — actividad económica (4 dígitos)
                     </span>
-                    <input
-                      className="mc-input w-full"
+                    <OnepayKybCiiuPicker
                       value={economicActivity}
-                      onChange={(e) => setEconomicActivity(e.target.value)}
+                      onChange={setEconomicActivity}
                       disabled={busy}
-                      placeholder="Ej. 4791"
-                      inputMode="numeric"
-                      maxLength={4}
                     />
-                    <span className="block text-[11px] leading-relaxed text-[var(--cat-muted)]">
-                      OnePay exige código CIIU en todos los tipos de constitución.
-                    </span>
-                  </label>
+                  </div>
                   {esPersonaJuridica ? (
                     <label className="block space-y-1">
                       <span className="text-[12px] font-medium text-[var(--cat-muted)]">Industria (opcional)</span>
@@ -786,11 +841,11 @@ export function PagosPasarelaPage() {
                   ) : null}
                 </div>
                 <label className="block space-y-1">
-                  <span className="text-[12px] font-medium text-[var(--cat-muted)]">Ventas anuales (millones COP)</span>
+                  <span className="text-[12px] font-medium text-[var(--cat-muted)]">Ventas anuales aproximadas</span>
                   <select className="mc-input w-full" value={sales} onChange={(e) => setSales(Number(e.target.value))} disabled={busy}>
                     {ONEPAY_KYB_SALES_OPTIONS.map((n) => (
                       <option key={n} value={n}>
-                        {n} M
+                        {onePayKybSalesLabel(n)}
                       </option>
                     ))}
                   </select>
@@ -825,11 +880,18 @@ export function PagosPasarelaPage() {
                   <span className="text-[12px] font-medium text-[var(--cat-muted)]">Código postal</span>
                   <input className="mc-input w-full" value={zipcode} onChange={(e) => setZipcode(e.target.value)} disabled={busy} />
                 </label>
-                <fieldset className="space-y-2 border border-neutral-200/50 p-3">
-                  <legend className="px-1 text-[12px] font-medium text-[var(--cat-text)]">Responsabilidades DIAN</legend>
-                  <div className="space-y-2">
-                    {ONEPAY_KYB_FISCAL_PRESETS.map(({ code, label }) => (
-                      <label key={code} className="flex cursor-pointer items-start gap-2 text-[14px]">
+                <fieldset className="space-y-3 border border-neutral-200/50 p-3">
+                  <legend className="px-1 text-[12px] font-medium text-[var(--cat-text)]">Responsabilidad fiscal (según tu RUT)</legend>
+                  <div className="space-y-2.5">
+                    {ONEPAY_KYB_FISCAL_PRESETS.map(({ code, label, hint }) => (
+                      <label
+                        key={code}
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition ${
+                          fiscalSelected.includes(code)
+                            ? 'border-[var(--cat-text)] bg-[color-mix(in_srgb,var(--cat-accent)_10%,transparent)]'
+                            : 'border-neutral-200/70 hover:border-neutral-300/80'
+                        }`}
+                      >
                         <input
                           type="checkbox"
                           checked={fiscalSelected.includes(code)}
@@ -837,7 +899,10 @@ export function PagosPasarelaPage() {
                           disabled={busy}
                           className="mt-1"
                         />
-                        <span>{label}</span>
+                        <span className="min-w-0">
+                          <span className="block text-[14px] font-medium text-[var(--cat-text)]">{label}</span>
+                          <span className="mt-0.5 block text-[11px] leading-snug text-[var(--cat-muted)]">{hint}</span>
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -862,33 +927,6 @@ export function PagosPasarelaPage() {
 
             {step === 2 && (
               <>
-                <p className="text-[13px] leading-relaxed text-[var(--cat-muted)]">
-                  OnePay necesita los documentos en PDF. Subilos acá y nosotros los guardamos de forma segura para enviarlos
-                  en tu solicitud (
-                  <a
-                    className="text-[var(--cat-accent)] underline"
-                    href="https://docs.onepay.la/client/companies/create"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    requisitos OnePay
-                  </a>
-                  ).
-                  {firebaseStorageConfigured ? (
-                    <>
-                      {' '}
-                      Cada archivo queda en{' '}
-                      <code className="rounded bg-neutral-500/15 px-1 py-0.5 text-[11px]">mc_tenants/&lt;tienda&gt;/onepay_kyb/</code>{' '}
-                      y se marca en verde cuando está listo.
-                    </>
-                  ) : (
-                    <>
-                      {' '}
-                      Para subir desde acá, el proyecto debe tener{' '}
-                      <strong className="font-medium text-[var(--cat-text)]">Firebase Storage</strong> configurado.
-                    </>
-                  )}
-                </p>
                 <KybPdfUploadField
                   label="RUT (PDF)"
                   field="rut"
@@ -917,16 +955,7 @@ export function PagosPasarelaPage() {
                       Cuenta para dispersiones (OnePay)
                     </legend>
                     <p className="text-[13px] leading-relaxed text-[var(--cat-muted)]">
-                      Para persona natural, OnePay exige los datos de la cuenta donde recibirías pagos (
-                      <a
-                        href="https://docs.onepay.la/client/companies/create"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[var(--cat-accent)] underline"
-                      >
-                        crear empresa · account
-                      </a>
-                      ).
+                      Para persona natural, OnePay exige los datos de la cuenta donde recibirías pagos.
                     </p>
                     <label className="block space-y-1">
                       <span className="text-[12px] font-medium text-[var(--cat-muted)]">Banco</span>
@@ -1007,10 +1036,7 @@ export function PagosPasarelaPage() {
                         disabled={busy}
                         className="mt-0.5"
                       />
-                      <span>
-                        Acepto los términos de OnePay para dispersiones a esta cuenta (campo{' '}
-                        <code className="rounded bg-neutral-500/15 px-1 py-0.5 text-[11px]">account.terms</code>).
-                      </span>
+                      <span>Acepto los términos de OnePay para dispersiones a esta cuenta</span>
                     </label>
                   </fieldset>
                 ) : null}
@@ -1038,7 +1064,7 @@ export function PagosPasarelaPage() {
                     />
                   </>
                 ) : null}
-                {fiscalSelected.includes('O_47') && (
+                {resolveOnepayFiscalResponsibilities(fiscalSelected).includes('O_47') && (
                   <KybPdfUploadField
                     label="Certificado régimen simple (PDF)"
                     field="simple"
@@ -1115,8 +1141,8 @@ export function PagosPasarelaPage() {
             {((companyType === 'organization' && step === 4) || (companyType === 'individual' && step === 3)) && (
               <>
                 <p className="text-[14px] leading-relaxed text-[var(--cat-muted)]">
-                  Revisión en OnePay: tu empresa quedará en estado <strong className="text-[var(--cat-text)]">pendiente</strong> hasta
-                  aprobación. La pasarela en el catálogo se activa cuando el súper admin cargue tu clave API tras el OK.
+                  Revisión en OnePay: tu empresa quedará en estado pendiente hasta aprobación. La pasarela en el catálogo se activa
+                  cuando tu cuenta OnePay quede activa; mientras podés usar la pasarela sin crear cuenta.
                 </p>
                 <label className="block space-y-1.5">
                   <span className="text-[12px] font-medium text-[var(--cat-muted)]">
@@ -1149,29 +1175,9 @@ export function PagosPasarelaPage() {
                   <span>
                     Acepto los términos del servicio de pagos: comisión del <strong className="font-medium">3,49%</strong> más{' '}
                     <strong className="font-medium">$800 COP</strong> por transacción, más IVA sobre la comisión, y autorizo el envío de
-                    mis datos a OnePay según su{' '}
-                    <a
-                      href="https://docs.onepay.la/client/companies/create"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium text-[var(--cat-text)] underline underline-offset-2"
-                    >
-                      proceso de alta de empresa
-                    </a>
-                    .
+                    mis datos a OnePay.
                   </span>
                 </label>
-                <p className="text-[11px] leading-relaxed text-[var(--cat-muted)]">
-                  Referencia API:{' '}
-                  <a
-                    href="https://docs.onepay.la/client/companies/create"
-                    className="underline underline-offset-2"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    docs.onepay.la · Crear empresa
-                  </a>
-                </p>
               </>
             )}
           </div>
@@ -1210,6 +1216,8 @@ export function PagosPasarelaPage() {
           </div>
         </>
       )}
+
+      <OnepayKybAlertDialog open={err !== null} message={err} onClose={() => setErr(null)} />
     </div>
   )
 }

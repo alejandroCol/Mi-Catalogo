@@ -1,4 +1,5 @@
-import { Suspense, lazy } from 'react'
+import { Suspense } from 'react'
+import { lazyWithRetry as lazy } from '@/lib/lazyWithRetry'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { McAuthProvider } from '@/auth/McAuthContext'
 import { McPostLoginRedirect } from '@/app/McPostLoginRedirect'
@@ -10,6 +11,7 @@ import { parseStoreSlugFromHostname, resolveAppSurface } from '@/lib/storePublic
 import { LandingPage } from '@/landing/LandingPage'
 import { LegacyCatalogGateway } from '@/public/LegacyCatalogGateway'
 import { PublicStoreProvider } from '@/public/PublicStoreContext'
+import { McPageLoadingFallback } from '@/components/McPageLoadingFallback'
 
 const LoginPage = lazy(() =>
   import('@/auth/LoginPage').then((m) => ({ default: m.LoginPage })),
@@ -53,6 +55,9 @@ const CuentaCuponesPage = lazy(() =>
 const CuentaEstiloPage = lazy(() =>
   import('@/app/CuentaEstiloPage').then((m) => ({ default: m.CuentaEstiloPage })),
 )
+const CuentaFuentesPage = lazy(() =>
+  import('@/app/CuentaFuentesPage').then((m) => ({ default: m.CuentaFuentesPage })),
+)
 const CuentaLogoPage = lazy(() =>
   import('@/app/CuentaLogoPage').then((m) => ({ default: m.CuentaLogoPage })),
 )
@@ -70,6 +75,9 @@ const CuentaPerfilPage = lazy(() =>
 )
 const CuentaTiendaPage = lazy(() =>
   import('@/app/CuentaTiendaPage').then((m) => ({ default: m.CuentaTiendaPage })),
+)
+const CuentaIdentidadTiendaPage = lazy(() =>
+  import('@/app/CuentaIdentidadTiendaPage').then((m) => ({ default: m.CuentaIdentidadTiendaPage })),
 )
 const CuentaWhatsAppPage = lazy(() =>
   import('@/app/CuentaWhatsAppPage').then((m) => ({ default: m.CuentaWhatsAppPage })),
@@ -105,6 +113,9 @@ const OnepayRetiroFondosPage = lazy(() =>
 )
 const PlanUpgradePage = lazy(() =>
   import('@/app/PlanUpgradePage').then((m) => ({ default: m.PlanUpgradePage })),
+)
+const AdminCatalogPreviewLayout = lazy(() =>
+  import('@/app/AdminCatalogPreviewLayout').then((m) => ({ default: m.AdminCatalogPreviewLayout })),
 )
 const EstadisticasPage = lazy(() =>
   import('@/app/EstadisticasPage').then((m) => ({ default: m.EstadisticasPage })),
@@ -154,6 +165,11 @@ const SuperAdminTenantOnepayPage = lazy(() =>
     default: m.SuperAdminTenantOnepayPage,
   })),
 )
+const SuperAdminTenantDetailPage = lazy(() =>
+  import('@/superadmin/SuperAdminTenantDetailPage').then((m) => ({
+    default: m.SuperAdminTenantDetailPage,
+  })),
+)
 const SuperAdminVendedoresPage = lazy(() =>
   import('@/superadmin/SuperAdminVendedoresPage').then((m) => ({
     default: m.SuperAdminVendedoresPage,
@@ -171,8 +187,33 @@ const VendedorPitchPage = lazy(() =>
 const VendedorCapacitacionPage = lazy(() =>
   import('@/vendedor/VendedorCapacitacionPage').then((m) => ({ default: m.VendedorCapacitacionPage })),
 )
-const VendedorDemoAdminPage = lazy(() =>
-  import('@/vendedor/VendedorDemoAdminPage').then((m) => ({ default: m.VendedorDemoAdminPage })),
+const VendedorDemoAdminLayout = lazy(() =>
+  import('@/vendedor/demo-admin/DemoAdminLayout').then((m) => ({ default: m.DemoAdminLayout })),
+)
+const DemoAdminDashboardPage = lazy(() =>
+  import('@/vendedor/demo-admin/pages/DemoAdminDashboardPage').then((m) => ({
+    default: m.DemoAdminDashboardPage,
+  })),
+)
+const DemoAdminInventarioPage = lazy(() =>
+  import('@/vendedor/demo-admin/pages/DemoAdminInventarioPage').then((m) => ({
+    default: m.DemoAdminInventarioPage,
+  })),
+)
+const DemoAdminPedidosPage = lazy(() =>
+  import('@/vendedor/demo-admin/pages/DemoAdminPedidosPage').then((m) => ({
+    default: m.DemoAdminPedidosPage,
+  })),
+)
+const DemoAdminCuentaPage = lazy(() =>
+  import('@/vendedor/demo-admin/pages/DemoAdminCuentaPage').then((m) => ({
+    default: m.DemoAdminCuentaPage,
+  })),
+)
+const DemoAdminEstadisticasPage = lazy(() =>
+  import('@/vendedor/demo-admin/pages/DemoAdminEstadisticasPage').then((m) => ({
+    default: m.DemoAdminEstadisticasPage,
+  })),
 )
 const PublicCatalogLayout = lazy(() =>
   import('@/public/PublicCatalogLayout').then((m) => ({
@@ -214,12 +255,9 @@ const PublicPoliciesPage = lazy(() =>
     default: m.PublicPoliciesPage,
   })),
 )
+
 function RouteFallback() {
-  return (
-    <div className="flex min-h-[40vh] items-center justify-center text-sm text-neutral-500">
-      Cargando…
-    </div>
-  )
+  return <McPageLoadingFallback />
 }
 
 const publicCatalogRouteElements = (
@@ -253,7 +291,22 @@ function PlatformRoutes() {
         <Route index element={<VendedorDashboardPage />} />
         <Route path="pitch" element={<VendedorPitchPage />} />
         <Route path="capacitacion" element={<VendedorCapacitacionPage />} />
-        <Route path="demo-admin/:demoId" element={<VendedorDemoAdminPage />} />
+      </Route>
+      <Route
+        path="/vendedor/demo-admin/:demoId"
+        element={
+          <RequireMcAuth>
+            <RequireMcSalesRep>
+              <VendedorDemoAdminLayout />
+            </RequireMcSalesRep>
+          </RequireMcAuth>
+        }
+      >
+        <Route index element={<DemoAdminDashboardPage />} />
+        <Route path="inventario" element={<DemoAdminInventarioPage />} />
+        <Route path="pedidos" element={<DemoAdminPedidosPage />} />
+        <Route path="cuenta" element={<DemoAdminCuentaPage />} />
+        <Route path="estadisticas" element={<DemoAdminEstadisticasPage />} />
       </Route>
       <Route
         path="/app"
@@ -274,6 +327,7 @@ function PlatformRoutes() {
         <Route path="cuenta" element={<CuentaPage />} />
         <Route path="cuenta/perfil" element={<CuentaPerfilPage />} />
         <Route path="cuenta/tienda" element={<CuentaTiendaPage />} />
+        <Route path="cuenta/identidad-tienda" element={<CuentaIdentidadTiendaPage />} />
         <Route path="cuenta/whatsapp" element={<CuentaWhatsAppPage />} />
         <Route path="cuenta/checkout-ventas" element={<CuentaCheckoutVentasPage />} />
         <Route path="cuenta/checkout-ventas/seleccion" element={<CuentaCheckoutVentasSeleccionPage />} />
@@ -285,6 +339,7 @@ function PlatformRoutes() {
         <Route path="cuenta/cupones" element={<CuentaCuponesPage />} />
         <Route path="personalizar" element={<PersonalizarMiTiendaPage />} />
         <Route path="cuenta/estilo" element={<CuentaEstiloPage />} />
+        <Route path="cuenta/fuentes" element={<CuentaFuentesPage />} />
         <Route path="cuenta/logo" element={<CuentaLogoPage />} />
         <Route path="cuenta/banner-temporada" element={<CuentaBannerTemporadaPage />} />
         <Route path="cuenta/carritos-abandonados" element={<CarritosAbandonadosPage />} />
@@ -293,6 +348,12 @@ function PlatformRoutes() {
         <Route path="pagos-pasarela/onepay" element={<OnepayPasarelaResumenPage />} />
         <Route path="mi-saldo" element={<VentasSaldoPage />} />
         <Route path="mi-saldo/retirar" element={<OnepayRetiroFondosPage />} />
+        <Route path="vista-previa" element={<AdminCatalogPreviewLayout />}>
+          <Route index element={<PublicCatalogListPage />} />
+          <Route path="p/:productId" element={<PublicProductDetailPage />} />
+          <Route path="checkout" element={<PublicCheckoutPage />} />
+          <Route path="politicas" element={<PublicPoliciesPage />} />
+        </Route>
       </Route>
       <Route
         path="/superadmin"
@@ -363,6 +424,14 @@ function PlatformRoutes() {
         element={
           <RequireMcAuth>
             <SuperAdminTenantOnepayPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/tienda/:tenantId"
+        element={
+          <RequireMcAuth>
+            <SuperAdminTenantDetailPage />
           </RequireMcAuth>
         }
       />

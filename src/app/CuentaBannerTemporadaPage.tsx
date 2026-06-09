@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { deleteField, doc, updateDoc } from 'firebase/firestore'
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import { deleteObject, ref } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
-import { ExpertStar } from '@/components/billing/ExpertStar'
-import { ExpertUpgradeSheet } from '@/components/billing/ExpertUpgradeSheet'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { ProductoFormSection } from '@/components/producto/ProductoFormSection'
-import { SeasonBannerImagePicker } from '@/components/seasonBanner/SeasonBannerImagePicker'
-import { hasExpertFeatureAccess } from '@/lib/billingAccess'
+import { SeasonBannerMediaPicker } from '@/components/seasonBanner/SeasonBannerMediaPicker'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
 import { firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
@@ -18,29 +14,44 @@ import {
   SEASON_BANNER_DEFAULTS,
   SEASON_BANNER_LIMITS,
   buildSeasonBannerForSave,
+  resolveSeasonBannerMediaType,
   sanitizeSeasonBannerFields,
-  seasonBannerStoragePath,
+  seasonBannerImageStoragePath,
+  seasonBannerPosterStoragePath,
+  seasonBannerVideoStoragePath,
 } from '@/lib/seasonBanner'
+import { prepareSeasonBannerVideo } from '@/lib/seasonBannerVideo'
+import { uploadSeasonBannerFile } from '@/lib/uploadSeasonBannerFile'
 import { SeasonBannerHero } from '@/public/SeasonBannerHero'
-import type { McSeasonBanner, McTenant } from '@/types/mc'
+import type { McSeasonBanner, McSeasonBannerMediaType, McTenant } from '@/types/mc'
 
 function previewTenant(
   base: McTenant,
   draft: {
     enabled: boolean
+    mediaType: McSeasonBannerMediaType
     eyebrow: string
     headline: string
     subheadline: string
     ctaLabel: string
     imageUrl: string | null
+    videoUrl: string | null
+    posterUrl: string | null
   },
 ): McTenant {
   const fields = sanitizeSeasonBannerFields(draft)
   const banner: McSeasonBanner = {
     enabled: draft.enabled,
+    mediaType: draft.mediaType,
     ...fields,
     updatedAt: Date.now(),
-    ...(draft.imageUrl ? { imageUrl: draft.imageUrl } : {}),
+    ...(draft.mediaType === 'image' && draft.imageUrl ? { imageUrl: draft.imageUrl } : {}),
+    ...(draft.mediaType === 'video' && draft.videoUrl
+      ? {
+          videoUrl: draft.videoUrl,
+          ...(draft.posterUrl ? { posterUrl: draft.posterUrl } : {}),
+        }
+      : {}),
   }
   return { ...base, seasonBanner: banner }
 }
@@ -52,24 +63,43 @@ const TEXT_FIELDS = [
   ['Texto del botón', 'ctaLabel', SEASON_BANNER_LIMITS.ctaLabel, SEASON_BANNER_DEFAULTS.ctaLabel],
 ] as const
 
+async function deleteStorageIfExists(path: string): Promise<void> {
+  if (!firebaseStorageConfigured) return
+  try {
+    await deleteObject(ref(getStorageApp(), path))
+  } catch {
+    /* archivo ya ausente */
+  }
+}
+
 export function CuentaBannerTemporadaPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
   const { returnTo, returnLabel, navState } = useConfigSubpageNav()
-  const expertAccess = hasExpertFeatureAccess(tenant)
   const [busy, setBusy] = useState(false)
-  const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadingMedia, setUploadingMedia] = useState(false)
+  const [processingVideo, setProcessingVideo] = useState(false)
+  const [processingLabel, setProcessingLabel] = useState('')
+  const [processingPercent, setProcessingPercent] = useState(0)
   const [msg, setMsg] = useState<string | null>(null)
-  const [expertSheetOpen, setExpertSheetOpen] = useState(false)
+  const [videoError, setVideoError] = useState<string | null>(null)
   const { showSaveSuccess } = useSaveSuccess()
   const [enabled, setEnabled] = useState(false)
+  const [mediaType, setMediaType] = useState<McSeasonBannerMediaType>('image')
   const [eyebrow, setEyebrow] = useState<string>(SEASON_BANNER_DEFAULTS.eyebrow)
   const [headline, setHeadline] = useState<string>(SEASON_BANNER_DEFAULTS.headline)
   const [subheadline, setSubheadline] = useState<string>(SEASON_BANNER_DEFAULTS.subheadline)
   const [ctaLabel, setCtaLabel] = useState<string>(SEASON_BANNER_DEFAULTS.ctaLabel)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [posterUrl, setPosterUrl] = useState<string | null>(null)
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
+  const [pendingPosterFile, setPendingPosterFile] = useState<File | null>(null)
   const [localImagePreviewUrl, setLocalImagePreviewUrl] = useState<string | null>(null)
+  const [localVideoPreviewUrl, setLocalVideoPreviewUrl] = useState<string | null>(null)
+  const [localPosterPreviewUrl, setLocalPosterPreviewUrl] = useState<string | null>(null)
   const [removeImagePending, setRemoveImagePending] = useState(false)
+  const [removeVideoPending, setRemoveVideoPending] = useState(false)
   const [previewKey, setPreviewKey] = useState(0)
 
   const fieldSetters = {
@@ -85,14 +115,29 @@ export function CuentaBannerTemporadaPage() {
     if (!tenant) return
     const b = tenant.seasonBanner
     setEnabled(b?.enabled === true)
+    setMediaType(resolveSeasonBannerMediaType(b))
     setEyebrow(b?.eyebrow ?? SEASON_BANNER_DEFAULTS.eyebrow)
     setHeadline(b?.headline ?? SEASON_BANNER_DEFAULTS.headline)
     setSubheadline(b?.subheadline ?? SEASON_BANNER_DEFAULTS.subheadline)
     setCtaLabel(b?.ctaLabel ?? SEASON_BANNER_DEFAULTS.ctaLabel)
     setImageUrl(b?.imageUrl ?? null)
+    setVideoUrl(b?.videoUrl ?? null)
+    setPosterUrl(b?.posterUrl ?? null)
     setPendingImageFile(null)
+    setPendingVideoFile(null)
+    setPendingPosterFile(null)
     setRemoveImagePending(false)
+    setRemoveVideoPending(false)
+    setVideoError(null)
     setLocalImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    setLocalVideoPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    setLocalPosterPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev)
       return null
     })
@@ -101,22 +146,40 @@ export function CuentaBannerTemporadaPage() {
   useEffect(() => {
     return () => {
       if (localImagePreviewUrl) URL.revokeObjectURL(localImagePreviewUrl)
+      if (localVideoPreviewUrl) URL.revokeObjectURL(localVideoPreviewUrl)
+      if (localPosterPreviewUrl) URL.revokeObjectURL(localPosterPreviewUrl)
     }
-  }, [localImagePreviewUrl])
+  }, [localImagePreviewUrl, localVideoPreviewUrl, localPosterPreviewUrl])
 
   const displayImageUrl = removeImagePending ? null : (localImagePreviewUrl ?? imageUrl)
+  const displayVideoUrl = removeVideoPending ? null : (localVideoPreviewUrl ?? videoUrl)
+  const displayPosterUrl = removeVideoPending ? null : (localPosterPreviewUrl ?? posterUrl)
 
   const previewTenantData = useMemo(() => {
     if (!tenant) return null
     return previewTenant(tenant, {
       enabled,
+      mediaType,
       eyebrow,
       headline,
       subheadline,
       ctaLabel,
       imageUrl: displayImageUrl,
+      videoUrl: displayVideoUrl,
+      posterUrl: displayPosterUrl,
     })
-  }, [tenant, enabled, eyebrow, headline, subheadline, ctaLabel, displayImageUrl])
+  }, [
+    tenant,
+    enabled,
+    mediaType,
+    eyebrow,
+    headline,
+    subheadline,
+    ctaLabel,
+    displayImageUrl,
+    displayVideoUrl,
+    displayPosterUrl,
+  ])
 
   function onPickImage(file: File) {
     if (localImagePreviewUrl) URL.revokeObjectURL(localImagePreviewUrl)
@@ -125,6 +188,41 @@ export function CuentaBannerTemporadaPage() {
     setRemoveImagePending(false)
     setPreviewKey((k) => k + 1)
     setMsg('Imagen lista. Guardá para publicar en el catálogo.')
+    setVideoError(null)
+  }
+
+  async function onPickVideo(file: File) {
+    setVideoError(null)
+    setProcessingVideo(true)
+    setProcessingLabel('Analizando video…')
+    setProcessingPercent(5)
+    try {
+      const prepared = await prepareSeasonBannerVideo(file, (progress) => {
+        setProcessingLabel(progress.label)
+        setProcessingPercent(progress.percent)
+      })
+
+      if (localVideoPreviewUrl) URL.revokeObjectURL(localVideoPreviewUrl)
+      if (localPosterPreviewUrl) URL.revokeObjectURL(localPosterPreviewUrl)
+
+      setLocalVideoPreviewUrl(URL.createObjectURL(prepared.video))
+      setLocalPosterPreviewUrl(URL.createObjectURL(prepared.poster))
+      setPendingVideoFile(prepared.video)
+      setPendingPosterFile(prepared.poster)
+      setRemoveVideoPending(false)
+      setPreviewKey((k) => k + 1)
+      setMsg(
+        prepared.optimized
+          ? 'Video optimizado y listo. Guardá para publicar en el catálogo.'
+          : 'Video listo. Guardá para publicar en el catálogo.',
+      )
+    } catch (err) {
+      setVideoError(err instanceof Error ? err.message : 'No se pudo procesar el video.')
+    } finally {
+      setProcessingVideo(false)
+      setProcessingLabel('')
+      setProcessingPercent(0)
+    }
   }
 
   function quitarImagen() {
@@ -138,29 +236,44 @@ export function CuentaBannerTemporadaPage() {
     setMsg('Imagen quitada. Guardá para aplicar en el catálogo.')
   }
 
+  function quitarVideo() {
+    if (localVideoPreviewUrl) {
+      URL.revokeObjectURL(localVideoPreviewUrl)
+      setLocalVideoPreviewUrl(null)
+    }
+    if (localPosterPreviewUrl) {
+      URL.revokeObjectURL(localPosterPreviewUrl)
+      setLocalPosterPreviewUrl(null)
+    }
+    setPendingVideoFile(null)
+    setPendingPosterFile(null)
+    setRemoveVideoPending(true)
+    setPreviewKey((k) => k + 1)
+    setVideoError(null)
+    setMsg('Video quitado. Guardá para aplicar en el catálogo.')
+  }
+
   async function guardar() {
     if (!effectiveTenantId || !tenant) return
-    if (!expertAccess) {
-      setExpertSheetOpen(true)
-      return
-    }
-
     setBusy(true)
     setMsg(null)
     try {
-      let resolvedImageUrl = removeImagePending ? null : imageUrl
+      let resolvedImageUrl: string | null | undefined = removeImagePending ? null : imageUrl
+      let resolvedVideoUrl: string | null | undefined = removeVideoPending ? null : videoUrl
+      let resolvedPosterUrl: string | null | undefined = removeVideoPending ? null : posterUrl
 
-      if (pendingImageFile) {
+      if (mediaType === 'image' && pendingImageFile) {
         if (!firebaseStorageConfigured) {
           setMsg('Firebase Storage no está configurado.')
           return
         }
-        setUploadingImage(true)
+        setUploadingMedia(true)
         const optimized = await compressImageForUpload(pendingImageFile, { maxEdgePx: 1600, jpegQuality: 0.86 })
-        const storage = getStorageApp()
-        const pathRef = ref(storage, seasonBannerStoragePath(effectiveTenantId))
-        await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
-        resolvedImageUrl = await getDownloadURL(pathRef)
+        resolvedImageUrl = await uploadSeasonBannerFile(
+          seasonBannerImageStoragePath(effectiveTenantId),
+          optimized,
+          'image/jpeg',
+        )
         if (localImagePreviewUrl) {
           URL.revokeObjectURL(localImagePreviewUrl)
           setLocalImagePreviewUrl(null)
@@ -168,21 +281,76 @@ export function CuentaBannerTemporadaPage() {
         setPendingImageFile(null)
         setImageUrl(resolvedImageUrl)
         setRemoveImagePending(false)
-      } else if (removeImagePending) {
-        if (firebaseStorageConfigured) {
-          try {
-            await deleteObject(ref(getStorageApp(), seasonBannerStoragePath(effectiveTenantId)))
-          } catch {
-            /* archivo ya ausente */
-          }
-        }
+      } else if (mediaType === 'image' && removeImagePending) {
+        await deleteStorageIfExists(seasonBannerImageStoragePath(effectiveTenantId))
         setImageUrl(null)
         setRemoveImagePending(false)
       }
 
+      if (mediaType === 'video' && pendingVideoFile && pendingPosterFile) {
+        if (!firebaseStorageConfigured) {
+          setMsg('Firebase Storage no está configurado.')
+          return
+        }
+        setUploadingMedia(true)
+        resolvedVideoUrl = await uploadSeasonBannerFile(
+          seasonBannerVideoStoragePath(effectiveTenantId),
+          pendingVideoFile,
+          'video/mp4',
+          (pct) => setProcessingPercent(pct),
+        )
+        resolvedPosterUrl = await uploadSeasonBannerFile(
+          seasonBannerPosterStoragePath(effectiveTenantId),
+          pendingPosterFile,
+          'image/jpeg',
+        )
+        if (localVideoPreviewUrl) {
+          URL.revokeObjectURL(localVideoPreviewUrl)
+          setLocalVideoPreviewUrl(null)
+        }
+        if (localPosterPreviewUrl) {
+          URL.revokeObjectURL(localPosterPreviewUrl)
+          setLocalPosterPreviewUrl(null)
+        }
+        setPendingVideoFile(null)
+        setPendingPosterFile(null)
+        setVideoUrl(resolvedVideoUrl)
+        setPosterUrl(resolvedPosterUrl)
+        setRemoveVideoPending(false)
+      } else if (mediaType === 'video' && removeVideoPending) {
+        await deleteStorageIfExists(seasonBannerVideoStoragePath(effectiveTenantId))
+        await deleteStorageIfExists(seasonBannerPosterStoragePath(effectiveTenantId))
+        setVideoUrl(null)
+        setPosterUrl(null)
+        setRemoveVideoPending(false)
+      }
+
       const fields = sanitizeSeasonBannerFields({ eyebrow, headline, subheadline, ctaLabel })
-      const banner = buildSeasonBannerForSave(enabled, fields, resolvedImageUrl, tenant.seasonBanner)
-      const hasPayload = enabled || banner.imageUrl || Object.keys(fields).length > 0
+      const banner = buildSeasonBannerForSave(
+        enabled,
+        fields,
+        {
+          mediaType,
+          imageUrl: mediaType === 'image' ? resolvedImageUrl : null,
+          videoUrl: mediaType === 'video' ? resolvedVideoUrl : null,
+          posterUrl: mediaType === 'video' ? resolvedPosterUrl : null,
+        },
+        tenant.seasonBanner,
+      )
+
+      if (mediaType === 'video') {
+        await deleteStorageIfExists(seasonBannerImageStoragePath(effectiveTenantId))
+      } else {
+        await deleteStorageIfExists(seasonBannerVideoStoragePath(effectiveTenantId))
+        await deleteStorageIfExists(seasonBannerPosterStoragePath(effectiveTenantId))
+      }
+
+      const hasMedia =
+        mediaType === 'video'
+          ? Boolean(banner.videoUrl)
+          : Boolean(banner.imageUrl)
+      const hasPayload = enabled || hasMedia || Object.keys(fields).length > 0
+
       await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), {
         seasonBanner: hasPayload ? banner : deleteField(),
       })
@@ -197,22 +365,20 @@ export function CuentaBannerTemporadaPage() {
       setMsg('No se pudo guardar.')
     } finally {
       setBusy(false)
-      setUploadingImage(false)
+      setUploadingMedia(false)
+      setProcessingPercent(0)
     }
   }
 
-  const formDisabled = busy || uploadingImage
+  const formDisabled = busy || uploadingMedia || processingVideo
 
   return (
     <div className="mc-shell mc-config-subpage">
       <div>
         <ConfiguracionesBackLink to={returnTo} label={returnLabel} state={navState} />
-        <h1 className="ios-large-title mt-3 inline-flex items-center gap-2">
-          <ExpertStar />
-          Banner de temporada
-        </h1>
+        <h1 className="ios-large-title mt-3">Banner de temporada</h1>
         <p className="ios-subhead mt-2 max-w-2xl leading-relaxed text-[var(--cat-muted)]">
-          Pantalla completa al entrar al catálogo.
+          Pantalla completa al entrar al catálogo. Elegí una foto o un video corto en loop.
         </p>
       </div>
 
@@ -221,16 +387,6 @@ export function CuentaBannerTemporadaPage() {
       ) : (
         <>
           <div className="mc-card space-y-5">
-            {!expertAccess && (
-              <p className="ios-footnote border border-neutral-200/60 bg-neutral-50/50 px-3 py-2">
-                <ExpertStar className="mr-1 inline" /> Función Expert —{' '}
-                <Link to="/app/plan" className="font-medium underline">
-                  activá tu plan
-                </Link>{' '}
-                para guardar.
-              </p>
-            )}
-
             <ProductoFormSection
               title="Visibilidad"
               description="Controlá si el banner aparece al abrir tu catálogo público."
@@ -246,7 +402,7 @@ export function CuentaBannerTemporadaPage() {
                 <span>
                   <span className="ios-subhead font-medium text-[var(--cat-text)]">Mostrar banner al entrar</span>
                   <span className="ios-footnote mt-1 block leading-relaxed text-[var(--cat-muted)]">
-                    Si está desactivado, no se muestra aunque tengas imagen guardada.
+                    Si está desactivado, no se muestra aunque tengas contenido guardado.
                   </span>
                 </span>
               </label>
@@ -254,7 +410,7 @@ export function CuentaBannerTemporadaPage() {
 
             <ProductoFormSection
               title="Textos del banner"
-              description="Personalizá los mensajes que aparecen sobre la imagen."
+              description="Personalizá los mensajes que aparecen sobre el fondo."
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 {TEXT_FIELDS.map(([label, key, max, placeholder]) => (
@@ -274,15 +430,29 @@ export function CuentaBannerTemporadaPage() {
             </ProductoFormSection>
 
             <ProductoFormSection
-              title="Imagen de campaña"
-              description="Foto de fondo a pantalla completa. Revisá las medidas recomendadas antes de subir."
+              title="Fondo del banner"
+              description="Foto estática o video corto. El video se optimiza automáticamente al subir."
             >
-              <SeasonBannerImagePicker
+              <SeasonBannerMediaPicker
+                mediaType={mediaType}
                 imageUrl={displayImageUrl}
+                videoUrl={displayVideoUrl}
+                posterUrl={displayPosterUrl}
                 disabled={busy}
-                uploading={uploadingImage}
-                onPick={onPickImage}
-                onRemove={() => quitarImagen()}
+                uploading={uploadingMedia}
+                processing={processingVideo}
+                processingLabel={processingLabel}
+                processingPercent={processingPercent}
+                error={videoError}
+                onMediaTypeChange={(type) => {
+                  setMediaType(type)
+                  setPreviewKey((k) => k + 1)
+                  setVideoError(null)
+                }}
+                onPickImage={onPickImage}
+                onPickVideo={(file) => void onPickVideo(file)}
+                onRemoveImage={quitarImagen}
+                onRemoveVideo={quitarVideo}
               />
             </ProductoFormSection>
 
@@ -307,12 +477,6 @@ export function CuentaBannerTemporadaPage() {
           )}
         </>
       )}
-
-      <ExpertUpgradeSheet
-        open={expertSheetOpen}
-        onClose={() => setExpertSheetOpen(false)}
-        title="Banner de temporada — Plan Expert"
-      />
     </div>
   )
 }

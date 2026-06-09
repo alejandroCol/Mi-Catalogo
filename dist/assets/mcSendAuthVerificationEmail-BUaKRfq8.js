@@ -1,1 +1,0 @@
-import{B as e,a as t,h as n}from"./firebase-wEqysTWa.js";async function r(){try{return await n(t(),`mcSendEmailVerification`)({}),{ok:!0}}catch(t){return t instanceof e?{ok:!1,code:t.code,message:t.message||t.code}:{ok:!1,code:`unknown`,message:t instanceof Error?t.message:`Error al solicitar el correo.`}}}export{r as t};

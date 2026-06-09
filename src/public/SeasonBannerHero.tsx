@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { isSeasonBannerActive, resolveSeasonBanner, scrollToCatalogProducts } from '@/lib/seasonBanner'
 import type { McTenant } from '@/types/mc'
@@ -14,6 +14,7 @@ export function SeasonBannerHero({ tenant, preview = false, className }: Props) 
   const content = resolveSeasonBanner(tenant)
   const active = preview || isSeasonBannerActive(tenant)
   const [entered, setEntered] = useState(preview)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     if (!active || !content) return
@@ -25,9 +26,35 @@ export function SeasonBannerHero({ tenant, preview = false, className }: Props) 
     return () => clearTimeout(t)
   }, [active, content, preview])
 
+  useEffect(() => {
+    if (!content || content.mediaType !== 'video' || !content.videoUrl) return
+    const video = videoRef.current
+    if (!video) return
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reducedMotion) return
+
+    if (preview) {
+      void video.play().catch(() => undefined)
+      return
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          void video.play().catch(() => undefined)
+        } else {
+          video.pause()
+        }
+      },
+      { threshold: 0.25 },
+    )
+    observer.observe(video)
+    return () => observer.disconnect()
+  }, [content, preview])
+
   if (!active || !content) return null
 
   const storeName = tenant.nombreTienda?.trim()
+  const isVideo = content.mediaType === 'video' && Boolean(content.videoUrl)
 
   return (
     <section
@@ -35,12 +62,25 @@ export function SeasonBannerHero({ tenant, preview = false, className }: Props) 
         'mc-season-hero',
         entered && 'mc-season-hero--in',
         preview && 'mc-season-hero--preview',
+        isVideo && 'mc-season-hero--video',
         className,
       )}
       aria-label={content.headline}
     >
       <div className="mc-season-hero__media" aria-hidden>
-        {content.imageUrl ? (
+        {isVideo ? (
+          <video
+            ref={videoRef}
+            src={content.videoUrl}
+            poster={content.posterUrl}
+            className="mc-season-hero__video"
+            autoPlay={preview}
+            muted
+            loop
+            playsInline
+            preload={preview ? 'auto' : 'metadata'}
+          />
+        ) : content.imageUrl ? (
           <img src={content.imageUrl} alt="" className="mc-season-hero__img" decoding="async" />
         ) : (
           <div className="mc-season-hero__img-placeholder" />

@@ -3,7 +3,15 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { useNavigate } from 'react-router-dom'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
-import type { McCheckoutVentasModo } from '@/lib/checkoutVentasModo'
+import {
+  DASHBOARD_RETURN_NAV,
+  PAGOS_PASARELA_RETURN_FROM_SELECCION,
+} from '@/app/configuraciones/configSubpageNav'
+import {
+  canSelectPasarelaOnepay,
+  onepayPasarelaGateUi,
+  type McCheckoutVentasModo,
+} from '@/lib/checkoutVentasModo'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 import { CheckoutVentasModoOptions } from '@/app/CheckoutVentasModoOptions'
 import type { ConfigSubpageNavState } from '@/app/configuraciones/configSubpageNav'
@@ -20,7 +28,7 @@ export const CONFIG_WHATSAPP_PATH = '/app/cuenta/whatsapp'
 export function CheckoutVentasRequiredModal({
   open,
   onClose,
-  context: _context,
+  context,
   tenant,
   tenantId,
   platformSettings,
@@ -30,7 +38,10 @@ export function CheckoutVentasRequiredModal({
   open: boolean
   onClose: () => void
   context: 'cuenta' | 'dashboard'
-  tenant: Pick<McTenant, 'onepayPaymentsEnabled' | 'checkoutVentasModo'> | null
+  tenant: Pick<
+    McTenant,
+    'onepayPaymentsEnabled' | 'checkoutVentasModo' | 'onepayKybStatus' | 'onepayKybSubmittedAt' | 'onepayCompanyId'
+  > | null
   tenantId?: string
   platformSettings: McPlatformSettings | null
   onModoSelected?: (modo: McCheckoutVentasModo) => void
@@ -50,11 +61,17 @@ export function CheckoutVentasRequiredModal({
 
   if (!open) return null
 
-  const pasarelaLista = tenant?.onepayPaymentsEnabled === true
+  const onepayPasarelaGate = onepayPasarelaGateUi(tenant)
   const pasarelaMicatalogoOk = platformSettings?.pasarelaMicatalogoActiva === true
 
   function navOpts() {
     return returnNav ? { state: returnNav } : undefined
+  }
+
+  function pagosPasarelaNavOpts() {
+    const state =
+      returnNav ?? (context === 'dashboard' ? DASHBOARD_RETURN_NAV : PAGOS_PASARELA_RETURN_FROM_SELECCION)
+    return { state }
   }
 
   function irACheckoutVentas() {
@@ -72,16 +89,17 @@ export function CheckoutVentasRequiredModal({
 
   async function handleSelect(modo: McCheckoutVentasModo) {
     if (busy) return
+
+    if (modo === 'pasarela' && !canSelectPasarelaOnepay(tenant)) {
+      onClose()
+      navigate('/app/pagos-pasarela', pagosPasarelaNavOpts())
+      return
+    }
+
     setBusy(true)
     try {
       await persistModo(modo)
       onModoSelected?.(modo)
-
-      if (modo === 'pasarela') {
-        onClose()
-        navigate('/app/pagos-pasarela', navOpts())
-        return
-      }
 
       if (modo === 'pasarela_micatalogo') {
         onClose()
@@ -93,7 +111,7 @@ export function CheckoutVentasRequiredModal({
       irAWhatsapp()
     } catch {
       onClose()
-      if (modo === 'pasarela') navigate('/app/pagos-pasarela', navOpts())
+      if (modo === 'pasarela') navigate('/app/pagos-pasarela', pagosPasarelaNavOpts())
       else if (modo === 'whatsapp') navigate(CONFIG_WHATSAPP_PATH, navOpts())
       else navigate(CONFIG_CHECKOUT_VENTAS_PATH, navOpts())
     } finally {
@@ -126,7 +144,7 @@ export function CheckoutVentasRequiredModal({
         <CheckoutVentasModoOptions
           value={null}
           disabled={busy}
-          pasarelaLista={pasarelaLista}
+          onepayPasarelaGate={onepayPasarelaGate}
           pasarelaMicatalogoOk={pasarelaMicatalogoOk}
           onSelect={(modo) => void handleSelect(modo)}
         />

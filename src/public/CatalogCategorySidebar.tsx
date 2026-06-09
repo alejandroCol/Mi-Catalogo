@@ -1,5 +1,9 @@
 import clsx from 'clsx'
 import { Link } from 'react-router-dom'
+import {
+  buildCategoriaTree,
+  type CategoriaTreeNode,
+} from '@/lib/catalogCategorias'
 import type { McCategoria } from '@/types/mc'
 
 type Props = {
@@ -7,8 +11,6 @@ type Props = {
   selectedId: string | null
   onSelect: (categoriaId: string | null) => void
   counts: { todos: number; byId: Record<string, number> }
-  /** Solo categorías activas en catálogo público. */
-  publicMode?: boolean
 }
 
 function IconGridSmall({ className }: { className?: string }) {
@@ -35,12 +37,14 @@ function CategoryPill({
   label,
   count,
   icon,
+  size = 'md',
   onClick,
 }: {
   active: boolean
   label: string
   count: number
   icon?: React.ReactNode
+  size?: 'md' | 'sm'
   onClick: () => void
 }) {
   return (
@@ -48,7 +52,8 @@ function CategoryPill({
       type="button"
       onClick={onClick}
       className={clsx(
-        'mc-cat-sidebar-pill group flex w-full items-center gap-2.5 rounded-full px-3.5 py-2.5 text-left text-[14px] font-medium transition duration-200',
+        'mc-cat-sidebar-pill group flex w-full items-center gap-2.5 rounded-full text-left font-medium transition duration-200',
+        size === 'sm' ? 'px-3 py-2 text-[13px]' : 'px-3.5 py-2.5 text-[14px]',
         active
           ? 'bg-[var(--cat-text)] text-[var(--cat-bg)] shadow-[0_2px_12px_rgba(0,0,0,0.12)]'
           : 'bg-[color-mix(in_srgb,var(--cat-surface)_92%,var(--cat-bg)_8%)] text-[var(--cat-text)] shadow-[0_1px_4px_rgba(0,0,0,0.04)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)]',
@@ -79,18 +84,57 @@ function CategoryPill({
   )
 }
 
-export function CatalogCategorySidebar({
-  categorias,
+function SidebarTreeNode({
+  node,
   selectedId,
-  onSelect,
   counts,
-  publicMode = true,
-}: Props) {
-  const visible = publicMode ? categorias.filter((c) => c.activa) : categorias
-  if (visible.length === 0) return null
+  onSelect,
+  depth = 0,
+}: {
+  node: CategoriaTreeNode
+  selectedId: string | null
+  counts: { todos: number; byId: Record<string, number> }
+  onSelect: (id: string | null) => void
+  depth?: number
+}) {
+  const hasChildren = node.children.length > 0
+  const rootCount = counts.byId[node.id] ?? 0
 
   return (
-    <aside className="mc-cat-sidebar hidden w-[220px] shrink-0 md:block xl:w-[240px]">
+    <li className={clsx(depth > 0 && 'mt-1.5')}>
+      <div style={depth > 0 ? { paddingLeft: `${depth * 14}px` } : undefined}>
+        <CategoryPill
+          active={selectedId === node.id}
+          label={node.nombre}
+          count={rootCount}
+          size={depth > 0 ? 'sm' : 'md'}
+          onClick={() => onSelect(node.id)}
+        />
+      </div>
+      {hasChildren ? (
+        <ul className="mt-1.5 space-y-1 border-l border-[color-mix(in_srgb,var(--cat-muted)_16%,transparent)] pl-2">
+          {node.children.map((sub) => (
+            <SidebarTreeNode
+              key={sub.id}
+              node={sub}
+              selectedId={selectedId}
+              counts={counts}
+              onSelect={onSelect}
+              depth={depth + 1}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  )
+}
+
+export function CatalogCategorySidebar({ categorias, selectedId, onSelect, counts }: Props) {
+  const tree = buildCategoriaTree(categorias)
+  if (tree.length === 0) return null
+
+  return (
+    <aside className="mc-cat-sidebar hidden w-[220px] shrink-0 md:block xl:w-[248px]">
       <nav aria-label="Categorías del catálogo" className="sticky top-[calc(3.75rem+1.5rem)] space-y-6">
         <div>
           <p className="mb-3 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
@@ -109,15 +153,14 @@ export function CatalogCategorySidebar({
             Categorías
           </p>
           <ul className="space-y-2">
-            {visible.map((cat) => (
-              <li key={cat.id}>
-                <CategoryPill
-                  active={selectedId === cat.id}
-                  label={cat.nombre}
-                  count={counts.byId[cat.id] ?? 0}
-                  onClick={() => onSelect(cat.id)}
-                />
-              </li>
+            {tree.map((node) => (
+              <SidebarTreeNode
+                key={node.id}
+                node={node}
+                selectedId={selectedId}
+                counts={counts}
+                onSelect={onSelect}
+              />
             ))}
           </ul>
         </div>
@@ -126,49 +169,17 @@ export function CatalogCategorySidebar({
   )
 }
 
-/** Barra horizontal en móvil con las mismas opciones. */
-export function CatalogCategoryMobileBar({
-  categorias,
-  selectedId,
-  onSelect,
-  counts,
-  publicMode = true,
-}: Props) {
-  const visible = publicMode ? categorias.filter((c) => c.activa) : categorias
-  if (visible.length === 0) return null
-
-  return (
-    <div className="mc-cat-mobile-bar -mx-1 mb-5 md:hidden">
-      <div className="flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <MobileChip
-          active={selectedId == null}
-          label="Todos"
-          count={counts.todos}
-          onClick={() => onSelect(null)}
-        />
-        {visible.map((cat) => (
-          <MobileChip
-            key={cat.id}
-            active={selectedId === cat.id}
-            label={cat.nombre}
-            count={counts.byId[cat.id] ?? 0}
-            onClick={() => onSelect(cat.id)}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function MobileChip({
   active,
   label,
   count,
+  sub,
   onClick,
 }: {
   active: boolean
   label: string
   count: number
+  sub?: boolean
   onClick: () => void
 }) {
   return (
@@ -176,7 +187,8 @@ function MobileChip({
       type="button"
       onClick={onClick}
       className={clsx(
-        'inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-medium transition',
+        'inline-flex shrink-0 items-center gap-2 rounded-full font-medium transition',
+        sub ? 'px-3 py-1.5 text-[12px]' : 'px-3.5 py-2 text-[13px]',
         active
           ? 'bg-[var(--cat-text)] text-[var(--cat-bg)] shadow-sm'
           : 'border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] bg-[var(--cat-surface)] text-[var(--cat-text)]',
@@ -197,6 +209,51 @@ function MobileChip({
   )
 }
 
+export function CatalogCategoryMobileBar({ categorias, selectedId, onSelect, counts }: Props) {
+  const tree = buildCategoriaTree(categorias)
+  if (tree.length === 0) return null
+
+  return (
+    <div className="mc-cat-mobile-bar -mx-1 mb-5 md:hidden">
+      <div className="flex flex-col gap-2.5">
+        <div className="flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <MobileChip
+            active={selectedId == null}
+            label="Todos"
+            count={counts.todos}
+            onClick={() => onSelect(null)}
+          />
+          {tree.map((node) => (
+            <MobileChip
+              key={node.id}
+              active={selectedId === node.id}
+              label={node.nombre}
+              count={counts.byId[node.id] ?? 0}
+              onClick={() => onSelect(node.id)}
+            />
+          ))}
+        </div>
+        {tree.some((n) => n.children.length > 0) ? (
+          <div className="flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {tree.flatMap((node) =>
+              node.children.map((sub) => (
+                <MobileChip
+                  key={sub.id}
+                  active={selectedId === sub.id}
+                  label={sub.nombre}
+                  count={counts.byId[sub.id] ?? 0}
+                  sub
+                  onClick={() => onSelect(sub.id)}
+                />
+              )),
+            )}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 export function CatalogCategoryHeader({
   title,
   subtitle,
@@ -214,7 +271,6 @@ export function CatalogCategoryHeader({
   )
 }
 
-/** Enlace compacto al admin de categorías (solo inventario). */
 export function InventarioCategoriasLink({ className }: { className?: string }) {
   return (
     <Link

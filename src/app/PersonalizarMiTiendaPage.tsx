@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { ExpertStar } from '@/components/billing/ExpertStar'
 import { PERSONALIZAR_SUBPAGE_NAV } from '@/app/configuraciones/configSubpageNav'
 import { IconChevronRight, IconLogo, IconSwatches } from '@/icons/McIcons'
 
@@ -17,7 +16,7 @@ const TILES: PersonalizarTile[] = [
   {
     id: 'banner',
     title: 'Banner de temporada',
-    description: 'Pantalla completa al entrar al catálogo con tu campaña',
+    description: 'Foto o video en pantalla completa al entrar al catálogo',
     to: '/app/cuenta/banner-temporada',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
@@ -42,6 +41,25 @@ const TILES: PersonalizarTile[] = [
     description: 'Plantilla, colores y vista previa en vivo',
     to: '/app/cuenta/estilo',
     icon: <IconSwatches size={20} />,
+    size: 'normal',
+  },
+  {
+    id: 'fuentes',
+    title: 'Tipografía',
+    description: 'Fuente para toda la tienda o solo el banner principal',
+    to: '/app/cuenta/fuentes',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+        <path
+          d="M4 7.5V5.75A1.75 1.75 0 0 1 5.75 4h12.5A1.75 1.75 0 0 1 20 5.75V7.5M9 20h6M12 4v16"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path d="M7.5 10h9M7.5 14h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
     size: 'normal',
   },
 ]
@@ -74,7 +92,6 @@ export function PersonalizarMiTiendaPage() {
               <span className="mc-personalizar-tile__icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[var(--cat-text)]">
                 {tile.icon}
               </span>
-              <ExpertStar className="mt-0.5 shrink-0" />
             </div>
             <div className="mt-4 flex items-end justify-between gap-3">
               <div className="min-w-0">

@@ -1,5 +1,12 @@
 import type { CSSProperties } from 'react'
-import type { McCatalogTheme, McCatalogThemeColors, McCatalogThemePreset, McTenant } from '@/types/mc'
+import { catalogFontsToCssVars, resolveCatalogFonts, sanitizeThemeFonts } from '@/lib/catalogFonts'
+import type {
+  McCatalogTheme,
+  McCatalogThemeColors,
+  McCatalogThemeFonts,
+  McCatalogThemePreset,
+  McTenant,
+} from '@/types/mc'
 
 export type ResolvedCatalogColors = {
   accent: string
@@ -86,22 +93,16 @@ export function billingPlanOf(tenant: McTenant | null | undefined): 'free' | 'ex
   return tenant?.billingPlan === 'expert' ? 'expert' : 'free'
 }
 
-/** Tema del panel admin: plan free → editorial neutro (morning); expert aplica preset elegido y colores. */
+/** Tema del panel admin: preset y colores guardados en la tienda (disponible en todos los planes). */
 export function resolveCatalogTheme(tenant: McTenant | null | undefined): {
   preset: McCatalogThemePreset
   colors: ResolvedCatalogColors
 } {
-  const expert = billingPlanOf(tenant) === 'expert'
-  const expertPreset = tenant?.catalogTheme?.preset
-  const preset: McCatalogThemePreset = expert
-    ? expertPreset && expertPreset in PRESETS
-      ? expertPreset
-      : 'morning'
-    : 'morning'
+  const savedPreset = tenant?.catalogTheme?.preset
+  const preset: McCatalogThemePreset =
+    savedPreset && savedPreset in PRESETS ? savedPreset : 'morning'
   const base = PRESETS[preset]
-  const custom = expert
-    ? pickDefined(tenant?.catalogTheme?.colors as unknown as Record<string, string | undefined>)
-    : {}
+  const custom = pickDefined(tenant?.catalogTheme?.colors as unknown as Record<string, string | undefined>)
   const colors: ResolvedCatalogColors = { ...base, ...custom }
   return { preset, colors }
 }
@@ -119,26 +120,27 @@ export function catalogColorsToCssVars(colors: ResolvedCatalogColors): CSSProper
 }
 
 export function tenantThemeCssVars(tenant: McTenant | null | undefined): CSSProperties {
-  const { colors } = resolveCatalogTheme(tenant)
-  return catalogColorsToCssVars(colors)
+  const { colors, preset } = resolveCatalogTheme(tenant)
+  const fonts = resolveCatalogFonts(tenant, preset)
+  const fontVars = fonts.scope === 'store' && fonts.custom ? catalogFontsToCssVars(fonts) : {}
+  return { ...catalogColorsToCssVars(colors), ...fontVars }
 }
 
-/**
- * Tema del catálogo público: Expert usa `catalogTheme`; Free mantiene la paleta “Morning”.
- */
+/** Tema del catálogo público: usa `catalogTheme` de la tienda. */
 export function resolvePublicCatalogTheme(tenant: McTenant | null | undefined): {
   preset: McCatalogThemePreset
   colors: ResolvedCatalogColors
 } {
-  if (!tenant || billingPlanOf(tenant) !== 'expert') {
+  if (!tenant) {
     return { preset: 'morning', colors: FREE_PUBLIC_THEME_COLORS }
   }
   return resolveCatalogTheme(tenant)
 }
 
 export function publicCatalogCssVars(tenant: McTenant | null | undefined): CSSProperties {
-  const { colors } = resolvePublicCatalogTheme(tenant)
-  return catalogColorsToCssVars(colors)
+  const { colors, preset } = resolvePublicCatalogTheme(tenant)
+  const fonts = resolveCatalogFonts(tenant, preset)
+  return { ...catalogColorsToCssVars(colors), ...catalogFontsToCssVars(fonts) }
 }
 
 export function publicCatalogPresetClass(preset: McCatalogThemePreset): string {
@@ -172,7 +174,27 @@ export function sanitizeThemeColors(raw: McCatalogThemeColors | undefined): McCa
   return Object.keys(o).length ? o : undefined
 }
 
-export function buildCatalogThemeForSave(preset: McCatalogThemePreset, colors: McCatalogThemeColors): McCatalogTheme {
+export function buildCatalogThemeForSave(
+  preset: McCatalogThemePreset,
+  colors: McCatalogThemeColors,
+  existing?: McCatalogTheme | null,
+): McCatalogTheme {
   const c = sanitizeThemeColors(colors)
-  return c ? { preset, colors: c } : { preset }
+  const fonts = sanitizeThemeFonts(existing?.fonts)
+  const base: McCatalogTheme = c ? { preset, colors: c } : { preset }
+  return fonts ? { ...base, fonts } : base
+}
+
+export function buildCatalogThemeWithFonts(
+  existing: McCatalogTheme | undefined | null,
+  fonts: McCatalogThemeFonts,
+): McCatalogTheme {
+  const preset = existing?.preset ?? 'morning'
+  const colors = existing?.colors
+  const f = sanitizeThemeFonts(fonts)
+  return {
+    preset,
+    ...(colors ? { colors } : {}),
+    ...(f ? { fonts: f } : {}),
+  }
 }

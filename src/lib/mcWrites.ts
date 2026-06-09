@@ -49,10 +49,49 @@ export async function mcCreateProducto(
       )
     }
     tx.set(productRef, data)
-    tx.update(tenantRef, { productCount: count + 1 })
+    tx.update(tenantRef, { productCount: Math.max(0, Math.trunc(count + 1)) })
   })
 
   return { id: productRef.id }
+}
+
+const BORRADOR_NOMBRE_DEFAULT = 'Borrador sin título'
+
+/** Crea un producto marcado como borrador (inactivo y oculto del catálogo). */
+export async function mcCreateProductoBorrador(
+  tenantId: string,
+  data: Omit<McProducto, 'id'>,
+  platformSettings?: McPlatformSettings | null,
+): Promise<{ id: string }> {
+  return mcCreateProducto(
+    tenantId,
+    {
+      ...data,
+      nombre: data.nombre.trim() || BORRADOR_NOMBRE_DEFAULT,
+      esBorrador: true,
+      activo: false,
+      enCatalogo: false,
+    },
+    platformSettings,
+  )
+}
+
+export async function mcUpdateProductoBorrador(
+  tenantId: string,
+  productId: string,
+  data: Partial<Omit<McProducto, 'id'>>,
+) {
+  const db = getDb()
+  await updateDoc(doc(db, mcProductosCollection(tenantId), productId), {
+    ...data,
+    ...(data.nombre !== undefined && !data.nombre.trim()
+      ? { nombre: BORRADOR_NOMBRE_DEFAULT }
+      : {}),
+    esBorrador: true,
+    activo: false,
+    enCatalogo: false,
+    updatedAt: Date.now(),
+  })
 }
 
 export async function mcToggleProductoCatalogo(
@@ -112,7 +151,7 @@ export async function mcCreateCategoria(
 export async function mcUpdateCategoria(
   tenantId: string,
   categoriaId: string,
-  patch: Partial<Pick<McCategoria, 'nombre' | 'orden' | 'activa'>>,
+  patch: Partial<Pick<McCategoria, 'nombre' | 'orden' | 'activa' | 'parentId'>>,
 ) {
   const db = getDb()
   await updateDoc(doc(db, mcCategoriasCollection(tenantId), categoriaId), {

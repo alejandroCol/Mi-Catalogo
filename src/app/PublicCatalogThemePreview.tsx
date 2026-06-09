@@ -95,7 +95,6 @@ export function PublicCatalogThemePreview({
 }: Props) {
   const colors = resolveCatalogTheme({
     ...tenant,
-    billingPlan: 'expert',
     catalogTheme: buildCatalogThemeForSave(preset, {
       ...(HEX.test(cAccent) ? { accent: cAccent } : {}),
       ...(HEX.test(cAccentText) ? { accentText: cAccentText } : {}),

@@ -5,7 +5,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Quicksand:wght@500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Fredoka:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Quicksand:wght@500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="icon" type="image/svg+xml" href="/brand/mi-catalogo-icon.svg" />
@@ -15,9 +15,59 @@
       name="description"
       content="Catálogos online hermosos para emprendedores colombianos. Registrate gratis y empezá a vender por WhatsApp hoy."
     />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Mi Catálogo</title>
+    <!-- Bootstrap: siempre fresco (no-cache). Recupera chunks viejos tras deploy sin depender del bundle JS. -->
+    <script>
+      ;(function () {
+        var N = 'mc:chunk-reload-n'
+        var MAX = 3
+        function reload() {
+          var c = Number(sessionStorage.getItem(N) || '0')
+          if (c >= MAX) return
+          sessionStorage.setItem(N, String(c + 1))
+          var u = new URL(location.href)
+          u.searchParams.set('_mc', String(Date.now()))
+          location.replace(u.toString())
+        }
+        function isChunkMsg(m) {
+          m = (m || '').toLowerCase()
+          return (
+            m.indexOf('failed to fetch dynamically imported module') !== -1 ||
+            m.indexOf('importing a module script failed') !== -1 ||
+            m.indexOf('error loading dynamically imported module') !== -1 ||
+            m.indexOf('failed to load module script') !== -1 ||
+            m.indexOf("cannot read properties of undefined (reading 'default')") !== -1
+          )
+        }
+        window.addEventListener('vite:preloadError', function (e) {
+          e.preventDefault()
+          reload()
+        })
+        window.addEventListener(
+          'error',
+          function (e) {
+            var t = e.target
+            if (t && t.tagName === 'SCRIPT' && t.src && t.src.indexOf('/assets/') !== -1) reload()
+          },
+          true,
+        )
+        window.addEventListener('unhandledrejection', function (e) {
+          var m = String((e.reason && e.reason.message) || e.reason || '')
+          if (isChunkMsg(m)) {
+            e.preventDefault()
+            reload()
+          }
+        })
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            sessionStorage.removeItem(N)
+          }, 4000)
+        })
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

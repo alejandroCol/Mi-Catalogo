@@ -5,7 +5,7 @@ import { formatCop } from '@/lib/formatCop'
 import { normalizeOrderIdInput, publicCatalogTrackingPath } from '@/lib/catalogOrderTracking'
 import { CatalogOrderTrackingTimeline } from '@/public/CatalogOrderTrackingTimeline'
 import { useCatalogOrderTracking } from '@/public/useCatalogOrderTracking'
-import { usePublicTenant } from '@/public/usePublicTenant'
+import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { usePublicCheckoutCompleteTracking } from '@/public/usePublicCatalogAnalytics'
 
@@ -15,7 +15,7 @@ export function PublicCheckoutSuccessPage() {
   const orderIdParam = searchParams.get('o') ?? searchParams.get('ref') ?? ''
   const orderId = normalizeOrderIdInput(orderIdParam)
   usePublicCheckoutCompleteTracking(orderId || undefined)
-  const { tenant } = usePublicTenant(slug)
+  const { tenant } = useCatalogTenant()
   const { clear } = useCatalogoSimpleCart()
   const { order, loading, error, fetchTracking } = useCatalogOrderTracking()
   const [copiedId, setCopiedId] = useState(false)

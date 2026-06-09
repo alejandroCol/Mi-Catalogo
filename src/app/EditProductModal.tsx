@@ -9,6 +9,7 @@ import { ProductoVariantesEditor } from '@/components/producto/ProductoVariantes
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb, getStorageApp, firebaseStorageConfigured } from '@/lib/firebase'
 import { mcProductosCollection } from '@/lib/mcCollections'
+import { productSaveErrorMessage } from '@/lib/mcSaveError'
 import {
   imagenDraftFromProducto,
   uploadProductoImagenes,
@@ -33,15 +34,19 @@ import {
 import type { McProducto, McProductoVariante } from '@/types/mc'
 import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
+import { categoriasNavFromProductForm, clearQuickAddDraft } from '@/lib/productFormCategoriaNav'
+import { isProductoBorrador } from '@/lib/productoFormDraft'
 
 export function EditProductModal({
   tenantId,
   product,
   onClose,
+  initialCategoriaIds,
 }: {
   tenantId: string
   product: McProducto & { id: string }
   onClose: () => void
+  initialCategoriaIds?: string[]
 }) {
   const initialImagenes = imagenDraftFromProducto(product)
   const [esRopa] = useState(!!product.esRopa)
@@ -53,6 +58,7 @@ export function EditProductModal({
   const [stock, setStock] = useState(String(product.stock ?? 0))
   const [marcarNovedad, setMarcarNovedad] = useState(!!product.marcarNovedad)
   const [mostrarDescargaImagen, setMostrarDescargaImagen] = useState(!!product.mostrarDescargaImagen)
+  const [mostrarBotonDocena, setMostrarBotonDocena] = useState(!!product.mostrarBotonDocena)
   const [imagenes, setImagenes] = useState<ProductoImagenDraft[]>(initialImagenes.items)
   const [coverId, setCoverId] = useState<string | null>(initialImagenes.coverId)
   const [tallas, setTallas] = useState<TallaDraft[]>(() =>
@@ -66,9 +72,18 @@ export function EditProductModal({
   const [descuento, setDescuento] = useState(() => productoDescuentoDraftFromProduct(product))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [categoriaIds, setCategoriaIds] = useState<string[]>(() => product.categoriaIds ?? [])
+  const [categoriaIds, setCategoriaIds] = useState<string[]>(
+    () => initialCategoriaIds ?? product.categoriaIds ?? [],
+  )
 
   const { categorias } = useTenantCategorias(tenantId)
+
+  const esBorrador = isProductoBorrador(product)
+
+  const createCategoriasNav = categoriasNavFromProductForm(
+    { mode: 'edit', productId: product.id, categoriaIds },
+    '← Editar producto',
+  )
 
   const { showSaveSuccess } = useSaveSuccess()
   const tieneVariantes = variantes.length > 0
@@ -184,6 +199,7 @@ export function EditProductModal({
         imageUrl: imageUrl ?? deleteField(),
         marcarNovedad,
         mostrarDescargaImagen,
+        mostrarBotonDocena,
         esRopa: esRopa ? true : deleteField(),
         tallas: esRopa && builtTallas.length > 0 ? builtTallas : deleteField(),
         ...(descParsed.fields.descuentoActivo
@@ -196,40 +212,76 @@ export function EditProductModal({
         galeriaImagenes: galeriaImagenes && galeriaImagenes.length > 0 ? galeriaImagenes : deleteField(),
         variantes: builtVariantes.length > 0 ? builtVariantes : deleteField(),
         categoriaIds: categoriaIds.length > 0 ? categoriaIds : deleteField(),
+        ...(esBorrador
+          ? {
+              esBorrador: deleteField(),
+              activo: true,
+              enCatalogo: true,
+            }
+          : {}),
       })
 
       showSaveSuccess({
-        title: 'Cambios guardados',
-        message: 'El producto se actualizó correctamente.',
+        title: esBorrador ? 'Producto publicado' : 'Cambios guardados',
+        message: esBorrador
+          ? 'El borrador ya está en tu inventario y visible según la configuración del catálogo.'
+          : 'El producto se actualizó correctamente.',
       })
+      if (esBorrador) clearQuickAddDraft()
       onClose()
-    } catch {
-      setErr('No se pudo guardar. Revisá conexión y permisos.')
+    } catch (e) {
+      setErr(
+        productSaveErrorMessage(e, 'No se pudo guardar. Revisá conexión e intentá de nuevo.'),
+      )
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" role="dialog">
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" role="dialog">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Cerrar" onClick={onClose} />
-      <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-neutral-200/50 bg-neutral-50 p-5 sm:rounded-2xl">
+      <div
+        className={
+          esBorrador
+            ? 'relative flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-amber-200/70 bg-neutral-50 shadow-2xl sm:rounded-2xl'
+            : 'relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-neutral-200/50 bg-neutral-50 p-5 sm:rounded-2xl'
+        }
+      >
+        <div className={esBorrador ? 'shrink-0 border-b border-neutral-200/60 bg-white/90 px-5 py-4 backdrop-blur-sm sm:px-8' : undefined}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="ios-headline">Editar artículo</h2>
+            <h2 className="ios-headline">{esBorrador ? 'Continuar borrador' : 'Editar artículo'}</h2>
             <p className="ios-footnote mt-1.5 text-mc-600">
-              {esRopa
-                ? 'Prenda de vestir: stock por talla y variantes de color o tela.'
-                : 'Actualizá datos, fotos y variantes.'}
+              {esBorrador
+                ? 'Completá los datos y publicá cuando esté listo.'
+                : esRopa
+                  ? 'Prenda de vestir: stock por talla y variantes de color o tela.'
+                  : 'Actualizá datos, fotos y variantes.'}
             </p>
           </div>
-          {esRopa ? (
-            <span className="shrink-0 rounded-full bg-mc-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-              Ropa
-            </span>
-          ) : null}
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            {esBorrador ? (
+              <span className="rounded-full bg-amber-200/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-950">
+                Borrador
+              </span>
+            ) : null}
+            {esRopa ? (
+              <span className="rounded-full bg-mc-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                Ropa
+              </span>
+            ) : null}
+          </div>
         </div>
-        <form onSubmit={onSubmit} className="mt-4 space-y-4">
+        </div>
+        <form
+          onSubmit={onSubmit}
+          className={
+            esBorrador
+              ? 'min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6'
+              : 'mt-4 space-y-4'
+          }
+        >
           <ProductoFormSection>
             <ProductoImagenesEditor
               items={imagenes}
@@ -317,6 +369,7 @@ export function EditProductModal({
               selectedIds={categoriaIds}
               onChange={setCategoriaIds}
               disabled={busy}
+              createCategoriasNav={createCategoriasNav}
             />
           </ProductoFormSection>
 
@@ -350,6 +403,13 @@ export function EditProductModal({
                 title="Mostrar botón «Descargar imagen»"
                 description="Ideal para mayoristas que necesitan bajar la foto del producto desde el catálogo."
               />
+              <ProductoOpcionToggle
+                checked={mostrarBotonDocena}
+                onChange={setMostrarBotonDocena}
+                disabled={busy}
+                title="Mostrar botón «Añadir 1 docena»"
+                description="Permite a tus clientes agregar 12 unidades de una sola vez en la ficha del producto."
+              />
             </div>
           </ProductoFormSection>
 
@@ -359,7 +419,7 @@ export function EditProductModal({
               Cancelar
             </button>
             <button type="submit" disabled={busy} className="mc-btn-primary flex-1">
-              {busy ? 'Guardando…' : 'Guardar cambios'}
+              {busy ? 'Guardando…' : esBorrador ? 'Publicar producto' : 'Guardar cambios'}
             </button>
           </div>
         </form>

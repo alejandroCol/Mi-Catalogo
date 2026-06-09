@@ -187,7 +187,16 @@ service cloud.firestore {
     function mcIsSuperAdmin() {
       return mcSignedIn()
         && exists(mcUserPath())
-        && mcUserData().isSuperAdmin == true;
+        && (
+          mcUserData().isSuperAdmin == true
+          || mcUserData().isSuperAdmin == 1
+        );
+    }
+    /** Súper admin viendo otra tienda (claim del callable mcStartStoreImpersonation). */
+    function mcImpersonatingTenant(tid) {
+      return mcSignedIn()
+        && request.auth.token.keys().hasAny(['mcImpersonateTenantId'])
+        && request.auth.token.mcImpersonateTenantId == tid;
     }
     function mcIsSalesRep() {
       return mcSignedIn()
@@ -211,17 +220,15 @@ service cloud.firestore {
         : 500;
     }
     function mcTenantProductCount(data) {
-      return 'productCount' in data && data.productCount is int ? data.productCount : 0;
+      return 'productCount' in data && data.productCount is number ? data.productCount : 0;
     }
     function mcProductCreateAllowed(tid) {
       let tenant = get(/databases/$(database)/documents/mc_tenants/$(tid)).data;
       let count = mcTenantProductCount(tenant);
-      return mcTenantIsExpert(tenant)
-        ? count < mcPlanExpertMaxProductos()
-        : count < mcPlanFreeMaxProductos();
+      return count < mcPlanExpertMaxProductos();
     }
     function mcTenantProductCountPatchOk() {
-      return request.resource.data.productCount is int
+      return request.resource.data.productCount is number
         && request.resource.data.productCount >= 0
         && (
           !('productCount' in resource.data)
@@ -229,9 +236,17 @@ service cloud.firestore {
           || request.resource.data.productCount == resource.data.productCount - 1
         );
     }
+    /** Dueño o impersonación: solo incrementar/decrementar contador de productos. */
+    function mcTenantOwnerProductCountPatch() {
+      return mcSignedIn()
+        && request.auth.uid == resource.data.ownerUid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['productCount'])
+        && mcTenantProductCountPatchOk();
+    }
     /** Campos que el dueño puede actualizar desde Cuenta (plan Free). */
     function mcTenantOwnerPatchKeysFree() {
       return [
+        'nombreTienda',
         'whatsappNumero',
         'mensajeIntro',
         'salesSummaryPeriod',
@@ -257,45 +272,45 @@ service cloud.firestore {
         'politicasCambios',
         'checkoutVentasModo',
         'onboardingSharePromptSeenAt',
-      ];
-    }
-    /** Incluye `catalogTheme` para plan Expert. */
-    function mcTenantOwnerPatchKeysExpert() {
-      return [
-        'whatsappNumero',
-        'mensajeIntro',
-        'salesSummaryPeriod',
         'catalogTheme',
         'storeLogoUrl',
         'seasonBanner',
-        'envioEstimadoCop',
-        'envioEstimadoEtiqueta',
-        'envioPorCiudad',
-        'envioUsarTarifasMicatalogo',
-        'envioGratisDesdeCop',
-        'envioCotizarAutomatico',
-        'envioOrigenDepartamento',
-        'envioOrigenCiudad',
-        'envioOrigenDireccion',
-        'envioOrigenTelefono',
-        'envioEmpaquePesoKg',
-        'envioEmpaqueLargoCm',
-        'envioEmpaqueAnchoCm',
-        'envioEmpaqueAltoCm',
-        'envioTransportadoraFavorita',
-        'cuponesCatalogo',
-        'catalogDescuentosTab',
-        'politicasEnvios',
-        'politicasPagos',
-        'politicasCambios',
-        'checkoutVentasModo',
-        'onboardingSharePromptSeenAt',
       ];
+    }
+    /** Campos de facturación inmutables en patches del dueño (free implícito = explícito). */
+    function mcTenantOwnerBillingUnchanged() {
+      let r = resource.data;
+      let n = request.resource.data;
+      let rPlan = ('billingPlan' in r) ? r.billingPlan : 'free';
+      let nPlan = ('billingPlan' in n) ? n.billingPlan : 'free';
+      return rPlan == nPlan
+        && (
+          (!('subscriptionEndsAt' in r) && !('subscriptionEndsAt' in n))
+          || (
+            r.subscriptionEndsAt is number
+            && n.subscriptionEndsAt is number
+            && r.subscriptionEndsAt == n.subscriptionEndsAt
+          )
+          || (
+            r.subscriptionEndsAt is timestamp
+            && n.subscriptionEndsAt is timestamp
+            && r.subscriptionEndsAt == n.subscriptionEndsAt
+          )
+        );
+    }
+    function mcTenantCreatedAtUnchanged() {
+      return resource.data.createdAt is number
+        && request.resource.data.createdAt is number
+        && resource.data.createdAt == request.resource.data.createdAt;
     }
     function mcBelongsToTenant(tid) {
       return mcSignedIn()
         && exists(mcUserPath())
-        && (mcUserData().tenantId == tid || mcUserData().isSuperAdmin == true);
+        && (
+          mcUserData().tenantId == tid
+          || mcIsSuperAdmin()
+          || mcImpersonatingTenant(tid)
+        );
     }
     /** exists() primero: un get() a doc inexistente tumba toda la condición de la regla. */
     function mcTenantIsFreePlan(data) {
@@ -311,6 +326,35 @@ service cloud.firestore {
       let data = get(/databases/$(database)/documents/mc_tenants/$(tid)).data;
       return exists(/databases/$(database)/documents/mc_tenants/$(tid))
         && (mcTenantIsFreePlan(data) || mcTenantSubscriptionEndsOk(data));
+    }
+    function mcTenantExpertPublishActive(data) {
+      return mcTenantIsExpert(data)
+        && (
+          mcTenantSubscriptionEndsOk(data)
+          || (
+            data.billingSubStatus == 'past_due'
+            && data.billingGraceUntilMs is number
+            && data.billingGraceUntilMs > request.time.toMillis()
+          )
+        );
+    }
+    /** Tiendas pre-migración sin campo catalogPublished. */
+    function mcTenantImplicitLegacy(data) {
+      return !('catalogPublished' in data)
+        && (!('catalogPublishGrandfathered' in data) || data.catalogPublishGrandfathered != false);
+    }
+    /** Catálogo accesible para clientes anónimos. */
+    function mcTenantCatalogPublic(tid) {
+      let data = get(/databases/$(database)/documents/mc_tenants/$(tid)).data;
+      return exists(/databases/$(database)/documents/mc_tenants/$(tid))
+        && (
+          data.catalogPublishGrandfathered == true
+          || (mcTenantImplicitLegacy(data) && mcTenantSubActive(tid))
+          || (
+            data.catalogPublished == true
+            && mcTenantExpertPublishActive(data)
+          )
+        );
     }
     /** Versión vigente de T&C plataforma (default = src/lib/platformTerms.ts). */
     function mcCurrentPlatformTermsVersion() {
@@ -344,7 +388,7 @@ service cloud.firestore {
     match /mc_tenants/{tid} {
       allow read: if mcIsSuperAdmin()
         || mcIsSalesRep()
-        || mcTenantSubActive(tid)
+        || mcTenantCatalogPublic(tid)
         || (mcSignedIn() && mcBelongsToTenant(tid));
       allow create: if mcSignedIn()
         && request.resource.data.ownerUid == request.auth.uid
@@ -353,6 +397,9 @@ service cloud.firestore {
         && request.resource.data.whatsappNumero is string
         && request.resource.data.createdAt is number
         && (!('billingPlan' in request.resource.data) || request.resource.data.billingPlan == 'free')
+        && (!('catalogPublished' in request.resource.data) || request.resource.data.catalogPublished == false)
+        && (!('catalogPublishGrandfathered' in request.resource.data)
+          || request.resource.data.catalogPublishGrandfathered == false)
         && (!('subscriptionEndsAt' in request.resource.data)
           || (request.resource.data.subscriptionEndsAt is number
             && request.resource.data.subscriptionEndsAt > request.time.toMillis()))
@@ -366,49 +413,36 @@ service cloud.firestore {
         && (!('platformTermsUserAgent' in request.resource.data)
           || request.resource.data.platformTermsUserAgent is string);
       allow update: if mcIsSuperAdmin()
+        || mcTenantOwnerProductCountPatch()
         || (
           mcSignedIn()
           && request.auth.uid == resource.data.ownerUid
           && resource.data.ownerUid == request.resource.data.ownerUid
           && resource.data.slug == request.resource.data.slug
-          && resource.data.createdAt == request.resource.data.createdAt
+          && mcTenantCreatedAtUnchanged()
           && (
             /** Upgrade demo Free → Expert (pasarela mock; límite ~400 días). */
             (
               resource.data.billingPlan == 'free'
               && request.resource.data.billingPlan == 'expert'
-              && request.resource.data.subscriptionEndsAt is int
+              && request.resource.data.subscriptionEndsAt is number
               && request.resource.data.subscriptionEndsAt > request.time.toMillis()
               && request.resource.data.subscriptionEndsAt
                 < request.time.toMillis() + 10 * 365 * 24 * 60 * 60 * 1000
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['billingPlan', 'subscriptionEndsAt'])
             )
-            /** Dueño: contacto; si es Expert también puede editar catalogTheme. */
+            /** Dueño: configuración de tienda (tema, logo, checkout, envíos, etc.). */
             || (
-              resource.data.billingPlan == request.resource.data.billingPlan
-              && resource.data.subscriptionEndsAt == request.resource.data.subscriptionEndsAt
+              mcTenantOwnerBillingUnchanged()
               && (!('salesSummaryPeriod' in request.resource.data)
                 || request.resource.data.salesSummaryPeriod in ['week', 'fortnight'])
               && (!('checkoutVentasModo' in request.resource.data)
                 || request.resource.data.checkoutVentasModo in ['pasarela', 'whatsapp', 'pasarela_micatalogo'])
-              && (
-                request.resource.data.diff(resource.data).affectedKeys()
-                  .hasOnly(mcTenantOwnerPatchKeysFree())
-                || (
-                  mcTenantIsExpert(resource.data) && mcTenantIsExpert(request.resource.data)
-                  && request.resource.data.diff(resource.data).affectedKeys()
-                    .hasOnly(mcTenantOwnerPatchKeysExpert())
-                )
-              )
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(mcTenantOwnerPatchKeysFree())
             )
-            /** Contador de productos (+1 / −1 o inicialización). */
-            || (
-              resource.data.billingPlan == request.resource.data.billingPlan
-              && resource.data.subscriptionEndsAt == request.resource.data.subscriptionEndsAt
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['productCount'])
-              && mcTenantProductCountPatchOk()
-            )
+            /** Contador de productos: ver mcTenantOwnerProductCountPatch() arriba. */
           )
         );
       allow delete: if false;
@@ -537,7 +571,7 @@ service cloud.firestore {
       allow read: if mcIsSuperAdmin()
         || (resource.data.activo == true
           && resource.data.enCatalogo == true
-          && mcTenantSubActive(tid))
+          && mcTenantCatalogPublic(tid))
         || (mcSignedIn() && mcBelongsToTenant(tid));
       allow create: if mcSignedIn()
         && mcBelongsToTenant(tid)
@@ -553,7 +587,7 @@ service cloud.firestore {
 
     match /mc_tenants/{tid}/categorias/{cid} {
       allow read: if mcIsSuperAdmin()
-        || (resource.data.activa == true && mcTenantSubActive(tid))
+        || (resource.data.activa == true && mcTenantCatalogPublic(tid))
         || (mcSignedIn() && mcBelongsToTenant(tid));
       allow create, update, delete: if mcSignedIn()
         && mcBelongsToTenant(tid)
@@ -568,9 +602,9 @@ service cloud.firestore {
     /** Ventas desde el catálogo público (checkout mock). */
     /** Carritos iniciados en checkout (recuperación Expert). */
     match /mc_tenants/{tid}/carritos_iniciados/{cid} {
-      allow get: if mcTenantSubActive(tid);
+      allow get: if mcTenantCatalogPublic(tid);
       allow list: if mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin());
-      allow create: if mcTenantSubActive(tid)
+      allow create: if mcTenantCatalogPublic(tid)
         && request.resource.data.keys().hasAll([
           'createdAt', 'updatedAt', 'estado', 'lineas', 'subtotalCop', 'sessionToken'
         ])
@@ -584,7 +618,7 @@ service cloud.firestore {
         && request.resource.data.lineas.size() <= 100
         && request.resource.data.sessionToken is string
         && request.resource.data.sessionToken.size() >= 16;
-      allow update: if mcTenantSubActive(tid)
+      allow update: if mcTenantCatalogPublic(tid)
         && (
           (
             resource.data.estado == 'activo'
@@ -607,7 +641,7 @@ service cloud.firestore {
     }
 
     match /mc_tenants/{tid}/ordenes_catalogo/{oid} {
-      allow create: if mcTenantSubActive(tid)
+      allow create: if mcTenantCatalogPublic(tid)
         && request.resource.data.keys().hasAll([
           'createdAt', 'updatedAt', 'estado', 'lineas', 'totalCop', 'pagoSimulado'
         ])

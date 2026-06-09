@@ -1,4 +1,5 @@
 import { heroContent, storeExamples } from '@/landing/landingContent'
+import { LandingDemoStoreButton } from '@/landing/components/LandingDemoStoreButton'
 import { LandingRegisterButton } from '@/landing/components/LandingRegisterButton'
 import { StorePreviewFrame } from '@/landing/components/StorePreviewFrame'
 
@@ -31,8 +32,9 @@ export function LandingHero() {
 
           <div className="mc-landing-hero__ctas">
             <LandingRegisterButton />
-            <a href="#tiendas" className="mc-landing-btn-secondary">
-              Ver ejemplos
+            <LandingDemoStoreButton />
+            <a href="#tiendas" className="mc-landing-btn-ghost mc-landing-hero__examples-link">
+              Ver ejemplos de diseño
             </a>
           </div>
 

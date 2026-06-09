@@ -1,10 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
-import { ExpertUpgradeSheet } from '@/components/billing/ExpertUpgradeSheet'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
-import { ExpertStar } from '@/components/billing/ExpertStar'
-import { hasExpertFeatureAccess } from '@/lib/billingAccess'
 import { formatCop } from '@/lib/formatCop'
 import { getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
@@ -190,14 +187,12 @@ type RecuperacionResult = {
 
 export function CarritosAbandonadosPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
-  const expertAccess = hasExpertFeatureAccess(tenant)
   const { rows, loading, error } = useCarritosIniciados(effectiveTenantId)
   const [filtro, setFiltro] = useState<'pendientes' | 'todos'>('pendientes')
   const [modalCarrito, setModalCarrito] = useState<CarritoIniciadoRow | null>(null)
   const [descuentoPct, setDescuentoPct] = useState('10')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
-  const [expertSheetOpen, setExpertSheetOpen] = useState(false)
   const [linkCopiado, setLinkCopiado] = useState(false)
   const [emailEnviado, setEmailEnviado] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
@@ -360,10 +355,7 @@ export function CarritosAbandonadosPage() {
     <div className="mc-shell space-y-6">
       <div>
         <ConfiguracionesBackLink />
-        <h1 className="ios-large-title mt-3 flex flex-wrap items-center gap-2">
-          Carritos abandonados
-          <ExpertStar />
-        </h1>
+        <h1 className="ios-large-title mt-3">Carritos abandonados</h1>
         <p className="ios-subhead mt-2 max-w-xl leading-relaxed text-[var(--cat-muted)]">
           Carritos que iniciaron checkout y no completaron la compra. Tocá uno para enviar un descuento por correo,
           WhatsApp o copiar el link de recuperación.
@@ -372,8 +364,6 @@ export function CarritosAbandonadosPage() {
 
       {!tenant ? (
         <p className="text-[15px] text-[var(--cat-muted)]">Cargando tienda…</p>
-      ) : !expertAccess ? (
-        <ExpertUpgradeGate onVerPlanes={() => setExpertSheetOpen(true)} />
       ) : (
         <>
           {recuperadosCount > 0 ? (
@@ -434,7 +424,7 @@ export function CarritosAbandonadosPage() {
         </>
       )}
 
-      {modalCarrito && expertAccess && tenant?.slug ? (
+      {modalCarrito && tenant?.slug ? (
         <RecordatorioModal
           carrito={modalCarrito}
           descuentoPct={descuentoPct}
@@ -452,28 +442,6 @@ export function CarritosAbandonadosPage() {
         />
       ) : null}
 
-      <ExpertUpgradeSheet
-        open={expertSheetOpen}
-        onClose={() => setExpertSheetOpen(false)}
-        title="Carritos abandonados con Expert"
-      />
-    </div>
-  )
-}
-
-function ExpertUpgradeGate({ onVerPlanes }: { onVerPlanes: () => void }) {
-  return (
-    <div className="mc-card space-y-4">
-      <p className="ios-subhead leading-relaxed text-[var(--cat-text)]">
-        Recuperar carritos abandonados es una función <strong className="font-medium">Expert</strong>.
-      </p>
-      <button
-        type="button"
-        className="mc-btn-primary inline-flex w-full items-center justify-center py-3 text-[15px]"
-        onClick={onVerPlanes}
-      >
-        Ver planes
-      </button>
     </div>
   )
 }

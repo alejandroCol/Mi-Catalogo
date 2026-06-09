@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Outlet, useLocation, useParams } from 'react-router-dom'
 import { buildStorePublicUrl, mcStoreUrlMode } from '@/lib/storePublicUrl'
+import { McOutletBoundary } from '@/components/McOutletBoundary'
 import { PublicStoreProvider } from '@/public/PublicStoreContext'
 
 /**
@@ -33,7 +34,9 @@ export function LegacyCatalogGateway() {
 
   return (
     <PublicStoreProvider slugOverride={slug}>
-      <Outlet />
+      <McOutletBoundary variant="public">
+        <Outlet />
+      </McOutletBoundary>
     </PublicStoreProvider>
   )
 }

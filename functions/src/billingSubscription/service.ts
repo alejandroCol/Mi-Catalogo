@@ -18,6 +18,7 @@ import {
   onepayCreateBillingCustomer,
   readBillingMeta,
 } from './onepayBillingApi.js'
+import { mcCatalogUnpublishIfNeeded } from '../catalogPublish.js'
 import {
   advancePeriodEndMs,
   computeFirstPeriodEndMs,
@@ -26,18 +27,6 @@ import {
   nextDebitDueFromPeriodEnd,
   type McBillingPeriod,
 } from './schedule.js'
-
-const FREE_THEME_RESET = {
-  preset: 'morning',
-  colors: {
-    accent: '#171717',
-    accentText: '#fafaf9',
-    bg: '#f4f3f0',
-    surface: '#ffffff',
-    text: '#0a0a0a',
-    muted: '#737373',
-  },
-}
 
 export type McBillingSubFirestore = {
   status: 'active' | 'past_due' | 'canceled'
@@ -325,6 +314,9 @@ export async function mcBillingDowngradeToFree(db: Firestore, tenantId: string):
     },
     { merge: true },
   )
+  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
+  const tenantData = tenantSnap.exists ? tenantSnap.data() : null
+
   await db.doc(`mc_tenants/${tenantId}`).set(
     {
       billingPlan: 'free',
@@ -335,12 +327,20 @@ export async function mcBillingDowngradeToFree(db: Firestore, tenantId: string):
       billingPastDueSinceMs: FieldValue.delete(),
       billingPinnedCardId: FieldValue.delete(),
       billingPinnedAccountId: FieldValue.delete(),
-      catalogTheme: FREE_THEME_RESET,
-      storeLogoUrl: FieldValue.delete(),
       updatedAt: now,
     },
     { merge: true },
   )
+
+  if (tenantData) {
+    await mcCatalogUnpublishIfNeeded(db, tenantId, {
+      ...tenantData,
+      billingPlan: 'free',
+      subscriptionEndsAt: undefined,
+      billingSubStatus: 'canceled',
+      billingGraceUntilMs: undefined,
+    })
+  }
 }
 
 /** Activa suscripción V2: primer cargo directo (tarjeta o Nequi). */

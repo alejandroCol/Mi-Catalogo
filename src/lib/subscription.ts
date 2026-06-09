@@ -1,3 +1,4 @@
+import { Timestamp } from 'firebase/firestore'
 import type { McBillingPlan } from '@/types/mc'
 
 /** Duración de prueba manual (súper admin / Expert). */
@@ -5,7 +6,14 @@ export const MC_TRIAL_DAYS = 7
 
 export type TenantMembershipSlice = {
   billingPlan?: McBillingPlan
-  subscriptionEndsAt?: number
+  subscriptionEndsAt?: unknown
+}
+
+/** Normaliza subscriptionEndsAt desde Firestore (number o Timestamp). */
+export function subscriptionEndsAtMs(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (value instanceof Timestamp) return value.toMillis()
+  return null
 }
 
 export function isFreeBillingPlan(tenant: TenantMembershipSlice | null | undefined): boolean {
@@ -19,7 +27,8 @@ export function isTenantMembershipActive(
 ): boolean {
   if (!tenant) return false
   if (isFreeBillingPlan(tenant)) return true
-  return typeof tenant.subscriptionEndsAt === 'number' && tenant.subscriptionEndsAt > nowMs
+  const ends = subscriptionEndsAtMs(tenant.subscriptionEndsAt)
+  return ends !== null && ends > nowMs
 }
 
 export function trialEndMs(): number {
@@ -27,8 +36,9 @@ export function trialEndMs(): number {
 }
 
 /** Vencimiento Expert (ms). Para Free no aplica. */
-export function isSubscriptionActive(subscriptionEndsAt: number | undefined, nowMs = Date.now()): boolean {
-  return typeof subscriptionEndsAt === 'number' && subscriptionEndsAt > nowMs
+export function isSubscriptionActive(subscriptionEndsAt: unknown, nowMs = Date.now()): boolean {
+  const ends = subscriptionEndsAtMs(subscriptionEndsAt)
+  return ends !== null && ends > nowMs
 }
 
 export function membershipExpiryLabel(
@@ -36,8 +46,8 @@ export function membershipExpiryLabel(
   formatDate: (ms: number) => string = (ms) => new Date(ms).toLocaleDateString('es-CO'),
 ): string {
   if (!tenant || isFreeBillingPlan(tenant)) return 'Sin vencimiento'
-  const ends = tenant.subscriptionEndsAt
-  if (typeof ends !== 'number') return 'Sin fecha'
+  const ends = subscriptionEndsAtMs(tenant.subscriptionEndsAt)
+  if (ends === null) return 'Sin fecha'
   return formatDate(ends)
 }
 
@@ -55,4 +65,5 @@ export const MS_DAY = 24 * 60 * 60 * 1000
 /** Igual al trial de registro (ver MC_TRIAL_DAYS). */
 export const MS_TRIAL = MC_TRIAL_DAYS * MS_DAY
 export const MS_MONTH = 30 * 24 * 60 * 60 * 1000
+export const MS_QUARTER = 90 * MS_DAY
 export const MS_YEAR = 365 * 24 * 60 * 60 * 1000

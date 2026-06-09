@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { ExpertStar } from '@/components/billing/ExpertStar'
 import { resolveConfigTileHref } from '@/app/configuraciones/resolveConfigTileHref'
 import type { ConfigMenuItem } from '@/app/configuraciones/types'
 
@@ -21,6 +20,7 @@ export function ConfigTile({ item, hasExpertAccess }: Props) {
   return (
     <Link
       to={href}
+      state={item.linkState}
       data-size={item.size}
       className={`mc-config-tile group flex flex-col justify-between p-3.5 text-left no-underline active:scale-[0.99] sm:p-4 ${SIZE_CLASS[item.size]}`}
     >
@@ -32,7 +32,6 @@ export function ConfigTile({ item, hasExpertAccess }: Props) {
         ) : (
           <span className="sr-only">{item.title}</span>
         )}
-        {item.expert ? <ExpertStar className="mt-0.5" /> : null}
       </div>
       <div className="mt-auto pt-2">
         <p className="text-[15px] font-medium leading-snug text-[var(--cat-text)] sm:text-[16px]">{item.title}</p>

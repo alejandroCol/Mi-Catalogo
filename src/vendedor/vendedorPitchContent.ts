@@ -1,6 +1,20 @@
 import { formatCop } from '@/lib/formatCop'
+import {
+  ONEPAY_COMMISSION_IVA_RATE,
+  ONEPAY_MERCHANT_TX_FIXED_COP,
+  ONEPAY_MERCHANT_TX_RATE,
+} from '@/lib/pasarelaFees'
 
 export const MC_MONTHLY_PRICE_COP = 29_900
+
+const TX_PCT_LABEL = (ONEPAY_MERCHANT_TX_RATE * 100).toFixed(2).replace('.', ',')
+const IVA_PCT_LABEL = (ONEPAY_COMMISSION_IVA_RATE * 100).toFixed(0)
+
+/** Comisión por transacción de la pasarela OnePay (no de Mi Catálogo). */
+export const pitchPasarelaTxCommissionLabel = `${TX_PCT_LABEL}% + ${formatCop(ONEPAY_MERCHANT_TX_FIXED_COP)} + ${IVA_PCT_LABEL}% IVA (sobre la comisión)`
+
+/** Costo de dispersión sin cuenta comercio OnePay propia. */
+export const pitchPasarelaDispersionSinCuentaLabel = '0,1% + $800 COP'
 
 export const pitchHero = {
   eyebrow: 'Ventas online sin fricción',
@@ -100,3 +114,65 @@ export const pitchClosingLines = [
   'La pregunta no es si necesitás vender online.',
   'La pregunta es cuántas ventas perdés cada día sin una tienda que trabaje por vos.',
 ]
+
+export type PitchPasarelaMode = {
+  id: 'sin-cuenta' | 'con-cuenta'
+  badge: string
+  title: string
+  subtitle: string
+  highlights: string[]
+  dispersionLabel: string
+  dispersionDetail: string
+  timingLabel: string
+  timingDetail: string
+  recommended?: boolean
+}
+
+export const pitchPasarelaOnePay = {
+  eyebrow: 'Pasarela de pagos',
+  title: 'Cobra en línea con',
+  titleAccent: ' OnePay',
+  lead:
+    'La misma pasarela que usan empresas de servicios públicos y telecomunicaciones en Colombia. Mi Catálogo la integra para que tu tienda cobre sin fricción.',
+  commissionNote:
+    'Esta comisión la cobra OnePay (la pasarela de pagos), no Mi Catálogo. Nosotros no cobramos comisión por venta: solo tu plan mensual.',
+  trustTitle: 'Confían en OnePay',
+  trustClients: ['Movistar', 'Promigas', 'EPM Gas', 'Efigas'] as const,
+  trustFootnote: '+200 empresas activas en Colombia · PCI-DSS Level 1',
+  methodsTitle: 'Métodos de pago que acepta',
+  paymentMethods: ['Nequi', 'Bre-B', 'PSE', 'Tarjeta de crédito'] as const,
+  modesTitle: 'Dos formas de usar la pasarela',
+  modes: [
+    {
+      id: 'sin-cuenta',
+      badge: 'Rápido',
+      title: 'Sin cuenta OnePay',
+      subtitle: 'Pasarela Mi Catálogo: cobrá en línea sin crear tu comercio en OnePay.',
+      highlights: [
+        'Activación guiada por el equipo de Mi Catálogo.',
+        'El cliente paga en el checkout de tu tienda.',
+        'Retirás fondos cuando quieras desde Ventas.',
+      ],
+      dispersionLabel: pitchPasarelaDispersionSinCuentaLabel,
+      dispersionDetail: 'por cada dispersión a tu cuenta bancaria',
+      timingLabel: '1 día hábil',
+      timingDetail: 'tiempo de procesamiento del retiro',
+    },
+    {
+      id: 'con-cuenta',
+      badge: 'Escalable',
+      title: 'Con cuenta OnePay',
+      subtitle: 'Tu comercio OnePay propio: pagos directo a tu cuenta de pasarela.',
+      highlights: [
+        'Registrás tu empresa en OnePay (KYB).',
+        'Conciliación y balance en tu panel OnePay.',
+        'Ideal si ya facturás en volumen o querés escalar.',
+      ],
+      dispersionLabel: 'Gratis',
+      dispersionDetail: 'sin costo adicional por dispersión',
+      timingLabel: 'Diario',
+      timingDetail: 'frecuencia de abono a tu cuenta',
+      recommended: true,
+    },
+  ] satisfies PitchPasarelaMode[],
+}

@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { IconCheck, IconChevronLeft, IconChevronRight } from '@/icons/McIcons'
+import { IconBankCard, IconCheck, IconChevronLeft, IconChevronRight, IconCoins } from '@/icons/McIcons'
 import {
   pitchClosingLines,
   pitchHero,
+  pitchPasarelaOnePay,
+  pitchPasarelaTxCommissionLabel,
   pitchValueProps,
   shopifyComparison,
 } from '@/vendedor/vendedorPitchContent'
 
-const SLIDE_COUNT = 5
+const SLIDE_COUNT = 6
 
 const KEY_MESSAGES = [
   'No pagás dominio aparte: tu tienda ya tiene dirección profesional.',
@@ -71,6 +73,7 @@ export function VendedorPitchPage() {
         {slide === 2 ? <SlideValueProps /> : null}
         {slide === 3 ? <SlideComparison /> : null}
         {slide === 4 ? <SlideClosing /> : null}
+        {slide === 5 ? <SlidePasarela /> : null}
       </div>
 
       <nav className="mc-vendedor-pitch__nav" aria-label="Navegación del pitch">
@@ -254,6 +257,123 @@ function SlideClosing() {
             <p className="mt-6 border-t border-white/15 pt-6 text-sm leading-relaxed opacity-80">
               Mostrá la demo del rubro y cerrá con el link de prueba.
             </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function SlidePasarela() {
+  const { eyebrow, title, titleAccent, lead, commissionNote, trustTitle, trustClients, trustFootnote, methodsTitle, paymentMethods, modesTitle, modes } =
+    pitchPasarelaOnePay
+
+  return (
+    <section className="mc-vendedor-pitch__slide mc-vendedor-pitch__slide-enter">
+      <div className="mc-vendedor-pitch__slide-inner flex h-full min-h-0 flex-col gap-5 sm:gap-6">
+        <div className="shrink-0 text-center">
+          <p className="mc-landing-eyebrow">{eyebrow}</p>
+          <h2 className="mc-landing-title mx-auto">
+            {title}
+            <span className="mc-landing-title__accent">{titleAccent}</span>
+          </h2>
+          <p className="mc-landing-lead mx-auto mt-2 max-w-2xl text-sm sm:text-base">{lead}</p>
+        </div>
+
+        <div className="mc-vendedor-pitch__pasarela-commission shrink-0">
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+            <span className="mc-vendedor-pitch__pasarela-commission-icon" aria-hidden>
+              <IconBankCard size={22} />
+            </span>
+            <div className="text-center sm:text-left">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-mc-600">
+                Comisión por transacción (ambos modos)
+              </p>
+              <p className="mc-vendedor-pitch__pasarela-commission-value">{pitchPasarelaTxCommissionLabel}</p>
+            </div>
+          </div>
+          <p className="mt-3 text-center text-[13px] leading-relaxed text-mc-600 sm:text-sm">{commissionNote}</p>
+        </div>
+
+        <div className="mc-vendedor-pitch__pasarela-trust shrink-0">
+          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-mc-600">{trustTitle}</p>
+          <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
+            {trustClients.map((client) => (
+              <span key={client} className="mc-vendedor-pitch__pasarela-trust-chip">
+                {client}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-center text-[12px] text-mc-500">{trustFootnote}</p>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto">
+          <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-mc-600">
+            {modesTitle}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+            {modes.map((mode) => (
+              <article
+                key={mode.id}
+                className={`mc-vendedor-pitch__pasarela-mode ${mode.recommended ? 'mc-vendedor-pitch__pasarela-mode--recommended' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+                      mode.recommended
+                        ? 'border-[color-mix(in_srgb,var(--mc-landing-gold)_40%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_12%,white)] text-mc-brand-gold'
+                        : 'border-neutral-200/70 bg-neutral-50 text-mc-600'
+                    }`}
+                  >
+                    {mode.id === 'sin-cuenta' ? <IconCoins size={18} /> : <IconBankCard size={18} />}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] ${
+                      mode.recommended
+                        ? 'bg-[color-mix(in_srgb,var(--mc-landing-gold)_18%,white)] text-mc-brand-gray'
+                        : 'bg-neutral-100 text-mc-600'
+                    }`}
+                  >
+                    {mode.badge}
+                  </span>
+                </div>
+                <h3 className="mt-3 text-[15px] font-semibold tracking-tight text-mc-brand-gray sm:text-base">
+                  {mode.title}
+                </h3>
+                <p className="mt-1 text-[13px] leading-snug text-mc-600">{mode.subtitle}</p>
+                <ul className="mt-3 space-y-1.5">
+                  {mode.highlights.map((item) => (
+                    <li key={item} className="flex gap-2 text-[12px] leading-snug text-mc-600 sm:text-[13px]">
+                      <IconCheck size={14} className="mt-0.5 shrink-0 text-mc-brand-gold" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-4 grid grid-cols-2 gap-2 border-t border-neutral-200/60 pt-3">
+                  <div className="rounded-xl bg-neutral-50/80 px-2.5 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mc-500">Dispersión</p>
+                    <p className="mt-0.5 text-[13px] font-semibold text-mc-brand-gray">{mode.dispersionLabel}</p>
+                    <p className="text-[11px] leading-snug text-mc-500">{mode.dispersionDetail}</p>
+                  </div>
+                  <div className="rounded-xl bg-neutral-50/80 px-2.5 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mc-500">Plazo</p>
+                    <p className="mt-0.5 text-[13px] font-semibold text-mc-brand-gray">{mode.timingLabel}</p>
+                    <p className="text-[11px] leading-snug text-mc-500">{mode.timingDetail}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div className="mc-vendedor-pitch__pasarela-methods shrink-0">
+          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-mc-600">{methodsTitle}</p>
+          <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
+            {paymentMethods.map((method) => (
+              <span key={method} className="mc-vendedor-pitch__pasarela-method-chip">
+                {method}
+              </span>
+            ))}
           </div>
         </div>
       </div>

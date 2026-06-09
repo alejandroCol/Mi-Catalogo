@@ -11,7 +11,7 @@ import { billingPlanOf } from '@/lib/catalogTheme'
 import { isCatalogoVendedorListo } from '@/lib/checkoutVentasModo'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
-import { isTenantMembershipActive } from '@/lib/subscription'
+import { isCatalogPubliclyAccessible } from '@/lib/catalogPublish'
 import type { McPlatformSettings } from '@/types/mc'
 
 export function CuentaPage() {
@@ -26,9 +26,11 @@ export function CuentaPage() {
     })
   }, [])
 
-  const active = tenant ? isTenantMembershipActive(tenant) : false
+  const catalogoPublico = tenant ? isCatalogPubliclyAccessible(tenant) : false
   const plan = tenant ? billingPlanOf(tenant) : 'free'
   const expertAccess = tenant ? hasExpertFeatureAccess(tenant) : false
+  const expertPaused =
+    tenant?.billingPlan === 'expert' && tenant.catalogPublished === true && !catalogoPublico
   const catalogoListo = tenant ? isCatalogoVendedorListo(tenant, platformSettings) : false
   const cuponesCount = tenant?.cuponesCatalogo?.length ?? 0
 
@@ -49,11 +51,11 @@ export function CuentaPage() {
         <h1 className="ios-large-title">Configuraciones</h1>
       </header>
 
-      {!active && (
-        <p className="mc-config-page__alert border border-neutral-200/60 bg-neutral-50/50 px-4 py-3 text-[13px] leading-relaxed text-[var(--cat-text)]">
-          Membresía vencida. Contactá soporte o pedí extensión al súper admin.
+      {expertPaused ? (
+        <p className="mc-config-page__alert border border-amber-200/60 bg-amber-50/50 px-4 py-3 text-[13px] leading-relaxed text-amber-950">
+          Tu membresía Expert venció. Renová el plan para volver a publicar tu tienda.
         </p>
-      )}
+      ) : null}
 
       {tenant && <BillingPastDueBanner tenant={tenant} />}
 
@@ -72,9 +74,9 @@ export function CuentaPage() {
                     Free
                   </span>
                 </Link>
-                <p className="inline-flex items-center gap-2 border border-emerald-200/70 bg-emerald-50/50 px-3 py-2 text-[12px] leading-relaxed text-emerald-900">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
-                  Acceso permanente · sin vencimiento
+                <p className="inline-flex items-center gap-2 border border-neutral-200/70 bg-neutral-50/50 px-3 py-2 text-[12px] leading-relaxed text-[var(--cat-muted)]">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-400" aria-hidden />
+                  Admin completo · publicá con Expert
                 </p>
               </div>
             ) : (

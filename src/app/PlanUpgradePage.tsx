@@ -1,19 +1,27 @@
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
-import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
+import { navigateConfigReturn, useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { BillingPastDueBanner } from '@/components/billing/BillingPastDueBanner'
 import { BillingSubscriptionManage } from '@/components/billing/BillingSubscriptionManage'
 import { ExpertPlanOffer } from '@/components/billing/ExpertPlanOffer'
 import { ExpertPlanPurchaseFlow } from '@/components/billing/ExpertPlanPurchaseFlow'
 import { useExpertPlanPurchase } from '@/components/billing/useExpertPlanPurchase'
 import { PlanEleganceBadge } from '@/components/billing/PlanEleganceBadge'
-import { isBillingPastDueInGrace } from '@/lib/billingAccess'
+import { hasExpertFeatureAccess, isBillingPastDueInGrace } from '@/lib/billingAccess'
 
 export function PlanUpgradePage() {
   const { tenant } = useMcAuth()
-  const { returnTo, returnLabel } = useConfigSubpageNav()
+  const navigate = useNavigate()
+  const { returnTo, returnLabel, navState, publishFromHome } = useConfigSubpageNav()
   const purchase = useExpertPlanPurchase()
   const { planConfig, platformSettings, expertAccess, expertName, showPurchase } = purchase
+
+  useEffect(() => {
+    if (!publishFromHome || showPurchase || !hasExpertFeatureAccess(tenant)) return
+    navigateConfigReturn(navigate, navState)
+  }, [publishFromHome, showPurchase, tenant, navigate, navState])
 
   return (
     <div className="mc-plan-page">
@@ -38,7 +46,14 @@ export function PlanUpgradePage() {
         <ExpertPlanOffer expertName={expertName} planConfig={planConfig} titleId="plan-benefits-title" />
       )}
 
-      {showPurchase && <ExpertPlanPurchaseFlow purchase={purchase} />}
+      {showPurchase && (
+        <ExpertPlanPurchaseFlow
+          purchase={purchase}
+          onPurchaseSuccess={
+            publishFromHome ? () => navigateConfigReturn(navigate, navState) : undefined
+          }
+        />
+      )}
     </div>
   )
 }

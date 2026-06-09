@@ -4,6 +4,8 @@ import {
   SEASON_BANNER_IMAGE_SPECS,
   formatSeasonBannerDimensions,
 } from '@/lib/seasonBanner'
+import { SeasonBannerImageLoadedPreview } from '@/components/seasonBanner/SeasonBannerImageLoadedPreview'
+import { SeasonBannerMediaUploadSlot } from '@/components/seasonBanner/SeasonBannerMediaUploadSlot'
 
 type Props = {
   imageUrl: string | null
@@ -11,22 +13,6 @@ type Props = {
   uploading?: boolean
   onPick: (file: File) => void
   onRemove: () => void
-}
-
-function IconPlus({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-  )
-}
-
-function IconX({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-  )
 }
 
 function IconImage({ className }: { className?: string }) {
@@ -125,39 +111,16 @@ export function SeasonBannerImagePicker({
 
       <div className="flex flex-wrap items-start gap-4">
         {hasImage ? (
-          <div className="relative aspect-[9/16] w-[120px] shrink-0 overflow-hidden rounded-xl border-2 border-mc-900/20 shadow-md ring-2 ring-mc-900/10 sm:w-[132px]">
-            <img src={imageUrl} alt="" className="h-full w-full object-cover" />
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onRemove}
-              className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/65 text-white shadow-sm backdrop-blur-sm transition hover:bg-red-600 active:scale-95"
-              aria-label="Quitar imagen de campaña"
-            >
-              <IconX className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <SeasonBannerImageLoadedPreview imageUrl={imageUrl} busy={busy} onRemove={onRemove} />
         ) : (
-          <McFileInputLabel
-            {...pickProps}
-            className={clsx(
-              'flex aspect-[9/16] w-[120px] shrink-0 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed transition sm:w-[132px]',
-              busy
-                ? 'cursor-not-allowed border-neutral-200/60 bg-neutral-50/50 text-neutral-300'
-                : 'cursor-pointer border-neutral-300 bg-white text-mc-600 hover:border-mc-900/40 hover:bg-white hover:text-mc-900 active:scale-[0.98]',
-            )}
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100">
-              {uploading ? (
-                <span className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-300 border-t-mc-700" />
-              ) : (
-                <IconPlus className="h-5 w-5" />
-              )}
-            </span>
-            <span className="px-2 text-center text-[10px] font-semibold leading-tight">
-              {uploading ? 'Subiendo…' : 'Subir foto'}
-            </span>
-          </McFileInputLabel>
+          <SeasonBannerMediaUploadSlot
+            variant="image"
+            accept={pickProps.accept}
+            disabled={pickProps.disabled}
+            uploading={uploading}
+            idleLabel="Subir foto"
+            onFiles={pickProps.onFiles}
+          />
         )}
 
         <div className="min-w-0 flex-1 space-y-2 pt-1">
@@ -165,7 +128,8 @@ export function SeasonBannerImagePicker({
             <>
               <p className="ios-footnote font-medium text-mc-800">Imagen de campaña cargada</p>
               <p className="text-[12px] leading-relaxed text-mc-600">
-                Guardá el banner para publicarla en tu catálogo. Podés cambiarla cuando quieras.
+                Así se recorta en celular (vertical) y en escritorio (horizontal). Guardá el banner para
+                publicarla en tu catálogo.
               </p>
               <McFileInputLabel
                 {...pickProps}

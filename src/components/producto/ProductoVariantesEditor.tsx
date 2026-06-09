@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { useEffect, useRef } from 'react'
 import { VarianteImagenPicker } from '@/components/producto/VarianteImagenPicker'
 import { formatIntegerEsCo } from '@/lib/formatCop'
 import {
@@ -199,17 +200,35 @@ function VarianteNombreField({
 }
 
 export function ProductoVariantesEditor({ variantes, onChange, allowImage = false, disabled = false, esRopa = false }: Props) {
+  const pendingScrollIdRef = useRef<string | null>(null)
+  const rowRefs = useRef<Map<string, HTMLLIElement>>(new Map())
+
   function patch(i: number, partial: Partial<VarianteDraftConArchivo>) {
     onChange(patchAt(variantes, i, partial))
   }
 
   function addVariante() {
-    onChange([...variantes, createVarianteDraft()])
+    const draft = createVarianteDraft()
+    pendingScrollIdRef.current = draft.id
+    onChange([...variantes, draft])
   }
 
   function removeVariante(i: number) {
     onChange(variantes.filter((_, j) => j !== i))
   }
+
+  useEffect(() => {
+    const targetId = pendingScrollIdRef.current
+    if (!targetId) return
+    const el = rowRefs.current.get(targetId)
+    if (!el) return
+    pendingScrollIdRef.current = null
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      el.classList.add('mc-variante-nueva')
+      window.setTimeout(() => el.classList.remove('mc-variante-nueva'), 1600)
+    })
+  }, [variantes])
 
   const stockTotal = variantes.reduce((s, v) => {
     const n = Number(v.stock.replace(/\D/g, ''))
@@ -242,7 +261,11 @@ export function ProductoVariantesEditor({ variantes, onChange, allowImage = fals
             {variantes.map((v, i) => (
               <li
                 key={v.id}
-                className="overflow-hidden rounded-lg border border-neutral-300/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                ref={(node) => {
+                  if (node) rowRefs.current.set(v.id, node)
+                  else rowRefs.current.delete(v.id)
+                }}
+                className="overflow-hidden rounded-lg border border-neutral-300/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-[box-shadow,border-color] duration-500"
               >
                 <div className="flex items-center justify-between gap-2 border-b border-neutral-100 bg-neutral-50/80 px-3 py-2">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-mc-500">

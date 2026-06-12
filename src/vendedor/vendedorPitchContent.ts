@@ -1,17 +1,13 @@
 import { formatCop } from '@/lib/formatCop'
-import {
-  ONEPAY_COMMISSION_IVA_RATE,
-  ONEPAY_MERCHANT_TX_FIXED_COP,
-  ONEPAY_MERCHANT_TX_RATE,
-} from '@/lib/pasarelaFees'
+import { ONEPAY_MERCHANT_TX_RATE } from '@/lib/pasarelaFees'
 
 export const MC_MONTHLY_PRICE_COP = 29_900
+export const MC_ANNUAL_PRICE_COP = 299_900
 
 const TX_PCT_LABEL = (ONEPAY_MERCHANT_TX_RATE * 100).toFixed(2).replace('.', ',')
-const IVA_PCT_LABEL = (ONEPAY_COMMISSION_IVA_RATE * 100).toFixed(0)
 
 /** Comisión por transacción de la pasarela OnePay (no de Mi Catálogo). */
-export const pitchPasarelaTxCommissionLabel = `${TX_PCT_LABEL}% + ${formatCop(ONEPAY_MERCHANT_TX_FIXED_COP)} + ${IVA_PCT_LABEL}% IVA (sobre la comisión)`
+export const pitchPasarelaTxCommissionLabel = `${TX_PCT_LABEL}% + $ 800 + IVA (IVA solo sobre la comisión)`
 
 /** Costo de dispersión sin cuenta comercio OnePay propia. */
 export const pitchPasarelaDispersionSinCuentaLabel = '0,1% + $800 COP'
@@ -24,6 +20,8 @@ export const pitchHero = {
     'Mi Catálogo convierte tu catálogo en una tienda virtual profesional que cobra, envía y atiende — sin contratar vendedores, sin pagar dominio y sin sorpresas en la factura.',
   priceLabel: `${formatCop(MC_MONTHLY_PRICE_COP)} / mes`,
   priceNote: 'Todo incluido · Sin costos ocultos',
+  annualPriceLabel: `${formatCop(MC_ANNUAL_PRICE_COP)} / año`,
+  annualPriceHighlight: 'Ahorrás 2 meses de membresía',
 }
 
 export type PitchComparisonRow = {
@@ -95,10 +93,10 @@ export const pitchValueProps = [
     icon: 'shield' as const,
   },
   {
-    id: 'colombia',
-    title: 'Hecho para vender en Colombia',
+    id: 'fast-start',
+    title: 'Arrancás hoy, no la próxima semana',
     description:
-      'WhatsApp, ciudades DIVIPOLA, transportadoras locales, Nequi/tarjeta vía pasarela. No adaptás una plataforma gringa: ya está pensada para tu mercado.',
+      'En la misma visita dejás la tienda lista: subís productos, compartís el link y empezás a cobrar. Sin agencia, sin programador ni semanas armando algo a medida.',
     icon: 'map' as const,
   },
   {

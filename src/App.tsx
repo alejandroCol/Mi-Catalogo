@@ -187,6 +187,12 @@ const VendedorPitchPage = lazy(() =>
 const VendedorCapacitacionPage = lazy(() =>
   import('@/vendedor/VendedorCapacitacionPage').then((m) => ({ default: m.VendedorCapacitacionPage })),
 )
+const VendedorPendientesPage = lazy(() =>
+  import('@/vendedor/VendedorVisitasListPage').then((m) => ({ default: m.VendedorPendientesPage })),
+)
+const VendedorVendidasPage = lazy(() =>
+  import('@/vendedor/VendedorVisitasListPage').then((m) => ({ default: m.VendedorVendidasPage })),
+)
 const VendedorDemoAdminLayout = lazy(() =>
   import('@/vendedor/demo-admin/DemoAdminLayout').then((m) => ({ default: m.DemoAdminLayout })),
 )
@@ -291,6 +297,8 @@ function PlatformRoutes() {
         <Route index element={<VendedorDashboardPage />} />
         <Route path="pitch" element={<VendedorPitchPage />} />
         <Route path="capacitacion" element={<VendedorCapacitacionPage />} />
+        <Route path="pendientes" element={<VendedorPendientesPage />} />
+        <Route path="vendidas" element={<VendedorVendidasPage />} />
       </Route>
       <Route
         path="/vendedor/demo-admin/:demoId"

@@ -29,6 +29,14 @@ export function VendedorPitchPage() {
   const goPrev = useCallback(() => setSlide((s) => Math.max(0, s - 1)), [])
 
   useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault()
@@ -134,6 +142,14 @@ function SlideHero() {
           <p className="mc-landing-eyebrow mb-3">Plan todo incluido</p>
           <p className="mc-vendedor-pitch__price-value">{pitchHero.priceLabel}</p>
           <p className="mt-3 text-base font-medium text-mc-600">{pitchHero.priceNote}</p>
+
+          <div className="mc-vendedor-pitch__annual-divider" aria-hidden />
+
+          <p className="mc-landing-eyebrow mb-2 mt-5">Plan anual</p>
+          <p className="text-[clamp(1.75rem,4vw,2.5rem)] font-semibold leading-none tracking-tighter text-mc-brand-gray">
+            {pitchHero.annualPriceLabel}
+          </p>
+          <p className="mc-vendedor-pitch__annual-highlight mt-3">{pitchHero.annualPriceHighlight}</p>
         </div>
       </div>
     </section>

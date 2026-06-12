@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import {
   IconChartBars,
@@ -10,6 +10,7 @@ import {
   IconSliders,
 } from '@/icons/McIcons'
 import { VendedorDashboardTile } from '@/vendedor/components/VendedorDashboardTile'
+import { VendedorStatLink } from '@/vendedor/components/VendedorStatLink'
 import { RegistrarVisitaModal } from '@/vendedor/RegistrarVisitaModal'
 import { VerDemoModal } from '@/vendedor/VerDemoModal'
 import { useSalesRepVisits } from '@/vendedor/hooks/useSalesRepVisits'
@@ -50,10 +51,13 @@ export function VendedorDashboardPage() {
             <p className="mc-vendedor-stat__label">Visitadas</p>
             <p className="mc-vendedor-stat__value">{loading ? '—' : stats.total}</p>
           </div>
-          <div className="mc-vendedor-stat">
-            <p className="mc-vendedor-stat__label">Vendidas</p>
-            <p className="mc-vendedor-stat__value">{loading ? '—' : stats.vendidas}</p>
-          </div>
+          <VendedorStatLink
+            to="/vendedor/vendidas"
+            label="Vendidas"
+            value={stats.vendidas}
+            loading={loading}
+            accent="gold"
+          />
         </div>
       </section>
 
@@ -123,16 +127,16 @@ export function VendedorDashboardPage() {
               <h2 className="text-lg font-semibold tracking-tight">Tu desempeño</h2>
             </div>
             <div className="grid grid-cols-3 gap-4 text-center sm:gap-6">
-              <div>
+              <Link to="/vendedor/vendidas" className="mc-vendedor-perf-stat group">
                 <p className="text-[1.75rem] font-semibold tracking-tighter text-[var(--mc-landing-gold)] sm:text-[2rem]">
                   {stats.vendidas}
                 </p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] opacity-70">Exitosas</p>
-              </div>
-              <div>
+              </Link>
+              <Link to="/vendedor/pendientes" className="mc-vendedor-perf-stat group">
                 <p className="text-[1.75rem] font-semibold tracking-tighter sm:text-[2rem]">{stats.pendientes}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] opacity-70">Pendientes</p>
-              </div>
+              </Link>
               <div>
                 <p className="text-[1.75rem] font-semibold tracking-tighter sm:text-[2rem]">{stats.rechazos}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] opacity-70">Rechazos</p>

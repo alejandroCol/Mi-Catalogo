@@ -34,6 +34,7 @@ import {
 } from '@/lib/productoVariantes'
 import type { McPlatformSettings, McProducto, McProductoVariante, McTenant } from '@/types/mc'
 import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
+import { McErrorDialog } from '@/components/McErrorDialog'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 import {
   categoriasNavFromProductForm,
@@ -97,6 +98,12 @@ export function QuickAddProductModal({
     initialDraft?.draftProductId ?? null,
   )
   const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>('idle')
+  const [errorDialog, setErrorDialog] = useState<{ title?: string; message: string } | null>(null)
+
+  const showCreateError = useCallback((message: string, title?: string) => {
+    setErr(message)
+    setErrorDialog({ message, title })
+  }, [])
 
   const draftProductIdRef = useRef(draftProductId)
   draftProductIdRef.current = draftProductId
@@ -213,7 +220,7 @@ export function QuickAddProductModal({
         })
         .catch((e) => {
           if (e instanceof ProductLimitError) {
-            setErr(e.message)
+            showCreateError(e.message, 'Límite de productos')
           }
           setDraftSaveState('error')
         })
@@ -271,24 +278,24 @@ export function QuickAddProductModal({
     const precioNum = Number(precio.replace(/\D/g, ''))
     const stockNum = Number(stock.replace(/\D/g, ''))
     if (!nombre.trim()) {
-      setErr('Poné un nombre corto.')
+      showCreateError('Poné un nombre corto.')
       return
     }
     if (!Number.isFinite(precioNum) || precioNum < 0) {
-      setErr('Precio inválido.')
+      showCreateError('Precio inválido.')
       return
     }
 
     const descParsed = parseProductoDescuentoDraft(descuento, precioNum)
     if (!descParsed.ok) {
-      setErr(descParsed.error)
+      showCreateError(descParsed.error)
       return
     }
 
     for (const v of variantes) {
       if (!v.nombre.trim()) continue
       if (v.precio.trim() && parsePrecioVarianteOpcional(v.precio) == null) {
-        setErr(`Precio opcional inválido en variante «${v.nombre.trim()}».`)
+        showCreateError(`Precio opcional inválido en variante «${v.nombre.trim()}».`)
         return
       }
     }
@@ -296,14 +303,14 @@ export function QuickAddProductModal({
     const varianteRows = variantes.filter((v) => v.nombre.trim())
     const builtTallas = esRopa ? buildTallasFromDrafts(tallas) : []
     if (esRopa && sumarStockTallas(builtTallas) <= 0) {
-      setErr('Indicá stock en al menos una talla.')
+      showCreateError('Indicá stock en al menos una talla.')
       return
     }
 
     const needsStorage =
       imagenes.length > 0 || varianteRows.some((v) => v.file)
     if (needsStorage && !firebaseStorageConfigured) {
-      setErr('Firebase Storage no está configurado; no se pueden subir imágenes.')
+      showCreateError('Firebase Storage no está configurado; no se pueden subir imágenes.')
       return
     }
 
@@ -400,9 +407,9 @@ export function QuickAddProductModal({
       handlePublishSuccess()
     } catch (e) {
       if (e instanceof ProductLimitError) {
-        setErr(e.message)
+        showCreateError(e.message, 'Límite de productos')
       } else {
-        setErr(
+        showCreateError(
           productSaveErrorMessage(
             e,
             'No se pudo guardar. Revisá conexión e intentá de nuevo.',
@@ -439,7 +446,8 @@ export function QuickAddProductModal({
             : null
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" role="dialog">
+    <>
+      <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" role="dialog">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Cerrar" onClick={handleClose} />
       <div className="relative flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-neutral-200/50 bg-neutral-50 shadow-2xl sm:rounded-2xl">
         <div className="shrink-0 border-b border-neutral-200/60 bg-white/90 px-5 py-4 backdrop-blur-sm sm:px-8">
@@ -627,5 +635,13 @@ export function QuickAddProductModal({
         </form>
       </div>
     </div>
+
+      <McErrorDialog
+        open={errorDialog != null}
+        title={errorDialog?.title}
+        message={errorDialog?.message ?? ''}
+        onClose={() => setErrorDialog(null)}
+      />
+    </>
   )
 }

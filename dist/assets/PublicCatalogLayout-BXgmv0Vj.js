@@ -1,1 +1,0 @@
-import{t as e}from"./PublicCatalogLayout-CnWS7-GM.js";export{e as PublicCatalogLayout};

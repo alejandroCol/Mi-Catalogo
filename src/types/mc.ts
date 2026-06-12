@@ -60,6 +60,14 @@ export type McUserRole = 'owner' | 'sales_rep'
 /** Resultado de una visita presencial registrada por un vendedor. */
 export type McSalesVisitOutcome = 'venta_exitosa' | 'pendiente' | 'rechazo'
 
+/** Seguimiento agregado a una visita por el vendedor. */
+export interface McSalesVisitUpdate {
+  id: string
+  description: string
+  outcome: McSalesVisitOutcome
+  createdAt: number
+}
+
 export interface McUser {
   uid: string
   email: string
@@ -89,6 +97,8 @@ export interface McSalesVisit {
   /** YYYY-MM-DD (zona local del vendedor al registrar). */
   dateKey: string
   createdAt: number
+  updatedAt?: number
+  updates?: McSalesVisitUpdate[]
 }
 
 /** Tienda demo seleccionable por vendedores (`mc_demo_stores`). */

@@ -762,7 +762,42 @@ service cloud.firestore {
             && request.resource.data.tenantSlug.size() <= 80
           )
         );
-      allow update, delete: if false;
+      allow update: if mcIsSalesRep()
+        && resource.data.salesRepUid == request.auth.uid
+        && request.resource.data.salesRepUid == resource.data.salesRepUid
+        && request.resource.data.salesRepName == resource.data.salesRepName
+        && request.resource.data.storeName == resource.data.storeName
+        && request.resource.data.dateKey == resource.data.dateKey
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.outcome in ['venta_exitosa', 'pendiente', 'rechazo']
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updates is list
+        && request.resource.data.updates.size() > 0
+        && request.resource.data.updates.size()
+          == (('updates' in resource.data) ? resource.data.updates.size() : 0) + 1
+        && (
+          !('storeDetail' in request.resource.data)
+          || request.resource.data.storeDetail == resource.data.get('storeDetail', null)
+        )
+        && (
+          !('tenantId' in request.resource.data)
+          || request.resource.data.tenantId == resource.data.get('tenantId', null)
+        )
+        && (
+          !('tenantSlug' in request.resource.data)
+          || request.resource.data.tenantSlug == resource.data.get('tenantSlug', null)
+        )
+        && (
+          request.resource.data.outcome != 'rechazo'
+          || (
+            request.resource.data.rejectionReason is string
+            && request.resource.data.rejectionReason.size() > 0
+            && request.resource.data.rejectionReason.size() <= 500
+          )
+        )
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['outcome', 'rejectionReason', 'updates', 'updatedAt']);
+      allow delete: if false;
     }
 
     /** Tiendas demo para mostrar a marcas (vendedores leen; súper admin escribe). */

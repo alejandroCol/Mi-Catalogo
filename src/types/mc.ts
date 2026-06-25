@@ -1,5 +1,5 @@
-/** Producto SaaS: free (catálogo estándar) o expert (estilos y colores del catálogo). */
-export type McBillingPlan = 'free' | 'expert'
+/** Producto SaaS: free, expert (catálogo premium) o master (expert + live shopping). */
+export type McBillingPlan = 'free' | 'expert' | 'master'
 
 /** Plantilla + colores: catálogo público y panel admin (solo plan expert; free usa estilo fijo en público). */
 export type McCatalogThemePreset = 'ios' | 'morning' | 'minimal' | 'bold' | 'boutique'
@@ -54,8 +54,8 @@ export interface McSeasonBanner {
   updatedAt?: number
 }
 
-/** Dueño de tienda (default) o representante comercial de campo. */
-export type McUserRole = 'owner' | 'sales_rep'
+/** Dueño de tienda (default), representante comercial de campo o cajero POS. */
+export type McUserRole = 'owner' | 'sales_rep' | 'pos_vendor'
 
 /** Resultado de una visita presencial registrada por un vendedor. */
 export type McSalesVisitOutcome = 'venta_exitosa' | 'pendiente' | 'rechazo'
@@ -79,6 +79,8 @@ export interface McUser {
   createdAt: number
   /** Solo vendedores: desactivar acceso sin borrar historial. */
   active?: boolean
+  /** Solo vendedores POS: sede asignada. */
+  posSedeId?: string
 }
 
 /** Visita presencial a una marca (`mc_sales_visits`). */
@@ -282,6 +284,10 @@ export interface McTenant {
   platformTermsContentHash?: string
   /** User-Agent del navegador al aceptar (registro de auditoría). */
   platformTermsUserAgent?: string
+  /** Sede central de inventario (bodega) para POS. */
+  posSedeBodegaId?: string
+  /** URL pública del instalador ZIP del puente POS (opcional). */
+  posBridgeInstallerUrl?: string
 }
 
 /** Registro inmutable de aceptación legal (`mc_tenants/{tid}/legal_acceptances/{version}`). */
@@ -426,6 +432,170 @@ export interface McProducto {
   descuentoValor?: number
   /** IDs de categorías asociadas (`mc_tenants/{tid}/categorias`). */
   categoriaIds?: string[]
+  /** Producto originado en inventario POS. */
+  origenPos?: boolean
+  /** Vínculo al artículo POS de origen. */
+  posProductoId?: string
+  /** Sede POS de la que proviene el inventario. */
+  posSedeId?: string
+  /** Falta imagen u otros datos para publicar en catálogo. */
+  posPendientePublicar?: boolean
+}
+
+/** Configuración de hardware POS por sede. */
+export interface McPosSedeConfig {
+  imprimirTicketAutomatico?: boolean
+  abrirCajonEnVenta?: boolean
+  nombreImpresora?: string
+  urlBridge?: string
+  /** 0 = pin 2 (Epson), 1 = pin 5. */
+  cajonPin?: 0 | 1
+}
+
+/** Sede / punto de venta físico (`mc_tenants/{tid}/pos_sedes`). */
+export interface McPosSede {
+  id: string
+  nombre: string
+  codigo: string
+  direccion?: string
+  activa: boolean
+  /** Si true, el inventario de esta sede puede publicarse en la tienda virtual. */
+  mostrarEnTiendaVirtual?: boolean
+  pos?: McPosSedeConfig
+  createdAt: number
+  updatedAt?: number
+}
+
+/** Variante opcional de un artículo POS (talla, color, etc.). */
+export interface McPosVariante {
+  id: string
+  nombre: string
+  codigoBarras?: string
+  /** Si se define, sustituye al precio base del producto. */
+  precioCop?: number
+}
+
+/** Artículo de inventario POS (`mc_tenants/{tid}/pos_productos`). */
+export interface McPosProducto {
+  id: string
+  nombre: string
+  codigo?: string
+  codigoBarras?: string
+  precioCop: number
+  activo: boolean
+  sedeId: string
+  variantes?: McPosVariante[]
+  createdAt: number
+  updatedAt: number
+  /** Producto de catálogo vinculado al publicar. */
+  catalogProductoId?: string
+  publicadoEnCatalogo?: boolean
+}
+
+/** Stock por sede y producto (`mc_tenants/{tid}/pos_stock`). */
+export interface McPosStock {
+  id: string
+  sedeId: string
+  productoId: string
+  /** Ausente = producto sin variantes. */
+  varianteId?: string
+  cantidad: number
+  updatedAt: number
+}
+
+export type McPosMetodoPago = 'efectivo' | 'transferencia' | 'nequi' | 'credito'
+
+export interface McPosLineaPago {
+  metodo: McPosMetodoPago
+  monto: number
+}
+
+export interface McPosLineaVenta {
+  productoId: string
+  varianteId?: string
+  nombre: string
+  cantidad: number
+  precioUnitarioCop: number
+  descuentoCop?: number
+  subtotalCop: number
+}
+
+/** Venta registrada en caja (`mc_tenants/{tid}/pos_ventas`). */
+export interface McPosVenta {
+  id: string
+  sedeId: string
+  vendedorUid: string
+  vendedorNombre: string
+  lineas: McPosLineaVenta[]
+  pagos: McPosLineaPago[]
+  totalCop: number
+  descuentoGlobalCop?: number
+  motivoDescuentoGlobal?: string
+  esCredito?: boolean
+  estado?: 'activa' | 'anulada'
+  anuladaAt?: number
+  anuladaPorUid?: string
+  createdAt: number
+}
+
+export interface McPosCajaMovimiento {
+  id: string
+  tipo: 'ingreso' | 'egreso'
+  montoCop: number
+  descripcion: string
+  comprobanteUrl?: string
+  createdAt: number
+}
+
+/** Caja diaria por vendedor y sede (`mc_tenants/{tid}/pos_caja_diaria`). */
+export interface McPosCajaDiaria {
+  id: string
+  sedeId: string
+  vendedorUid: string
+  fechaKey: string
+  saldoInicialEfectivo: number
+  estado: 'abierta' | 'cerrada'
+  egresos: McPosCajaMovimiento[]
+  ingresos: McPosCajaMovimiento[]
+  efectivoContado?: number
+  diferencia?: number
+  notaCierre?: string
+  ventasEfectivoDia?: number
+  efectivoEsperado?: number
+  cierreAt?: number
+  createdAt: number
+  updatedAt?: number
+}
+
+/** Turno de cajero (`mc_tenants/{tid}/pos_turnos`). */
+export interface McPosTurno {
+  id: string
+  sedeId: string
+  vendedorUid: string
+  estado: 'abierto' | 'cerrado'
+  inicioAt: number
+  finAt?: number
+}
+
+export interface McPosDevolucionLinea {
+  productoId: string
+  varianteId?: string
+  nombre: string
+  cantidad: number
+  montoReembolsoCop: number
+}
+
+/** Devolución o cambio (`mc_tenants/{tid}/pos_devoluciones`). */
+export interface McPosDevolucion {
+  id: string
+  ventaId: string
+  sedeId: string
+  vendedorUid: string
+  tipo: 'devolucion' | 'cambio'
+  lineas: McPosDevolucionLinea[]
+  lineasCambioSalida?: { productoId: string; nombre: string; cantidad: number }[]
+  montoReembolsoCop: number
+  createdAt: number
 }
 
 export interface McPedido {
@@ -531,6 +701,12 @@ export interface McPlatformSettings {
   planExpertPrecioAnualCop?: number
   /** Nombre comercial del plan Expert (UI «Eres …»). */
   planExpertDisplayName?: string
+  /** Precio mensual del plan Master en COP. */
+  planMasterPrecioMensualCop?: number
+  /** Precio anual del plan Master en COP. */
+  planMasterPrecioAnualCop?: number
+  /** Nombre comercial del plan Master. */
+  planMasterDisplayName?: string
   /** Ruta FTCaptures / OnePay Elements para tarjetas in-app. */
   onepayCaptureRouteId?: string
   /** Correo que recibe aviso cuando se registra una tienda nueva. */
@@ -631,4 +807,71 @@ export interface McSlugDoc {
   tenantId: string
   active: boolean
   updatedAt: number
+}
+
+/** Estado de una sesión de live shopping. */
+export type McLiveSessionStatus = 'draft' | 'scheduled' | 'live' | 'ended'
+
+export type McLiveStreamProvider = 'mux' | 'mock'
+
+export type McLiveIngestMode = 'obs' | 'browser'
+
+/** Sesión de transmisión en vivo (`mc_tenants/{tid}/live_sessions`). */
+export interface McLiveSession {
+  id: string
+  status: McLiveSessionStatus
+  title: string
+  hostUid: string
+  streamProvider: McLiveStreamProvider
+  streamId: string
+  playbackUrl: string
+  ingestUrl: string
+  streamKey: string
+  featuredProductId: string | null
+  featuredAt: number | null
+  viewerCount: number
+  purchaseCount: number
+  chatEnabled: boolean
+  shareUrl: string
+  /** Slug público de la tienda (para reglas Firestore del viewer anónimo). */
+  storeSlug?: string
+  streamActive: boolean
+  /** `obs` = RTMP externo; `browser` = cámara del navegador vía LiveKit. */
+  ingestMode: McLiveIngestMode | null
+  browserEgressId?: string | null
+  recordingUrl?: string
+  startedAt?: number
+  endedAt?: number
+  createdAt: number
+  updatedAt: number
+}
+
+export interface McLiveSessionProductSnapshot {
+  nombre: string
+  precioCop: number
+  precioOriginalCop?: number
+  imageUrl?: string
+  stock: number
+}
+
+/** Producto seleccionado para aparecer en el live. */
+export interface McLiveSessionProduct {
+  id: string
+  productId: string
+  orden: number
+  pinnedAt: number | null
+  snapshot: McLiveSessionProductSnapshot
+  updatedAt: number
+}
+
+export type McLiveChatMessageType = 'message' | 'purchase' | 'system'
+
+/** Mensaje del chat en vivo. */
+export interface McLiveChatMessage {
+  id: string
+  uid: string | null
+  displayName: string
+  text: string
+  type: McLiveChatMessageType
+  createdAt: number
 }

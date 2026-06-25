@@ -20,9 +20,10 @@ type VisitListConfig = {
   emptyTitle: string
   emptyLead: string
   showUpdateAction: boolean
+  showRejectionReason?: boolean
 }
 
-const CONFIG: Record<'pendientes' | 'vendidas', VisitListConfig> = {
+const CONFIG: Record<'pendientes' | 'vendidas' | 'rechazos', VisitListConfig> = {
   pendientes: {
     filter: 'pendiente',
     eyebrow: 'Seguimiento',
@@ -43,20 +44,42 @@ const CONFIG: Record<'pendientes' | 'vendidas', VisitListConfig> = {
     emptyLead: 'Cuando cierres una marca, registrá la visita como venta exitosa y la verás en esta lista.',
     showUpdateAction: false,
   },
+  rechazos: {
+    filter: 'rechazo',
+    eyebrow: 'Aprendizaje',
+    title: 'Tiendas',
+    titleAccent: ' rechazadas',
+    lead: 'Marcas que dijeron que no. Revisá el motivo para afinar tu pitch en la próxima visita.',
+    emptyTitle: 'Sin rechazos registrados',
+    emptyLead: 'Cuando una marca diga que no, anotala como rechazo con el motivo para tener contexto después.',
+    showUpdateAction: false,
+    showRejectionReason: true,
+  },
+}
+
+function resolveRejectionReason(visit: McSalesVisit): string | null {
+  if (visit.rejectionReason?.trim()) return visit.rejectionReason.trim()
+  const fromUpdate = [...(visit.updates ?? [])]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .find((u) => u.outcome === 'rechazo' && u.description.trim())
+  return fromUpdate?.description.trim() ?? null
 }
 
 function VisitCard({
   visit,
   showUpdateAction,
+  showRejectionReason,
   onUpdate,
 }: {
   visit: McSalesVisit
   showUpdateAction: boolean
+  showRejectionReason?: boolean
   onUpdate: (visit: McSalesVisit) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const updates = visit.updates ?? []
   const hasUpdates = updates.length > 0
+  const rejectionReason = showRejectionReason ? resolveRejectionReason(visit) : null
 
   return (
     <article className="mc-vendedor-visit-card">
@@ -82,6 +105,15 @@ function VisitCard({
               <span className="before:mx-1.5 before:content-['·']">{visit.tenantSlug}</span>
             ) : null}
           </p>
+
+          {rejectionReason ? (
+            <div className="mc-vendedor-visit-card__rejection">
+              <p className="mc-vendedor-visit-card__rejection-label">Motivo del rechazo</p>
+              <p className="mc-vendedor-visit-card__rejection-text">{rejectionReason}</p>
+            </div>
+          ) : showRejectionReason ? (
+            <p className="mc-vendedor-visit-card__rejection-missing">Sin motivo registrado</p>
+          ) : null}
         </div>
 
         {showUpdateAction ? (
@@ -140,7 +172,7 @@ function VisitCard({
   )
 }
 
-function VisitListPage({ mode }: { mode: 'pendientes' | 'vendidas' }) {
+function VisitListPage({ mode }: { mode: 'pendientes' | 'vendidas' | 'rechazos' }) {
   const config = CONFIG[mode]
   const { profile } = useMcAuth()
   const { visits, loading } = useSalesRepVisits(profile?.uid)
@@ -181,6 +213,7 @@ function VisitListPage({ mode }: { mode: 'pendientes' | 'vendidas' }) {
               key={visit.id}
               visit={visit}
               showUpdateAction={config.showUpdateAction}
+              showRejectionReason={config.showRejectionReason}
               onUpdate={setUpdateVisit}
             />
           ))}
@@ -202,4 +235,8 @@ export function VendedorPendientesPage() {
 
 export function VendedorVendidasPage() {
   return <VisitListPage mode="vendidas" />
+}
+
+export function VendedorRechazosPage() {
+  return <VisitListPage mode="rechazos" />
 }

@@ -7,6 +7,8 @@ export const MC_ANALYTICS_EVENTS = {
   storeProductView: 'store_product_view',
   storeCheckoutStart: 'store_checkout_start',
   storeCheckoutComplete: 'store_checkout_complete',
+  liveView: 'live_view',
+  livePurchase: 'live_purchase',
   sellerRegistration: 'seller_registration',
   sellerQuickAction: 'seller_quick_action',
 } as const

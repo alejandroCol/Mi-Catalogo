@@ -64,6 +64,11 @@ export function BillingV2Checkout({
   const [pendingNequiAccountId, setPendingNequiAccountId] = useState<string | null>(null)
   const [nequiChecking, setNequiChecking] = useState(false)
   const nequiActivationInFlightRef = useRef(false)
+  const nequiChargeAttemptedRef = useRef(false)
+  const onSuccessRef = useRef(onSuccess)
+  const onErrorRef = useRef(onError)
+  onSuccessRef.current = onSuccess
+  onErrorRef.current = onError
 
   useEffect(() => {
     if (!tenant || !profile) return
@@ -146,16 +151,23 @@ export function BillingV2Checkout({
     })
     const d = res.data as { pending?: boolean; message?: string }
     if (d.pending) {
-      onSuccess(d.message ?? 'Pago en proceso. Recargá en unos segundos cuando se confirme.')
+      onSuccessRef.current(d.message ?? 'Pago en proceso. Recargá en unos segundos cuando se confirme.')
     } else {
-      onSuccess(`¡Listo! Ya sos ${expertName}.`)
+      onSuccessRef.current(`¡Listo! Ya sos ${expertName}.`)
     }
   }
 
   const tryCompleteNequiIfReady = useCallback(
     async (options?: { manual?: boolean }) => {
-      if (!pendingNequiAccountId || nequiActivationInFlightRef.current) return
+      if (
+        !pendingNequiAccountId ||
+        nequiChargeAttemptedRef.current ||
+        nequiActivationInFlightRef.current
+      ) {
+        return
+      }
 
+      nequiActivationInFlightRef.current = true
       setNequiChecking(true)
       if (options?.manual) setMsg(null)
 
@@ -170,7 +182,7 @@ export function BillingV2Checkout({
           return
         }
 
-        nequiActivationInFlightRef.current = true
+        nequiChargeAttemptedRef.current = true
         setNequiAwaitingApproval(false)
         setBusy(true)
         setMsg(null)
@@ -185,19 +197,22 @@ export function BillingV2Checkout({
         nequiActivationInFlightRef.current = false
       }
     },
-    [pendingNequiAccountId, period, discountCode, expertName, onSuccess],
+    [pendingNequiAccountId, period, discountCode, expertName],
   )
+
+  const tryCompleteNequiIfReadyRef = useRef(tryCompleteNequiIfReady)
+  tryCompleteNequiIfReadyRef.current = tryCompleteNequiIfReady
 
   useEffect(() => {
     if (!nequiAwaitingApproval || !pendingNequiAccountId || method !== 'nequi') return
 
-    void tryCompleteNequiIfReady()
+    void tryCompleteNequiIfReadyRef.current()
     const intervalId = window.setInterval(() => {
-      void tryCompleteNequiIfReady()
+      void tryCompleteNequiIfReadyRef.current()
     }, 3500)
 
     return () => window.clearInterval(intervalId)
-  }, [nequiAwaitingApproval, pendingNequiAccountId, tryCompleteNequiIfReady, method])
+  }, [nequiAwaitingApproval, pendingNequiAccountId, method])
 
   async function activateWithCard() {
     if (!captureRouteId) {

@@ -82,5 +82,16 @@ service firebase.storage {
         && request.resource.size < 16 * 1024 * 1024
         && request.resource.contentType == 'application/pdf';
     }
+
+    /** Comprobantes de ingresos/egresos POS */
+    match /mc_tenants/{tenantId}/pos_caja_comprobantes/{fileName} {
+      allow read: if mcUserCanAccessTenant(tenantId);
+      allow write: if mcUserCanAccessTenant(tenantId)
+        && request.resource.size < 8 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf'
+        );
+    }
   }
 }

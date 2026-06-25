@@ -47,3 +47,11 @@ export function idempotencyKeyForBillingDebit(
 ): string {
   return `mcb-${tenantId.slice(0, 12)}-${periodEndMs}`.slice(0, 64)
 }
+
+/** Clave estable para el primer cobro de activación (evita débitos duplicados por reintentos). */
+export function idempotencyKeyForActivation(
+  tenantId: string,
+  period: McBillingPeriod,
+): string {
+  return `mcb-${tenantId.slice(0, 12)}-init-${period}`.slice(0, 64)
+}

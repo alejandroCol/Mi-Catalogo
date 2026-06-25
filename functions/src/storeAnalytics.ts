@@ -8,12 +8,16 @@ export type StoreAnalyticsEvent =
   | 'product_view'
   | 'checkout_start'
   | 'checkout_complete'
+  | 'live_view'
+  | 'live_purchase'
 
 const VALID_EVENTS = new Set<StoreAnalyticsEvent>([
   'catalog_visit',
   'product_view',
   'checkout_start',
   'checkout_complete',
+  'live_view',
+  'live_purchase',
 ])
 
 export function mcAnalyticsDateKeyBogota(ms = Date.now()): string {

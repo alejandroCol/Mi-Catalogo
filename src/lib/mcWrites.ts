@@ -12,6 +12,7 @@ import {
   resolvePlanConfig,
 } from '@/lib/billingPlans'
 import { MC, mcCategoriasCollection, mcProductosCollection } from '@/lib/mcCollections'
+import { markPosProductPublished } from '@/pos/lib/posCatalogSync'
 
 export class ProductLimitError extends Error {
   constructor(message: string) {
@@ -99,10 +100,14 @@ export async function mcToggleProductoCatalogo(
   p: McProducto & { id: string },
 ) {
   const db = getDb()
+  const nextEnCatalogo = !p.enCatalogo
   await updateDoc(doc(db, mcProductosCollection(tenantId), p.id), {
-    enCatalogo: !p.enCatalogo,
+    enCatalogo: nextEnCatalogo,
     updatedAt: Date.now(),
   })
+  if (nextEnCatalogo && p.origenPos && p.posPendientePublicar) {
+    await markPosProductPublished(tenantId, p.id, p.posProductoId)
+  }
 }
 
 export async function mcToggleProductoActivo(tenantId: string, p: McProducto & { id: string }) {

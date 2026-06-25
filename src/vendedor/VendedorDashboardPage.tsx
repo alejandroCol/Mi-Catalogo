@@ -13,6 +13,7 @@ import { VendedorDashboardTile } from '@/vendedor/components/VendedorDashboardTi
 import { VendedorStatLink } from '@/vendedor/components/VendedorStatLink'
 import { RegistrarVisitaModal } from '@/vendedor/RegistrarVisitaModal'
 import { VerDemoModal } from '@/vendedor/VerDemoModal'
+import { PosOmnichannelDemoModal } from '@/vendedor/PosOmnichannelDemoModal'
 import { useSalesRepVisits } from '@/vendedor/hooks/useSalesRepVisits'
 import type { McDemoStore } from '@/types/mc'
 
@@ -23,6 +24,8 @@ export function VendedorDashboardPage() {
   const [visitaOpen, setVisitaOpen] = useState(false)
   const [demoOpen, setDemoOpen] = useState(false)
   const [demoFocus, setDemoFocus] = useState<'public' | 'admin'>('public')
+  const [posDemoOpen, setPosDemoOpen] = useState(false)
+  const [posDemoFocus, setPosDemoFocus] = useState<'admin' | 'vendedora'>('admin')
 
   function onViewAdmin(store: McDemoStore) {
     setDemoOpen(false)
@@ -109,6 +112,17 @@ export function VendedorDashboardPage() {
             size="small"
           />
           <VendedorDashboardTile
+            onClick={() => {
+              setPosDemoFocus('admin')
+              setPosDemoOpen(true)
+            }}
+            icon={<IconChartBars size={20} />}
+            title="Demo POS"
+            description="Admin con reportes o vista cajera con ventas del día."
+            accent="gold"
+            size="medium"
+          />
+          <VendedorDashboardTile
             to="/vendedor/capacitacion"
             icon={<IconGraduationCap size={20} />}
             title="Capacitación"
@@ -137,10 +151,10 @@ export function VendedorDashboardPage() {
                 <p className="text-[1.75rem] font-semibold tracking-tighter sm:text-[2rem]">{stats.pendientes}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] opacity-70">Pendientes</p>
               </Link>
-              <div>
+              <Link to="/vendedor/rechazos" className="mc-vendedor-perf-stat group">
                 <p className="text-[1.75rem] font-semibold tracking-tighter sm:text-[2rem]">{stats.rechazos}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] opacity-70">Rechazos</p>
-              </div>
+              </Link>
             </div>
           </div>
         </section>
@@ -173,6 +187,11 @@ export function VendedorDashboardPage() {
         onClose={() => setDemoOpen(false)}
         onViewAdmin={onViewAdmin}
         focus={demoFocus}
+      />
+      <PosOmnichannelDemoModal
+        open={posDemoOpen}
+        onClose={() => setPosDemoOpen(false)}
+        focus={posDemoFocus}
       />
     </div>
   )

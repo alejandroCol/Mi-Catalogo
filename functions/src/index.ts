@@ -3025,13 +3025,31 @@ export { mcFinalizeNewStoreOnboarding } from './onboardingExpertReward.js'
 export { mcQuoteEnvioCheckout } from './shipping/mcQuoteEnvioCheckout.js'
 export { mcStartStoreImpersonation, mcStopStoreImpersonation } from './storeImpersonation.js'
 export { mcCreateSalesRep, mcSetSalesRepActive } from './salesRep.js'
+export { mcCreatePosVendor, mcSetPosVendorActive } from './posVendor.js'
+export { mcUpdatePosVendor, mcResetPosVendorPassword } from './posVendorUpdate.js'
 export { mcAdminCreateStore } from './adminCreateStore.js'
+export { mcSeedPosDemoData } from './posDemoSeed.js'
 export {
   mcCatalogPublish,
   mcCatalogUnpublish,
   mcBackfillCatalogPublishGrandfather,
 } from './catalogPublishHandlers.js'
 export { mcChangeStoreSlug } from './storeIdentityHandlers.js'
+export {
+  mcLiveCreateSession,
+  mcLiveUpdateProducts,
+  mcLiveStartSession,
+  mcLiveEndSession,
+  mcLivePinProduct,
+  mcLiveSendChat,
+  mcLiveJoinViewer,
+  mcLiveRecordPurchase,
+  mcLiveMuxWebhook,
+  mcLiveGetBrowserBroadcastConfig,
+  mcLiveStartBrowserBroadcast,
+  mcLiveStartBrowserBroadcastEgress,
+  mcLiveHostDisconnect,
+} from './live/handlers.js'
 
 export {
   mcBillingGetSdkContext,

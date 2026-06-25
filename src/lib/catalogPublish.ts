@@ -1,3 +1,4 @@
+import { isPaidBillingPlan } from '@/lib/billingPlan'
 import { catalogoVendedorGate, isCatalogoVendedorListo } from '@/lib/checkoutVentasModo'
 import { isTenantMembershipActive, subscriptionEndsAtMs } from '@/lib/subscription'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
@@ -45,7 +46,7 @@ export function hasActiveExpertForPublish(
   tenant: CatalogPublishSlice | null | undefined,
   nowMs = Date.now(),
 ): boolean {
-  if (!tenant || tenant.billingPlan !== 'expert') return false
+  if (!tenant || !isPaidBillingPlan(tenant.billingPlan)) return false
   const ends = subscriptionEndsAtMs(tenant.subscriptionEndsAt)
   if (ends !== null && ends > nowMs) return true
   if (tenant.billingSubStatus === 'past_due') {

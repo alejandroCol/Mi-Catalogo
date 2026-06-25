@@ -9,6 +9,7 @@ function resolveStoreScreenName(pathname: string): string | null {
   if (pathname.startsWith('/checkout/exito')) return 'public_checkout_success'
   if (pathname.startsWith('/checkout')) return 'public_checkout'
   if (pathname.startsWith('/seguimiento')) return 'public_seguimiento'
+  if (pathname.startsWith('/live/')) return 'public_live'
   if (pathname.startsWith('/politicas')) return 'public_politicas'
   return 'public_catalog'
 }
@@ -30,6 +31,7 @@ function resolveScreenName(pathname: string): string | null {
   if (pathname === '/app') return 'seller_dashboard'
   if (pathname === '/app/inventario') return 'seller_inventario'
   if (pathname === '/app/pedidos') return 'seller_pedidos'
+  if (pathname === '/app/live' || pathname.startsWith('/app/live/')) return 'seller_live'
   if (pathname === '/app/plan') return 'seller_plan'
   if (pathname === '/app/estadisticas') return 'seller_estadisticas'
   if (pathname === '/app/pagos-pasarela') return 'seller_pagos_pasarela'
@@ -52,6 +54,7 @@ function resolveScreenName(pathname: string): string | null {
     if (rest.startsWith('/checkout')) return 'public_checkout'
     if (rest.startsWith('/seguimiento')) return 'public_seguimiento'
     if (rest.startsWith('/politicas')) return 'public_politicas'
+    if (rest.startsWith('/live/')) return 'public_live'
     return 'public_catalog'
   }
   return null

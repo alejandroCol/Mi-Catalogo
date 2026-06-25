@@ -28,6 +28,7 @@ function CartChrome() {
   const { slug, pathBase, to } = usePublicStore()
   usePublicCatalogVisitTracking()
   const { pathname } = useLocation()
+  const isLiveRoute = pathname.includes('/live/')
   const { tenant, isPreview } = useCatalogTenant()
   const { lines, totalPiezas, updateQty, clear, highlightProductId, cartBumpGeneration } =
     useCatalogoSimpleCart()
@@ -61,6 +62,12 @@ function CartChrome() {
 
   return (
     <>
+      {isLiveRoute ? (
+        <McOutletBoundary variant="public">
+          <Outlet />
+        </McOutletBoundary>
+      ) : (
+        <>
       <header className="mc-pc-elev-header sticky top-0 z-30">
         <div className="mc-public-catalog-inset flex h-[3.25rem] items-center justify-between gap-2 sm:h-[3.75rem] sm:gap-4">
           <Link
@@ -301,6 +308,8 @@ function CartChrome() {
           <p className="mt-6 text-sm font-medium tracking-tight mc-pc-text">Total piezas: {totalPiezas}</p>
         )}
       </McCatalogModal>
+        </>
+      )}
     </>
   )
 }

@@ -1,0 +1,28 @@
+Morning POS Bridge — Instalador Windows
+========================================
+
+Requisitos:
+- Windows 10 u 11
+- Node.js LTS (https://nodejs.org) — el instalador abre la pagina si falta
+- Impresora Jaltech POS 58 mm con driver instalado (nombre tipico: JAL 58M)
+- Cajon SAT 119X conectado al puerto RJ11 de la impresora
+- Llave del cajon en posicion de APERTURA ELECTRICA
+
+Pasos:
+1. Descomprime el ZIP en una carpeta (ej. Escritorio\morning-pos-bridge)
+2. Doble clic en INSTALAR.bat (NO requiere ejecutar como administrador)
+3. Espera a que termine (instala dependencias y copia acceso directo al Inicio)
+4. En Morning Admin > Sedes configura el nombre exacto de la impresora
+
+Chrome / acceso desde la web:
+- La primera vez Chrome puede pedir permiso para acceder a la red local: elige PERMITIR.
+- Verifica http://127.0.0.1:9123/health en el navegador.
+
+Uso diario:
+- El puente inicia solo al encender la PC
+- Si hace falta reiniciarlo manualmente: INICIAR-PUENTE.bat
+- URL del puente: http://127.0.0.1:9123
+
+Soporte:
+- Si la app dice "Impresora offline", verifica que el puente este corriendo
+- Abre http://127.0.0.1:9123/health en el navegador — debe responder {"ok":true}

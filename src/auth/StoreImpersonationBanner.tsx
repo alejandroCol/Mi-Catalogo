@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { IconPerson } from '@/icons/McIcons'
 import { buildStorePublicUrl } from '@/lib/storePublicUrl'
+import { isMcSalesRepUser } from '@/lib/mcUserFromFirestore'
 
 export function StoreImpersonationBanner() {
   const nav = useNavigate()
-  const { isImpersonating, impersonation, tenant, stopStoreImpersonation } = useMcAuth()
+  const { isImpersonating, impersonation, tenant, profile, stopStoreImpersonation } = useMcAuth()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -24,7 +25,7 @@ export function StoreImpersonationBanner() {
       setErr(res.message)
       return
     }
-    nav('/superadmin', { replace: true })
+    nav(isMcSalesRepUser(profile) ? '/vendedor' : '/superadmin', { replace: true })
   }
 
   return (
@@ -40,7 +41,7 @@ export function StoreImpersonationBanner() {
           </span>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold tracking-tight text-amber-950">
-              Modo soporte · viendo como tienda
+              {isMcSalesRepUser(profile) ? 'Demo POS · tienda real' : 'Modo soporte · viendo como tienda'}
             </p>
             <p className="truncate text-[12px] text-amber-900/90">
               <span className="font-medium">{label}</span>
@@ -74,7 +75,7 @@ export function StoreImpersonationBanner() {
           disabled={busy}
           onClick={() => void handleStop()}
         >
-          {busy ? 'Saliendo…' : 'Salir del modo soporte'}
+          {busy ? 'Saliendo…' : isMcSalesRepUser(profile) ? 'Volver al panel vendedor' : 'Salir del modo soporte'}
         </button>
       </div>
     </div>

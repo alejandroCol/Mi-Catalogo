@@ -1,3 +1,4 @@
+import { isPaidBillingPlan } from './billingPlan.js'
 import { isSubscriptionEndsAtActive } from './subscriptionMs.js'
 
 export type TenantMembershipSlice = {
@@ -6,7 +7,7 @@ export type TenantMembershipSlice = {
 }
 
 export function isFreeBillingPlan(tenant: TenantMembershipSlice | null | undefined): boolean {
-  return tenant?.billingPlan !== 'expert'
+  return !isPaidBillingPlan(tenant?.billingPlan)
 }
 
 /** Membresía activa: plan Free sin vencimiento; Expert según subscriptionEndsAt. */

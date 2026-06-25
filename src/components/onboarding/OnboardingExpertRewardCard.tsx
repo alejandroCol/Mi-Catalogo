@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { isPaidBillingPlan } from '@/lib/billingPlan'
 import type { McTenant } from '@/types/mc'
 import { ExpertStar } from '@/components/billing/ExpertStar'
 import { IconChevronRight } from '@/icons/McIcons'
@@ -6,7 +7,7 @@ import { IconChevronRight } from '@/icons/McIcons'
 /** Muestra el código Expert emitido tras completar la tienda (cuando ya no va el checklist). */
 export function OnboardingExpertRewardCard({ tenant }: { tenant: McTenant }) {
   const code = tenant.onboardingExpertRewardCode?.trim()
-  if (!code || tenant.billingPlan === 'expert') return null
+  if (!code || isPaidBillingPlan(tenant.billingPlan)) return null
 
   return (
     <section

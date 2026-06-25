@@ -1,0 +1,1 @@
+function e(e,t){let n=`/vendedor/demo-pos-admin/${e}`;return t?`${n}/${t}`:n}function t(e,t){let n=`/vendedor/demo-pos-vendor/${e}`;return t?`${n}/${t}`:n}export{t as n,e as t};

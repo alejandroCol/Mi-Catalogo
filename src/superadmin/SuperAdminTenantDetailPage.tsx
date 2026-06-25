@@ -25,6 +25,7 @@ import { fetchTenantOverviewById, type TenantOverviewRow } from '@/superadmin/fe
 import {
   ASSIGN_PLAN_OPTIONS,
   assignExpertPlanFromNow,
+  assignMasterPlanFromNow,
   assignTenantSubscriptionFromNow,
   extendTenantSubscription,
   patchTenantOnepayKyb,
@@ -33,6 +34,18 @@ import {
   type AssignPlanDuration,
 } from '@/superadmin/tenantAdminActions'
 import { formatTenantShortDate, tenantPlanLabel } from '@/superadmin/tenantDisplayUtils'
+import { callMcSeedPosDemoData } from '@/lib/mcSeedPosDemoApi'
+
+function planProductLabel(plan: ReturnType<typeof billingPlanOf>): string {
+  switch (plan) {
+    case 'master':
+      return 'Master'
+    case 'expert':
+      return 'Expert'
+    default:
+      return 'Free'
+  }
+}
 
 export function SuperAdminTenantDetailPage() {
   const { tenantId } = useParams<{ tenantId: string }>()
@@ -43,6 +56,7 @@ export function SuperAdminTenantDetailPage() {
   const [busy, setBusy] = useState(false)
   const [assigningId, setAssigningId] = useState<AssignPlanDuration | null>(null)
   const [impersonateBusy, setImpersonateBusy] = useState(false)
+  const [seedPosBusy, setSeedPosBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -93,6 +107,16 @@ export function SuperAdminTenantDetailPage() {
     }
   }
 
+  async function handleAssignMasterPlan(duration: AssignPlanDuration) {
+    const option = ASSIGN_PLAN_OPTIONS.find((o) => o.id === duration)
+    if (!option) return
+    setAssigningId(duration)
+    await withMutation(
+      () => assignMasterPlanFromNow(getDb(), tenantId!, duration),
+      `Plan Master asignado: ${option.label} desde hoy.`,
+    )
+  }
+
   async function handleAssignPlan(duration: AssignPlanDuration) {
     const option = ASSIGN_PLAN_OPTIONS.find((o) => o.id === duration)
     if (!option) return
@@ -101,6 +125,34 @@ export function SuperAdminTenantDetailPage() {
       () => assignExpertPlanFromNow(getDb(), tenantId!, duration),
       `Plan Expert asignado: ${option.label} desde hoy.`,
     )
+  }
+
+  async function cargarDataPosDemo() {
+    if (!tenant) return
+    if (
+      !window.confirm(
+        `¿Cargar data demo POS en «${tenant.nombreTienda}»?\n\nSe crearán sedes (Chapinero, Usaquén), productos, stock y ~80 ventas de los últimos 14 días. Si ya cargaste demo antes, se reemplaza.`,
+      )
+    ) {
+      return
+    }
+    setSeedPosBusy(true)
+    setMsg(null)
+    setErr(null)
+    try {
+      const res = await callMcSeedPosDemoData(tenant.id)
+      if (!res.ok) {
+        setErr(res.message)
+        return
+      }
+      setMsg(
+        `Data POS demo cargada: ${res.data.sedes} sedes, ${res.data.productos} productos, ${res.data.ventas} ventas, ${res.data.cajas} cajas abiertas hoy.`,
+      )
+    } catch {
+      setErr('No se pudo cargar la data demo POS.')
+    } finally {
+      setSeedPosBusy(false)
+    }
   }
 
   async function entrarComoTienda() {
@@ -178,6 +230,28 @@ export function SuperAdminTenantDetailPage() {
             </div>
           </div>
 
+          <section className="mc-card space-y-4" aria-label="Demo POS">
+            <div>
+              <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">
+                Data demo POS
+              </h2>
+              <p className="mt-1 text-[13px] leading-relaxed text-mc-600">
+                Carga sedes, inventario y ventas de ejemplo directo en Firestore (sin Cloud Function).
+                Incluye «Sede Chapinero», «Blusa lino natural» y ventas de los últimos 14 días.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="mc-btn-primary px-4 py-2.5 text-[15px]"
+                disabled={busy || seedPosBusy}
+                onClick={() => void cargarDataPosDemo()}
+              >
+                {seedPosBusy ? 'Cargando data…' : 'Cargar data POS demo'}
+              </button>
+            </div>
+          </section>
+
           <section className="mc-card space-y-4" aria-label="Asignar plan Expert">
             <div>
               <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">
@@ -195,6 +269,30 @@ export function SuperAdminTenantDetailPage() {
                   className="mc-btn-primary px-4 py-2.5 text-[15px]"
                   disabled={busy}
                   onClick={() => void handleAssignPlan(option.id)}
+                >
+                  {busy && assigningId === option.id ? 'Guardando…' : option.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="mc-card space-y-4" aria-label="Asignar plan Master">
+            <div>
+              <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">
+                Asignar plan Master
+              </h2>
+              <p className="mt-1 text-[13px] leading-relaxed text-mc-600">
+                Expert + live shopping. Fija el vencimiento desde hoy.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {ASSIGN_PLAN_OPTIONS.map((option) => (
+                <button
+                  key={`master-${option.id}`}
+                  type="button"
+                  className="rounded-lg border border-violet-300/80 bg-violet-50/80 px-4 py-2.5 text-[15px] font-medium text-violet-950 transition hover:bg-violet-100/80 disabled:opacity-50"
+                  disabled={busy}
+                  onClick={() => void handleAssignMasterPlan(option.id)}
                 >
                   {busy && assigningId === option.id ? 'Guardando…' : option.label}
                 </button>
@@ -315,7 +413,7 @@ export function SuperAdminTenantDetailPage() {
                   <dd className="text-right text-mc-900">{row.pedidosCount}</dd>
                 </div>
                 <div className="flex flex-col gap-2 border-t border-mc-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="text-mc-500">Plan producto (Free / Expert)</span>
+                  <span className="text-mc-500">Plan producto</span>
                   <select
                     className="mc-input max-w-[12rem] py-2 text-[15px] sm:text-right"
                     disabled={busy}
@@ -323,12 +421,13 @@ export function SuperAdminTenantDetailPage() {
                     onChange={(e) =>
                       void withMutation(
                         () => setTenantBillingPlan(getDb(), tenant.id, e.target.value as McBillingPlan),
-                        `Plan producto: ${e.target.value === 'expert' ? 'Expert' : 'Free'}.`,
+                        `Plan producto: ${planProductLabel(e.target.value as ReturnType<typeof billingPlanOf>)}.`,
                       )
                     }
                   >
                     <option value="free">Free</option>
                     <option value="expert">Expert</option>
+                    <option value="master">Master</option>
                   </select>
                 </div>
                 <div className="flex flex-col gap-2 border-t border-mc-100 pt-3">
@@ -487,12 +586,12 @@ export function SuperAdminTenantDetailPage() {
                 {billingPlanOf(tenant) === 'free' ? (
                   <p className="ios-footnote leading-relaxed text-mc-600">
                     El plan <strong className="font-medium text-mc-900">Free</strong> no tiene vencimiento. Cambiá a
-                    Expert para gestionar fechas de membresía.
+                    Expert o Master para gestionar fechas de membresía.
                   </p>
                 ) : (
                   <>
                     <p className="ios-footnote font-medium text-mc-700">
-                      Extender Expert (suma sobre el máximo entre hoy y vencimiento)
+                      Extender membresía (suma sobre el máximo entre hoy y vencimiento)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <button

@@ -1,0 +1,1 @@
+function e(e){if(e&&typeof e==`object`){let t=e;if(typeof t.message==`string`&&t.message.trim())return t.message.trim();if(typeof t.details==`string`&&t.details.trim())return t.details.trim()}return`No se pudo completar la operación.`}export{e as t};

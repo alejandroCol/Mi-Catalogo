@@ -14,6 +14,7 @@ import {
 import { CatalogPublishPanel } from '@/components/catalog/CatalogPublishPanel'
 import { CatalogPublishStatusBadge } from '@/components/catalog/CatalogPublishStatusBadge'
 import { isCatalogPubliclyAccessible } from '@/lib/catalogPublish'
+import { hasExpertFeatureAccess, hasLiveFeatureAccess, ownerPlanEleganceLabel } from '@/lib/billingAccess'
 import { isTenantMembershipActive, membershipExpiryLabel } from '@/lib/subscription'
 import { useTenantPedidosSales } from '@/hooks/useTenantPedidosSales'
 import { useTenantHasProducts } from '@/hooks/useTenantHasProducts'
@@ -25,6 +26,7 @@ import {
   IconChevronRight,
   IconClipboard,
   IconLink,
+  IconLive,
   IconMagicBrush,
   IconPlusCircle,
 } from '@/icons/McIcons'
@@ -66,8 +68,11 @@ export function DashboardPage() {
   const { visits: todayVisits, loading: visitsLoading, reload: reloadTodayVisits } =
     useTenantTodayVisits(effectiveTenantId)
   const catalogoPublico = tenant ? isCatalogPubliclyAccessible(tenant) : false
+  const masterLive = hasLiveFeatureAccess(tenant)
   const expertPaused =
-    tenant?.billingPlan === 'expert' &&
+    tenant &&
+    hasExpertFeatureAccess(tenant) === false &&
+    (tenant.billingPlan === 'expert' || tenant.billingPlan === 'master') &&
     tenant.catalogPublished === true &&
     !catalogoPublico &&
     !tenant.catalogPublishGrandfathered
@@ -165,9 +170,9 @@ export function DashboardPage() {
   const publicUrl = buildStorePublicUrl(tenant.slug)
   const plan = billingPlanOf(tenant)
   const planBadgeClass =
-    plan === 'expert'
-      ? 'border-[color-mix(in_srgb,var(--cat-text)_15%,transparent)] text-[var(--cat-text)]'
-      : 'border-neutral-200/70 text-[var(--cat-muted)]'
+    plan === 'free'
+      ? 'border-neutral-200/70 text-[var(--cat-muted)]'
+      : 'border-[color-mix(in_srgb,var(--cat-text)_15%,transparent)] text-[var(--cat-text)]'
   const hoyLabel = new Date().toLocaleDateString('es-CO', {
     weekday: 'long',
     day: 'numeric',
@@ -198,7 +203,7 @@ export function DashboardPage() {
           <span
             className={`inline-flex shrink-0 border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] sm:px-3 sm:py-1 sm:text-[11px] ${planBadgeClass}`}
           >
-            {plan === 'expert' ? 'Expert' : 'Free'}
+            {ownerPlanEleganceLabel(tenant, platformSettings)}
           </span>
         </div>
         <p className="mt-2 text-[13px] capitalize leading-relaxed text-[var(--cat-muted)]">{hoyLabel}</p>
@@ -371,6 +376,41 @@ export function DashboardPage() {
           </Link>
         </section>
       )}
+
+      <Link
+        to="/pos/admin"
+        className="group flex items-center gap-4 border border-[color-mix(in_srgb,var(--mc-landing-gold)_35%,white)] bg-gradient-to-br from-[color-mix(in_srgb,var(--mc-landing-gold)_10%,white)] via-white to-[#faf9f7] px-5 py-5 no-underline transition duration-200 ease-in-out hover:border-[color-mix(in_srgb,var(--mc-landing-gold)_55%,white)] hover:shadow-[0_8px_28px_-12px_rgba(197,163,103,0.3)]"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[color-mix(in_srgb,var(--mc-landing-gold)_40%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_14%,white)] text-[var(--mc-landing-gold-dark)] shadow-[0_1px_3px_rgba(197,163,103,0.2)]">
+          <IconChartBars size={22} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium tracking-tight text-[var(--cat-text)]">Mi Catálogo POS</p>
+          <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
+            Punto de venta, caja, sedes y reportes
+          </p>
+        </div>
+        <IconChevronRight size={17} className="shrink-0 text-[var(--cat-muted)] opacity-60 transition group-hover:opacity-100" />
+      </Link>
+
+      {masterLive ? (
+        <Link
+          to="/app/live"
+          className="group flex items-center gap-4 border border-neutral-200/50 bg-gradient-to-r from-[#1c1b1f] to-[#2a2930] px-5 py-5 no-underline transition duration-200 ease-in-out hover:opacity-95"
+        >
+          <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white">
+            <IconLive size={22} />
+            <span className="mc-live-pulse-dot absolute -right-0.5 -top-0.5 scale-75" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium tracking-tight text-white">Vender en vivo</p>
+            <p className="mt-0.5 text-[13px] leading-relaxed text-white/65">
+              Transmití y vendé en tiempo real con chat interactivo
+            </p>
+          </div>
+          <IconChevronRight size={17} className="shrink-0 text-white/50 transition group-hover:text-white/80" />
+        </Link>
+      ) : null}
 
       <section className="space-y-4">
         <h2 className="text-[15px] font-medium tracking-tight text-[var(--cat-text)]">Acciones rápidas</h2>

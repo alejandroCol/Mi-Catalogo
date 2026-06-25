@@ -36,6 +36,7 @@ import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategori
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 import { categoriasNavFromProductForm, clearQuickAddDraft } from '@/lib/productFormCategoriaNav'
 import { isProductoBorrador } from '@/lib/productoFormDraft'
+import { markPosProductPublished } from '@/pos/lib/posCatalogSync'
 
 export function EditProductModal({
   tenantId,
@@ -220,6 +221,14 @@ export function EditProductModal({
             }
           : {}),
       })
+
+      const clearingPosPendiente =
+        product.origenPos &&
+        product.posPendientePublicar &&
+        (Boolean(imageUrl?.trim()) || esBorrador)
+      if (clearingPosPendiente) {
+        await markPosProductPublished(tenantId, product.id, product.posProductoId)
+      }
 
       showSaveSuccess({
         title: esBorrador ? 'Producto publicado' : 'Cambios guardados',

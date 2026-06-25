@@ -16,6 +16,7 @@ import {
   chargeStatusPaid,
   onepayCreateBillingCharge,
   onepayCreateBillingCustomer,
+  onepayGetCharge,
   readBillingMeta,
 } from './onepayBillingApi.js'
 import { mcCatalogUnpublishIfNeeded } from '../catalogPublish.js'
@@ -23,6 +24,7 @@ import {
   advancePeriodEndMs,
   computeFirstPeriodEndMs,
   computeFreeMonthsEndMs,
+  idempotencyKeyForActivation,
   idempotencyKeyForBillingDebit,
   nextDebitDueFromPeriodEnd,
   type McBillingPeriod,
@@ -389,12 +391,50 @@ export async function mcBillingActivateWithCharge(params: {
   }
 
   const tenantSnap = await params.db.doc(`mc_tenants/${params.tenantId}`).get()
-  const customerId = (tenantSnap.data() as { billingOnePayCustomerId?: string }).billingOnePayCustomerId?.trim()
+  const tenant = tenantSnap.data() as {
+    billingOnePayCustomerId?: string
+    subscriptionEndsAt?: number
+    billingSubStatus?: string
+  }
+  const customerId = tenant.billingOnePayCustomerId?.trim()
   if (!customerId) throw new Error('Primero completá tus datos de facturación.')
 
-  const initMs = Date.now()
-  const periodKey = `init-${initMs}`
-  const idem = idempotencyKeyForBillingDebit(params.tenantId, initMs)
+  const now = Date.now()
+  const subSnap = await subRef(params.db, params.tenantId).get()
+  const existingSub = subSnap.exists ? (subSnap.data() as McBillingSubFirestore) : null
+
+  if (
+    typeof tenant.subscriptionEndsAt === 'number' &&
+    tenant.subscriptionEndsAt > now &&
+    tenant.billingSubStatus === 'active'
+  ) {
+    return {
+      chargeId: existingSub?.lastProcessedChargeId ?? existingSub?.lastChargeId ?? 'active',
+      status: 'paid',
+      pending: false,
+      message: 'Tu plan ya está activo.',
+    }
+  }
+
+  const pendingId = existingSub?.pendingChargeId?.trim()
+  if (pendingId) {
+    const existingCharge = await onepayGetCharge(pendingId, params.platformSk)
+    const pendingStatus = existingCharge?.status
+    if (existingCharge && !chargeStatusFailed(pendingStatus)) {
+      const paid = chargeStatusPaid(pendingStatus)
+      return {
+        chargeId: pendingId,
+        status: pendingStatus,
+        pending: !paid,
+        message: paid
+          ? undefined
+          : 'Pago en proceso. En cuanto OnePay confirme, activamos tu plan (suele tardar segundos).',
+      }
+    }
+  }
+
+  const periodKey = `init-${params.period}`
+  const idem = idempotencyKeyForActivation(params.tenantId, params.period)
   const title = `Plan Expert · ${params.nombreTienda.slice(0, 60)}`
 
   const ch = await onepayCreateBillingCharge({

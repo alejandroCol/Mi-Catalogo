@@ -17,16 +17,22 @@
     "deploy:functions:sales": "bash scripts/deploy-functions.sh --only mcCreateSalesRep,mcSetSalesRepActive",
     "deploy:functions:store": "bash scripts/deploy-functions.sh --only mcAdminCreateStore",
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
-    "deploy:storage": "firebase deploy --only storage"
+    "deploy:storage": "firebase deploy --only storage",
+    "build:pos-bridge": "npm --prefix packages/pos-bridge run build:installer"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "@mux/mux-player-react": "^3.13.0",
     "clsx": "^2.1.1",
     "firebase": "^12.11.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "livekit-client": "^2.20.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.1",
+    "recharts": "^3.8.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

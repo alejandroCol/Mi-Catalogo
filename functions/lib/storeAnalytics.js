@@ -7,6 +7,8 @@ const VALID_EVENTS = new Set([
     'product_view',
     'checkout_start',
     'checkout_complete',
+    'live_view',
+    'live_purchase',
 ]);
 export function mcAnalyticsDateKeyBogota(ms = Date.now()) {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date(ms));

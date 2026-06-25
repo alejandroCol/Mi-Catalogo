@@ -293,6 +293,23 @@ export function InventarioPage() {
                 )}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
+                {p.origenPos && p.posPendientePublicar && !p.enCatalogo && (
+                  <span className="rounded-md border border-amber-200/80 bg-amber-50 px-3 py-1.5 text-[12px] font-semibold text-amber-900">
+                    POS · Completar para publicar
+                  </span>
+                )}
+                {p.origenPos && !p.posPendientePublicar && !p.enCatalogo && (
+                  <button
+                    type="button"
+                    className="rounded-md border border-[color-mix(in_srgb,var(--mc-landing-gold)_40%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_10%,white)] px-3 py-1.5 text-[13px] font-semibold text-mc-brand-gray transition hover:opacity-90"
+                    onClick={() => {
+                      setEditInitialCategoriaIds(undefined)
+                      setEditProduct(p)
+                    }}
+                  >
+                    Publicar en tienda
+                  </button>
+                )}
                 <button
                   type="button"
                   className="rounded-md border border-[var(--cat-accent)]/35 bg-[color-mix(in_srgb,var(--cat-accent)_8%,transparent)] px-3 py-1.5 text-[13px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out hover:opacity-90"

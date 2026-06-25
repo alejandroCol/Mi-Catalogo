@@ -62,3 +62,15 @@ export function mcLegalAcceptanceDoc(tenantId: string, termsVersion: string) {
 export function mcPasarelaRetirosCollection(tenantId: string) {
   return `mc_tenants/${tenantId}/pasarela_retiros` as const
 }
+
+export function mcLiveSessionsCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/live_sessions` as const
+}
+
+export function mcLiveSessionProductsCollection(tenantId: string, sessionId: string) {
+  return `mc_tenants/${tenantId}/live_sessions/${sessionId}/session_products` as const
+}
+
+export function mcLiveChatCollection(tenantId: string, sessionId: string) {
+  return `mc_tenants/${tenantId}/live_sessions/${sessionId}/chat` as const
+}

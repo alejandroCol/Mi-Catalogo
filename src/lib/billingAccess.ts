@@ -1,22 +1,42 @@
-import { billingPlanOf } from '@/lib/catalogTheme'
+import {
+  isExpertBillingPlan,
+  isMasterBillingPlan,
+  isPaidBillingPlan,
+} from '@/lib/billingPlan'
 import { isSubscriptionActive } from '@/lib/subscription'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 
 export const MC_BILLING_GRACE_DAYS = 7
 
 export const DEFAULT_PLAN_EXPERT_DISPLAY_NAME = 'Expert'
+export const DEFAULT_PLAN_MASTER_DISPLAY_NAME = 'Master'
 
 export function planExpertDisplayName(settings: McPlatformSettings | null | undefined): string {
   const n = settings?.planExpertDisplayName?.trim()
   return n && n.length > 0 ? n : DEFAULT_PLAN_EXPERT_DISPLAY_NAME
 }
 
-/** Suscripción Expert activa (o gracia): requisito para publicar la tienda. */
-export function hasExpertFeatureAccess(tenant: McTenant | null | undefined): boolean {
-  if (!tenant || billingPlanOf(tenant) !== 'expert') return false
+export function planMasterDisplayName(settings: McPlatformSettings | null | undefined): string {
+  const n = settings?.planMasterDisplayName?.trim()
+  return n && n.length > 0 ? n : DEFAULT_PLAN_MASTER_DISPLAY_NAME
+}
+
+function hasActivePaidSubscription(tenant: McTenant): boolean {
   if (isSubscriptionActive(tenant.subscriptionEndsAt)) return true
   const grace = tenant.billingGraceUntilMs
   return typeof grace === 'number' && grace > Date.now()
+}
+
+/** Expert o Master con suscripción activa (o gracia): funciones premium del catálogo. */
+export function hasExpertFeatureAccess(tenant: McTenant | null | undefined): boolean {
+  if (!tenant || !isPaidBillingPlan(tenant.billingPlan)) return false
+  return hasActivePaidSubscription(tenant)
+}
+
+/** Solo Master con suscripción activa: live shopping. */
+export function hasLiveFeatureAccess(tenant: McTenant | null | undefined): boolean {
+  if (!tenant || !isMasterBillingPlan(tenant.billingPlan)) return false
+  return hasActivePaidSubscription(tenant)
 }
 
 /** Cobro vencido pero aún en período de gracia (7 días). */
@@ -45,7 +65,10 @@ export function ownerPlanEleganceLabel(
   settings: McPlatformSettings | null | undefined,
 ): string {
   if (!tenant) return 'Free'
-  if (billingPlanOf(tenant) === 'expert') {
+  if (isMasterBillingPlan(tenant.billingPlan)) {
+    return planMasterDisplayName(settings)
+  }
+  if (isExpertBillingPlan(tenant.billingPlan)) {
     return planExpertDisplayName(settings)
   }
   return 'Free'

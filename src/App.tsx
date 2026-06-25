@@ -5,6 +5,7 @@ import { McAuthProvider } from '@/auth/McAuthContext'
 import { McPostLoginRedirect } from '@/app/McPostLoginRedirect'
 import { RequireMcAuth } from '@/app/RequireMcAuth'
 import { RequireMcSalesRep } from '@/app/RequireMcSalesRep'
+import { RequireMcLiveAccess } from '@/app/RequireMcLiveAccess'
 import { RequireMcStoreOwner } from '@/app/RequireMcStoreOwner'
 import { McRouteAnalyticsTracker } from '@/lib/McRouteAnalyticsTracker'
 import { parseStoreSlugFromHostname, resolveAppSurface } from '@/lib/storePublicUrl'
@@ -12,6 +13,9 @@ import { LandingPage } from '@/landing/LandingPage'
 import { LegacyCatalogGateway } from '@/public/LegacyCatalogGateway'
 import { PublicStoreProvider } from '@/public/PublicStoreContext'
 import { McPageLoadingFallback } from '@/components/McPageLoadingFallback'
+import { RequireMcPosAccess } from '@/pos/RequireMcPosAccess'
+import { RequireMcPosAdmin } from '@/pos/RequireMcPosAdmin'
+import { RequireMcPosVendor } from '@/pos/RequireMcPosVendor'
 
 const LoginPage = lazy(() =>
   import('@/auth/LoginPage').then((m) => ({ default: m.LoginPage })),
@@ -120,6 +124,12 @@ const AdminCatalogPreviewLayout = lazy(() =>
 const EstadisticasPage = lazy(() =>
   import('@/app/EstadisticasPage').then((m) => ({ default: m.EstadisticasPage })),
 )
+const LiveSessionsPage = lazy(() =>
+  import('@/live/admin/LiveSessionsPage').then((m) => ({ default: m.LiveSessionsPage })),
+)
+const LiveStudioPage = lazy(() =>
+  import('@/live/admin/LiveStudioPage').then((m) => ({ default: m.LiveStudioPage })),
+)
 const SuperAdminPage = lazy(() =>
   import('@/superadmin/SuperAdminPage').then((m) => ({
     default: m.SuperAdminPage,
@@ -193,6 +203,9 @@ const VendedorPendientesPage = lazy(() =>
 const VendedorVendidasPage = lazy(() =>
   import('@/vendedor/VendedorVisitasListPage').then((m) => ({ default: m.VendedorVendidasPage })),
 )
+const VendedorRechazosPage = lazy(() =>
+  import('@/vendedor/VendedorVisitasListPage').then((m) => ({ default: m.VendedorRechazosPage })),
+)
 const VendedorDemoAdminLayout = lazy(() =>
   import('@/vendedor/demo-admin/DemoAdminLayout').then((m) => ({ default: m.DemoAdminLayout })),
 )
@@ -221,6 +234,42 @@ const DemoAdminEstadisticasPage = lazy(() =>
     default: m.DemoAdminEstadisticasPage,
   })),
 )
+const DemoPosAdminLayout = lazy(() =>
+  import('@/vendedor/demo-pos/DemoPosAdminLayout').then((m) => ({ default: m.DemoPosAdminLayout })),
+)
+const DemoPosVendorLayout = lazy(() =>
+  import('@/vendedor/demo-pos/DemoPosVendorLayout').then((m) => ({ default: m.DemoPosVendorLayout })),
+)
+const DemoPosAdminDashboardPage = lazy(() =>
+  import('@/vendedor/demo-pos/pages/DemoPosAdminDashboardPage').then((m) => ({
+    default: m.DemoPosAdminDashboardPage,
+  })),
+)
+const DemoPosAdminVentasPage = lazy(() =>
+  import('@/vendedor/demo-pos/pages/DemoPosAdminVentasPage').then((m) => ({
+    default: m.DemoPosAdminVentasPage,
+  })),
+)
+const DemoPosAdminReportesPage = lazy(() =>
+  import('@/vendedor/demo-pos/pages/DemoPosAdminReportesPage').then((m) => ({
+    default: m.DemoPosAdminReportesPage,
+  })),
+)
+const DemoPosAdminInventarioPage = lazy(() =>
+  import('@/vendedor/demo-pos/pages/DemoPosAdminInventarioPage').then((m) => ({
+    default: m.DemoPosAdminInventarioPage,
+  })),
+)
+const DemoPosVendorHomePage = lazy(() =>
+  import('@/vendedor/demo-pos/pages/DemoPosVendorHomePage').then((m) => ({
+    default: m.DemoPosVendorHomePage,
+  })),
+)
+const DemoPosVendorVentasPage = lazy(() =>
+  import('@/vendedor/demo-pos/pages/DemoPosVendorVentasPage').then((m) => ({
+    default: m.DemoPosVendorVentasPage,
+  })),
+)
 const PublicCatalogLayout = lazy(() =>
   import('@/public/PublicCatalogLayout').then((m) => ({
     default: m.PublicCatalogLayout,
@@ -240,6 +289,9 @@ const PublicCheckoutPage = lazy(() =>
   import('@/public/PublicCheckoutPage').then((m) => ({
     default: m.PublicCheckoutPage,
   })),
+)
+const LiveViewerPage = lazy(() =>
+  import('@/live/viewer/LiveViewerPage').then((m) => ({ default: m.LiveViewerPage })),
 )
 const PublicCheckoutPagoValidandoPage = lazy(() =>
   import('@/public/PublicCheckoutPagoValidandoPage').then((m) => ({
@@ -261,6 +313,66 @@ const PublicPoliciesPage = lazy(() =>
     default: m.PublicPoliciesPage,
   })),
 )
+const PosLandingPage = lazy(() =>
+  import('@/pos/PosLandingPage').then((m) => ({ default: m.PosLandingPage })),
+)
+const PosAdminShell = lazy(() =>
+  import('@/pos/admin/PosAdminShell').then((m) => ({ default: m.PosAdminShell })),
+)
+const PosVendorShell = lazy(() =>
+  import('@/pos/vendor/PosVendorShell').then((m) => ({ default: m.PosVendorShell })),
+)
+const PosAdminDashboardPage = lazy(() =>
+  import('@/pos/admin/PosAdminDashboardPage').then((m) => ({ default: m.PosAdminDashboardPage })),
+)
+const PosSedesPage = lazy(() =>
+  import('@/pos/admin/PosSedesPage').then((m) => ({ default: m.PosSedesPage })),
+)
+const PosVendedoresPage = lazy(() =>
+  import('@/pos/admin/PosVendedoresPage').then((m) => ({ default: m.PosVendedoresPage })),
+)
+const PosReportesPage = lazy(() =>
+  import('@/pos/admin/PosReportesPage').then((m) => ({ default: m.PosReportesPage })),
+)
+const PosVentasPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosAdminVentasPage })),
+)
+const PosCobrarPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosAdminCobrarPage })),
+)
+const PosCajaPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosAdminCajaPage })),
+)
+const PosInventarioPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosAdminInventarioPage })),
+)
+const PosDevolucionesPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosAdminDevolucionesPage })),
+)
+const PosAdminMovimientosPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosAdminMovimientosPage })),
+)
+const PosAdminCajasPage = lazy(() =>
+  import('@/pos/admin/PosAdminCajasPage').then((m) => ({ default: m.PosAdminCajasPage })),
+)
+const PosVentasDelDiaPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosVendorVentasDelDiaPage })),
+)
+const PosVendorVentasPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosVendorVentasPage })),
+)
+const PosVendorCajaPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosVendorCajaPage })),
+)
+const PosVendorInventarioPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosVendorInventarioPage })),
+)
+const PosVendorDevolucionesPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosVendorDevolucionesPage })),
+)
+const PosVendorMovimientosPage = lazy(() =>
+  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosVendorMovimientosPage })),
+)
 
 function RouteFallback() {
   return <McPageLoadingFallback />
@@ -275,6 +387,7 @@ const publicCatalogRouteElements = (
     <Route path="checkout" element={<PublicCheckoutPage />} />
     <Route path="seguimiento" element={<PublicOrderTrackingPage />} />
     <Route path="politicas" element={<PublicPoliciesPage />} />
+    <Route path="live/:sessionId" element={<LiveViewerPage />} />
   </>
 )
 
@@ -299,6 +412,7 @@ function PlatformRoutes() {
         <Route path="capacitacion" element={<VendedorCapacitacionPage />} />
         <Route path="pendientes" element={<VendedorPendientesPage />} />
         <Route path="vendidas" element={<VendedorVendidasPage />} />
+        <Route path="rechazos" element={<VendedorRechazosPage />} />
       </Route>
       <Route
         path="/vendedor/demo-admin/:demoId"
@@ -315,6 +429,34 @@ function PlatformRoutes() {
         <Route path="pedidos" element={<DemoAdminPedidosPage />} />
         <Route path="cuenta" element={<DemoAdminCuentaPage />} />
         <Route path="estadisticas" element={<DemoAdminEstadisticasPage />} />
+      </Route>
+      <Route
+        path="/vendedor/demo-pos-admin/:demoId"
+        element={
+          <RequireMcAuth>
+            <RequireMcSalesRep>
+              <DemoPosAdminLayout />
+            </RequireMcSalesRep>
+          </RequireMcAuth>
+        }
+      >
+        <Route index element={<DemoPosAdminDashboardPage />} />
+        <Route path="ventas" element={<DemoPosAdminVentasPage />} />
+        <Route path="reportes" element={<DemoPosAdminReportesPage />} />
+        <Route path="inventario" element={<DemoPosAdminInventarioPage />} />
+      </Route>
+      <Route
+        path="/vendedor/demo-pos-vendor/:demoId"
+        element={
+          <RequireMcAuth>
+            <RequireMcSalesRep>
+              <DemoPosVendorLayout />
+            </RequireMcSalesRep>
+          </RequireMcAuth>
+        }
+      >
+        <Route index element={<DemoPosVendorHomePage />} />
+        <Route path="ventas" element={<DemoPosVendorVentasPage />} />
       </Route>
       <Route
         path="/app"
@@ -356,6 +498,22 @@ function PlatformRoutes() {
         <Route path="pagos-pasarela/onepay" element={<OnepayPasarelaResumenPage />} />
         <Route path="mi-saldo" element={<VentasSaldoPage />} />
         <Route path="mi-saldo/retirar" element={<OnepayRetiroFondosPage />} />
+        <Route
+          path="live"
+          element={
+            <RequireMcLiveAccess>
+              <LiveSessionsPage />
+            </RequireMcLiveAccess>
+          }
+        />
+        <Route
+          path="live/:sessionId"
+          element={
+            <RequireMcLiveAccess>
+              <LiveStudioPage />
+            </RequireMcLiveAccess>
+          }
+        />
         <Route path="vista-previa" element={<AdminCatalogPreviewLayout />}>
           <Route index element={<PublicCatalogListPage />} />
           <Route path="p/:productId" element={<PublicProductDetailPage />} />
@@ -443,6 +601,50 @@ function PlatformRoutes() {
           </RequireMcAuth>
         }
       />
+      <Route path="/pos" element={<PosLandingPage />} />
+      <Route
+        path="/pos/admin"
+        element={
+          <RequireMcAuth>
+            <RequireMcPosAccess>
+              <RequireMcPosAdmin>
+                <PosAdminShell />
+              </RequireMcPosAdmin>
+            </RequireMcPosAccess>
+          </RequireMcAuth>
+        }
+      >
+        <Route index element={<PosAdminDashboardPage />} />
+        <Route path="ventas" element={<PosVentasPage />} />
+        <Route path="cobrar" element={<PosCobrarPage />} />
+        <Route path="caja" element={<PosCajaPage />} />
+        <Route path="movimientos" element={<PosAdminMovimientosPage />} />
+        <Route path="inventario" element={<PosInventarioPage />} />
+        <Route path="devoluciones" element={<PosDevolucionesPage />} />
+        <Route path="cajas" element={<PosAdminCajasPage />} />
+        <Route path="sedes" element={<PosSedesPage />} />
+        <Route path="vendedores" element={<PosVendedoresPage />} />
+        <Route path="reportes" element={<PosReportesPage />} />
+      </Route>
+      <Route
+        path="/pos/ventas"
+        element={
+          <RequireMcAuth>
+            <RequireMcPosAccess>
+              <RequireMcPosVendor>
+                <PosVendorShell />
+              </RequireMcPosVendor>
+            </RequireMcPosAccess>
+          </RequireMcAuth>
+        }
+      >
+        <Route index element={<PosVendorVentasPage />} />
+        <Route path="hoy" element={<PosVentasDelDiaPage />} />
+        <Route path="caja" element={<PosVendorCajaPage />} />
+        <Route path="movimientos" element={<PosVendorMovimientosPage />} />
+        <Route path="inventario" element={<PosVendorInventarioPage />} />
+        <Route path="devoluciones" element={<PosVendorDevolucionesPage />} />
+      </Route>
       <Route
         path="/superadmin/vendedores"
         element={

@@ -1,6 +1,7 @@
+import { isPaidBillingPlan } from './billingPlan.js';
 import { isSubscriptionEndsAtActive } from './subscriptionMs.js';
 export function isFreeBillingPlan(tenant) {
-    return tenant?.billingPlan !== 'expert';
+    return !isPaidBillingPlan(tenant?.billingPlan);
 }
 /** Membresía activa: plan Free sin vencimiento; Expert según subscriptionEndsAt. */
 export function isTenantMembershipActive(tenant, nowMs = Date.now()) {

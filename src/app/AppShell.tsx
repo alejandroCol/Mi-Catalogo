@@ -7,10 +7,12 @@ import { McOutletBoundary } from '@/components/McOutletBoundary'
 import { McSaveSuccessProvider } from '@/components/McSaveSuccessModal'
 import { clearPendingSellerOnboarding, shouldShowSellerOnboarding } from '@/lib/onboardingStorage'
 import { tenantThemeCssVars } from '@/lib/catalogTheme'
-import { IconCart, IconCube, IconHome, IconSliders } from '@/icons/McIcons'
+import { hasLiveFeatureAccess } from '@/lib/billingAccess'
+import { IconCart, IconCube, IconHome, IconLive, IconSliders } from '@/icons/McIcons'
 
 export function AppShell() {
   const { tenant, isImpersonating } = useMcAuth()
+  const showLiveTab = hasLiveFeatureAccess(tenant)
   const { pathname } = useLocation()
   const hideAdminTabBar = pathname.startsWith('/app/vista-previa')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
@@ -83,6 +85,19 @@ export function AppShell() {
             <span>Ventas</span>
           </NavLink>
         </span>
+        {showLiveTab ? (
+        <span className="flex min-h-[48px] min-w-0 flex-1 justify-center">
+          <NavLink
+            to="/app/live"
+            className={({ isActive }) =>
+              `mc-tab-link w-full max-w-[5.5rem] transition duration-200 ease-in-out ${isActive ? 'mc-tab-link-active' : ''}`
+            }
+          >
+            <IconLive size={22} />
+            <span>Live</span>
+          </NavLink>
+        </span>
+        ) : null}
         <span ref={tabAnchorAssignRefs[3]} className="flex min-h-[48px] min-w-0 flex-1 justify-center">
           <NavLink
             to="/app/cuenta"

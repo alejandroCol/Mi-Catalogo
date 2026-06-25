@@ -45,8 +45,8 @@ export function usePublicTenant(slug: string | undefined) {
         if (!isCatalogPubliclyAccessible(t)) {
           setError(
             t.catalogPublished === true
-              ? 'Esta tienda tiene la membresía pausada.'
-              : 'Esta tienda aún no está publicada.',
+              ? 'Esta tienda tiene la membresía pausada. Renová tu plan para volver a publicar.'
+              : 'Esta tienda aún no está publicada. Desde tu panel: Inicio → Publicar tienda.',
           )
           setLoading(false)
           return
@@ -55,8 +55,15 @@ export function usePublicTenant(slug: string | undefined) {
         setTenant(t)
         setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
         setError(null)
-      } catch {
-        if (!cancelled) setError('No se pudo cargar.')
+      } catch (err) {
+        if (!cancelled) {
+          const code = (err as { code?: string })?.code
+          setError(
+            code === 'permission-denied'
+              ? 'Esta tienda no está publicada. Publicala desde tu panel de Mi Catálogo.'
+              : 'No se pudo cargar.',
+          )
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }

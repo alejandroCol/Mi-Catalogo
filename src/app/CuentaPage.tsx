@@ -7,6 +7,7 @@ import { buildConfigMenuItems, ConfigTileGrid } from '@/app/configuraciones'
 import { BillingPastDueBanner } from '@/components/billing/BillingPastDueBanner'
 import { PlanEleganceBadge } from '@/components/billing/PlanEleganceBadge'
 import { hasExpertFeatureAccess } from '@/lib/billingAccess'
+import { isPaidBillingPlan } from '@/lib/billingPlan'
 import { billingPlanOf } from '@/lib/catalogTheme'
 import { isCatalogoVendedorListo } from '@/lib/checkoutVentasModo'
 import { firebaseConfigured, getAuthApp, getDb } from '@/lib/firebase'
@@ -30,7 +31,11 @@ export function CuentaPage() {
   const plan = tenant ? billingPlanOf(tenant) : 'free'
   const expertAccess = tenant ? hasExpertFeatureAccess(tenant) : false
   const expertPaused =
-    tenant?.billingPlan === 'expert' && tenant.catalogPublished === true && !catalogoPublico
+    tenant &&
+    isPaidBillingPlan(tenant.billingPlan) &&
+    !expertAccess &&
+    tenant.catalogPublished === true &&
+    !catalogoPublico
   const catalogoListo = tenant ? isCatalogoVendedorListo(tenant, platformSettings) : false
   const cuponesCount = tenant?.cuponesCatalogo?.length ?? 0
 

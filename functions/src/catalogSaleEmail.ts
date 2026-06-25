@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { isPaidBillingPlan } from './billingPlan.js'
 
 function formatCopEs(n: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -98,7 +99,7 @@ export function resolveEmailCatalogThemeColors(tenant: {
   billingPlan?: string
   catalogTheme?: { preset?: string; colors?: Record<string, string | undefined> }
 } | null | undefined): ResolvedCatalogColors {
-  const expert = tenant?.billingPlan === 'expert'
+  const expert = isPaidBillingPlan(tenant?.billingPlan)
   if (!expert) {
     return FREE_PUBLIC_THEME
   }

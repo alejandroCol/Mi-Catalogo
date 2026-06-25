@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { isPaidBillingPlan } from './billingPlan.js';
 function formatCopEs(n) {
     return new Intl.NumberFormat('es-CO', {
         style: 'currency',
@@ -77,7 +78,7 @@ const FREE_PUBLIC_THEME = {
     muted: '#737373',
 };
 export function resolveEmailCatalogThemeColors(tenant) {
-    const expert = tenant?.billingPlan === 'expert';
+    const expert = isPaidBillingPlan(tenant?.billingPlan);
     if (!expert) {
         return FREE_PUBLIC_THEME;
     }

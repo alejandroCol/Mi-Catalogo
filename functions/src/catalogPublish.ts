@@ -1,4 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore'
+import { isPaidBillingPlan } from './billingPlan.js'
 import { isSubscriptionEndsAtActive } from './subscriptionMs.js'
 import { isTenantMembershipActive, type TenantMembershipSlice } from './tenantMembership.js'
 
@@ -34,7 +35,7 @@ export function hasActiveExpertForPublish(
   tenant: CatalogPublishSlice | null | undefined,
   nowMs = Date.now(),
 ): boolean {
-  if (!tenant || tenant.billingPlan !== 'expert') return false
+  if (!tenant || !isPaidBillingPlan(tenant.billingPlan)) return false
   if (isSubscriptionEndsAtActive(tenant.subscriptionEndsAt, nowMs)) return true
   if (tenant.billingSubStatus === 'past_due') {
     const grace = tenant.billingGraceUntilMs

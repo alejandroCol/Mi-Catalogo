@@ -1,1 +1,0 @@
-import{t as e}from"./storePublicUrl-TC3Gcasn.js";function t(t,n,r){return`${e(t,`/checkout/pago-validando`)}?${`onepay=1&o=${encodeURIComponent(n)}&ov=${encodeURIComponent(r)}`}`}var n=`mc_catalog_onepay`,r=`mc-catalog-onepay-done`;export{n,t as r,r as t};

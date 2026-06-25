@@ -6,16 +6,33 @@ import { db } from './firebaseAdmin.js';
 /** Claim en el ID token: tienda que el súper admin está viendo como soporte. */
 export const MC_IMPERSONATE_TENANT_CLAIM = 'mcImpersonateTenantId';
 const SESSIONS_COLLECTION = 'mc_impersonation_sessions';
-async function assertMcSuperAdminUid(uid) {
+async function assertCanStartDemoImpersonation(uid) {
     const userSnap = await db.doc(`mc_users/${uid}`).get();
     if (!userSnap.exists) {
         throw new HttpsError('failed-precondition', 'Usuario no encontrado.');
     }
     const data = userSnap.data();
-    if (data.isSuperAdmin !== true) {
-        throw new HttpsError('permission-denied', 'Solo súper admin.');
+    const isSuperAdmin = data.isSuperAdmin === true;
+    const isSalesRep = data.role === 'sales_rep' && data.active !== false;
+    if (!isSuperAdmin && !isSalesRep) {
+        throw new HttpsError('permission-denied', 'Solo súper admin o vendedor de Mi Catálogo.');
     }
-    return data;
+    return {
+        isSuperAdmin,
+        isSalesRep,
+        email: typeof data.email === 'string' ? data.email : undefined,
+    };
+}
+async function assertDemoStoreTenant(tenantId) {
+    const snap = await db
+        .collection('mc_demo_stores')
+        .where('tenantId', '==', tenantId)
+        .where('active', '==', true)
+        .limit(1)
+        .get();
+    if (snap.empty) {
+        throw new HttpsError('permission-denied', 'Solo podés entrar a tiendas demo activas (mc_demo_stores).');
+    }
 }
 async function readExistingCustomClaims(uid) {
     const record = await getAuth().getUser(uid);
@@ -35,8 +52,11 @@ export const mcStartStoreImpersonation = onCall({ invoker: 'public' }, async (re
     if (!uid) {
         throw new HttpsError('unauthenticated', 'Iniciá sesión.');
     }
-    const adminUser = await assertMcSuperAdminUid(uid);
+    const actor = await assertCanStartDemoImpersonation(uid);
     const tenantId = parseTenantId(request.data);
+    if (!actor.isSuperAdmin) {
+        await assertDemoStoreTenant(tenantId);
+    }
     const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get();
     if (!tenantSnap.exists) {
         throw new HttpsError('not-found', 'Tienda no encontrada.');
@@ -53,7 +73,8 @@ export const mcStartStoreImpersonation = onCall({ invoker: 'public' }, async (re
     await db.doc(`${SESSIONS_COLLECTION}/${sessionId}`).set({
         sessionId,
         adminUid: uid,
-        adminEmail: typeof adminUser.email === 'string' ? adminUser.email : '',
+        adminEmail: typeof actor.email === 'string' ? actor.email : '',
+        salesRepDemo: actor.isSalesRep,
         tenantId,
         tenantSlug: typeof tenant.slug === 'string' ? tenant.slug : '',
         tenantName: typeof tenant.nombreTienda === 'string' ? tenant.nombreTienda : '',
@@ -75,7 +96,7 @@ export const mcStopStoreImpersonation = onCall({ invoker: 'public' }, async (req
     if (!uid) {
         throw new HttpsError('unauthenticated', 'Iniciá sesión.');
     }
-    await assertMcSuperAdminUid(uid);
+    await assertCanStartDemoImpersonation(uid);
     const claims = await readExistingCustomClaims(uid);
     const sessionId = typeof claims.mcImpersonateSessionId === 'string' ? claims.mcImpersonateSessionId : '';
     const tenantId = typeof claims[MC_IMPERSONATE_TENANT_CLAIM] === 'string'

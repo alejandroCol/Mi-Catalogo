@@ -5,6 +5,11 @@ import { parseStockInput } from '@/lib/productoVariantes'
 /** Curva estándar mostrada al crear ropa. */
 export const CURVA_TALLAS_DEFAULT = ['XS', 'S', 'M', 'L', 'XL'] as const
 
+/** Curva estándar para calzado (tallas numéricas). */
+export const CURVA_TALLAS_ZAPATOS = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45'] as const
+
+export type TallaModo = 'simple' | 'ropa' | 'zapatos'
+
 export const TALLA_UNICA_NOMBRE = 'Talla única'
 
 /** Tipos de variante permitidos cuando el producto es ropa. */
@@ -22,6 +27,10 @@ export function createTallaDraft(nombre: string, stock = ''): TallaDraft {
 
 export function createCurvaTallasDraft(): TallaDraft[] {
   return CURVA_TALLAS_DEFAULT.map((nombre) => createTallaDraft(nombre))
+}
+
+export function createCurvaZapatosDraft(): TallaDraft[] {
+  return CURVA_TALLAS_ZAPATOS.map((nombre) => createTallaDraft(nombre))
 }
 
 export function createTallaUnicaDraft(stock = ''): TallaDraft[] {

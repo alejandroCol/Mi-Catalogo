@@ -204,8 +204,72 @@ service cloud.firestore {
         && mcUserData().role == 'sales_rep'
         && (!('active' in mcUserData()) || mcUserData().active != false);
     }
+    function mcIsPosVendor() {
+      return mcSignedIn()
+        && exists(mcUserPath())
+        && mcUserData().role == 'pos_vendor'
+        && (!('active' in mcUserData()) || mcUserData().active != false);
+    }
+    function mcPosSedeId() {
+      return mcUserData().posSedeId;
+    }
+    function mcIsTenantOwner(tid) {
+      return mcSignedIn()
+        && exists(/databases/$(database)/documents/mc_tenants/$(tid))
+        && get(/databases/$(database)/documents/mc_tenants/$(tid)).data.ownerUid == request.auth.uid;
+    }
+    function mcPosCanWriteVenta(tid) {
+      return mcIsPosVendor()
+        && mcUserData().tenantId == tid
+        && request.resource.data.sedeId == mcPosSedeId()
+        && request.resource.data.vendedorUid == request.auth.uid
+        || (
+          mcIsTenantOwner(tid)
+          && request.resource.data.vendedorUid == request.auth.uid
+        )
+        || (
+          mcImpersonatingTenant(tid)
+          && request.resource.data.vendedorUid == request.auth.uid
+        );
+    }
+    function mcPosCanWriteCajaTurno(tid) {
+      return mcIsPosVendor()
+        && mcUserData().tenantId == tid
+        && request.resource.data.vendedorUid == request.auth.uid
+        && request.resource.data.sedeId == mcPosSedeId()
+        || (
+          mcIsTenantOwner(tid)
+          && request.resource.data.vendedorUid == request.auth.uid
+        )
+        || (
+          mcImpersonatingTenant(tid)
+          && request.resource.data.vendedorUid == request.auth.uid
+        );
+    }
+    function mcPosOwnerOrVendor(tid) {
+      return mcBelongsToTenant(tid)
+        && (
+          mcIsTenantOwner(tid)
+          || mcIsPosVendor()
+          || mcImpersonatingTenant(tid)
+        );
+    }
+    function mcSuperAdminPosDemoSeedWrite() {
+      return mcIsSuperAdmin()
+        && request.resource.data.mcPosDemoSeed == true;
+    }
+    function mcSuperAdminPosDemoSeedDelete() {
+      return mcIsSuperAdmin()
+        && resource.data.get('mcPosDemoSeed', false) == true;
+    }
     function mcTenantIsExpert(data) {
       return 'billingPlan' in data && data.billingPlan == 'expert';
+    }
+    function mcTenantIsMaster(data) {
+      return 'billingPlan' in data && data.billingPlan == 'master';
+    }
+    function mcTenantIsPaidPlan(data) {
+      return mcTenantIsExpert(data) || mcTenantIsMaster(data);
     }
     function mcPlanFreeMaxProductos() {
       return exists(/databases/$(database)/documents/mc_platform/settings)
@@ -275,6 +339,8 @@ service cloud.firestore {
         'catalogTheme',
         'storeLogoUrl',
         'seasonBanner',
+        'posSedeBodegaId',
+        'posBridgeInstallerUrl',
       ];
     }
     /** Campos de facturación inmutables en patches del dueño (free implícito = explícito). */
@@ -328,7 +394,7 @@ service cloud.firestore {
         && (mcTenantIsFreePlan(data) || mcTenantSubscriptionEndsOk(data));
     }
     function mcTenantExpertPublishActive(data) {
-      return mcTenantIsExpert(data)
+      return mcTenantIsPaidPlan(data)
         && (
           mcTenantSubscriptionEndsOk(data)
           || (
@@ -368,8 +434,18 @@ service cloud.firestore {
         : '2026-05-23';
     }
 
+    function mcCanTenantOwnerReadPosVendor() {
+      return resource.data.role == 'pos_vendor'
+        && resource.data.tenantId is string
+        && mcIsTenantOwner(resource.data.tenantId);
+    }
+
     match /mc_users/{uid} {
-      allow read: if mcSignedIn() && (request.auth.uid == uid || mcIsSuperAdmin());
+      allow read: if mcSignedIn() && (
+        request.auth.uid == uid
+        || mcIsSuperAdmin()
+        || mcCanTenantOwnerReadPosVendor()
+      );
       allow create: if mcSignedIn()
         && request.auth.uid == uid
         && request.resource.data.tenantId is string
@@ -640,6 +716,65 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /** Live accesible por link público (slug activo), sin exigir catálogo publicado. */
+    function mcLiveSessionPublicReadable(tid, data) {
+      return data.status in ['live', 'ended']
+        && (
+          (
+            'storeSlug' in data
+            && data.storeSlug is string
+            && data.storeSlug.size() > 0
+            && exists(/databases/$(database)/documents/mc_slugs/$(data.storeSlug))
+            && get(/databases/$(database)/documents/mc_slugs/$(data.storeSlug)).data.active == true
+            && get(/databases/$(database)/documents/mc_slugs/$(data.storeSlug)).data.tenantId == tid
+          )
+          || (
+            mcTenantCatalogPublic(tid)
+          )
+        );
+    }
+    function mcLiveSessionPublicById(tid, sid) {
+      let path = /databases/$(database)/documents/mc_tenants/$(tid)/live_sessions/$(sid);
+      return exists(path)
+        && mcLiveSessionPublicReadable(tid, get(path).data);
+    }
+
+    match /mc_tenants/{tid}/live_sessions/{sid} {
+      allow read: if mcIsSuperAdmin()
+        || (mcSignedIn() && mcBelongsToTenant(tid))
+        || mcLiveSessionPublicReadable(tid, resource.data);
+      allow create, update, delete: if mcSignedIn()
+        && mcBelongsToTenant(tid)
+        && mcTenantSubActive(tid)
+        && mcTenantIsMaster(get(/databases/$(database)/documents/mc_tenants/$(tid)).data);
+    }
+
+    match /mc_tenants/{tid}/live_sessions/{sid}/session_products/{pid} {
+      allow read: if mcIsSuperAdmin()
+        || (mcSignedIn() && mcBelongsToTenant(tid))
+        || mcLiveSessionPublicById(tid, sid);
+      allow write: if mcSignedIn()
+        && mcBelongsToTenant(tid)
+        && mcTenantSubActive(tid)
+        && mcTenantIsMaster(get(/databases/$(database)/documents/mc_tenants/$(tid)).data);
+    }
+
+    match /mc_tenants/{tid}/live_sessions/{sid}/chat/{msgId} {
+      allow read: if mcIsSuperAdmin()
+        || (mcSignedIn() && mcBelongsToTenant(tid))
+        || mcLiveSessionPublicById(tid, sid);
+      allow create, update, delete: if false;
+    }
+
+    match /mc_tenants/{tid}/live_sessions/{sid}/viewers/{viewerId} {
+      allow read: if mcSignedIn() && mcBelongsToTenant(tid);
+      allow create: if mcLiveSessionPublicById(tid, sid)
+        && get(/databases/$(database)/documents/mc_tenants/$(tid)/live_sessions/$(sid)).data.status == 'live'
+        && request.resource.data.keys().hasAll(['joinedAt'])
+        && request.resource.data.joinedAt is int;
+      allow update, delete: if false;
+    }
+
     match /mc_tenants/{tid}/ordenes_catalogo/{oid} {
       allow create: if mcTenantCatalogPublic(tid)
         && request.resource.data.keys().hasAll([
@@ -804,6 +939,67 @@ service cloud.firestore {
     match /mc_demo_stores/{demoId} {
       allow read: if mcIsSuperAdmin() || mcIsSalesRep();
       allow create, update, delete: if mcIsSuperAdmin();
+    }
+
+    /** ——— POS Mi Catálogo (por tenant) ——— */
+    match /mc_tenants/{tid}/pos_sedes/{sedeId} {
+      allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
+      allow create, update: if (mcBelongsToTenant(tid) && mcIsTenantOwner(tid)) || mcSuperAdminPosDemoSeedWrite();
+      allow delete: if (mcBelongsToTenant(tid) && mcIsTenantOwner(tid)) || mcSuperAdminPosDemoSeedDelete();
+    }
+
+    match /mc_tenants/{tid}/pos_productos/{productoId} {
+      allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
+      allow create, update: if (mcBelongsToTenant(tid) && mcIsTenantOwner(tid)) || mcSuperAdminPosDemoSeedWrite();
+      allow delete: if (mcBelongsToTenant(tid) && mcIsTenantOwner(tid)) || mcSuperAdminPosDemoSeedDelete();
+    }
+
+    match /mc_tenants/{tid}/pos_stock/{stockId} {
+      allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
+      allow create, update: if mcBelongsToTenant(tid)
+        && (
+          mcIsTenantOwner(tid)
+          || (
+            mcIsPosVendor()
+            && request.resource.data.sedeId == mcPosSedeId()
+          )
+          || mcImpersonatingTenant(tid)
+        )
+        || mcSuperAdminPosDemoSeedWrite();
+      allow delete: if (mcBelongsToTenant(tid) && mcIsTenantOwner(tid)) || mcSuperAdminPosDemoSeedDelete();
+    }
+
+    match /mc_tenants/{tid}/pos_ventas/{ventaId} {
+      allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
+      allow create: if (mcPosCanWriteVenta(tid) && request.resource.data.createdAt is int)
+        || (mcSuperAdminPosDemoSeedWrite() && request.resource.data.createdAt is int);
+      allow update: if mcPosCanWriteVenta(tid)
+        && resource.data.get('estado', 'activa') != 'anulada'
+        && request.resource.data.estado == 'anulada'
+        && request.resource.data.anuladaAt is int
+        && request.resource.data.anuladaPorUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['estado', 'anuladaAt', 'anuladaPorUid']);
+      allow delete: if false;
+    }
+
+    match /mc_tenants/{tid}/pos_caja_diaria/{cajaId} {
+      allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
+      allow create, update: if mcPosCanWriteCajaTurno(tid) || mcSuperAdminPosDemoSeedWrite();
+      allow delete: if mcSuperAdminPosDemoSeedDelete();
+    }
+
+    match /mc_tenants/{tid}/pos_turnos/{turnoId} {
+      allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
+      allow create, update: if mcPosCanWriteCajaTurno(tid);
+      allow delete: if false;
+    }
+
+    match /mc_tenants/{tid}/pos_devoluciones/{devolucionId} {
+      allow read: if mcPosOwnerOrVendor(tid);
+      allow create: if mcPosCanWriteCajaTurno(tid)
+        && request.resource.data.createdAt is int;
+      allow update, delete: if false;
     }
   }
 }

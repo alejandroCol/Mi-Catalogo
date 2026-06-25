@@ -9,6 +9,15 @@
       ]
     },
     {
+      "collectionGroup": "ventas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sedeId", "order": "ASCENDING" },
+        { "fieldPath": "vendedoraUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "movimientos_tela",
       "queryScope": "COLLECTION",
       "fields": [
@@ -111,6 +120,14 @@
       "collectionGroup": "mc_users",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "role", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mc_users",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "role", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
@@ -121,6 +138,56 @@
       "fields": [
         { "fieldPath": "dateKey", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pos_ventas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sedeId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pos_turnos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vendedorUid", "order": "ASCENDING" },
+        { "fieldPath": "sedeId", "order": "ASCENDING" },
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "inicioAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pos_turnos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sedeId", "order": "ASCENDING" },
+        { "fieldPath": "inicioAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pos_caja_diaria",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sedeId", "order": "ASCENDING" },
+        { "fieldPath": "fechaKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "lotes_produccion",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "etapa", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "egresos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sedeId", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" }
       ]
     }
   ],

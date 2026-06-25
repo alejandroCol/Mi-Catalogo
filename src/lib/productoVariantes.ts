@@ -64,6 +64,32 @@ export function variantesValidas(prod: McProducto): McProductoVariante[] {
   return (prod.variantes ?? []).filter((v) => v.nombre?.trim())
 }
 
+/** Variante visible en selectores (nombre o muestra de color). */
+export function varianteEsSeleccionable(v: McProductoVariante): boolean {
+  return Boolean(v.nombre?.trim() || v.hex?.trim())
+}
+
+/** Etiqueta legible aunque falte nombre (p. ej. solo hex guardado). */
+export function varianteEtiqueta(v: McProductoVariante): string {
+  const nombre = v.nombre?.trim()
+  if (nombre) return nombre
+  const hex = v.hex?.trim()
+  if (hex) {
+    const byHex = COLORES_VARIANTE_SUGERIDOS.find((c) => c.hex.toLowerCase() === hex.toLowerCase())
+    if (byHex) return byHex.nombre
+  }
+  return v.tipo?.trim() || 'Opción'
+}
+
+/** Variantes del catálogo público / live (sin tallas duplicadas en ropa). */
+export function variantesPublicas(prod: McProducto): McProductoVariante[] {
+  return (prod.variantes ?? []).filter((v) => {
+    if (!varianteEsSeleccionable(v)) return false
+    if (prod.esRopa && v.tipo?.trim().toLowerCase() === 'talla') return false
+    return true
+  })
+}
+
 /** True si al menos una variante define stock propio (modelo por SKU). */
 export function productoUsaStockPorVariante(prod: McProducto): boolean {
   const vs = variantesValidas(prod)

@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { catalogFontsToCssVars, resolveCatalogFonts, sanitizeThemeFonts } from '@/lib/catalogFonts'
 import type {
+  McBillingPlan,
   McCatalogTheme,
   McCatalogThemeColors,
   McCatalogThemeFonts,
@@ -89,8 +90,10 @@ function pickDefined<T extends Record<string, string | undefined>>(patch: T | un
   return o
 }
 
-export function billingPlanOf(tenant: McTenant | null | undefined): 'free' | 'expert' {
-  return tenant?.billingPlan === 'expert' ? 'expert' : 'free'
+export function billingPlanOf(tenant: McTenant | null | undefined): McBillingPlan {
+  const plan = tenant?.billingPlan
+  if (plan === 'expert' || plan === 'master') return plan
+  return 'free'
 }
 
 /** Tema del panel admin: preset y colores guardados en la tienda (disponible en todos los planes). */

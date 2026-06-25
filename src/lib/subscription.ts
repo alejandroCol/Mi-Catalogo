@@ -1,5 +1,6 @@
 import { Timestamp } from 'firebase/firestore'
 import type { McBillingPlan } from '@/types/mc'
+import { isFreeBillingPlan as isFreePlan } from '@/lib/billingPlan'
 
 /** Duración de prueba manual (súper admin / Expert). */
 export const MC_TRIAL_DAYS = 7
@@ -17,7 +18,7 @@ export function subscriptionEndsAtMs(value: unknown): number | null {
 }
 
 export function isFreeBillingPlan(tenant: TenantMembershipSlice | null | undefined): boolean {
-  return tenant?.billingPlan !== 'expert'
+  return isFreePlan(tenant?.billingPlan)
 }
 
 /** Membresía activa: plan Free sin vencimiento; Expert según subscriptionEndsAt. */

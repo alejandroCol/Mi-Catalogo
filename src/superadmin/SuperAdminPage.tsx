@@ -23,8 +23,10 @@ import { NewStoreExpertPromoSettings } from './NewStoreExpertPromoSettings'
 import { TenantOverviewListItem } from './TenantOverviewListItem'
 import {
   assignExpertPlanFromNow,
+  assignMasterPlanFromNow,
   ASSIGN_PLAN_OPTIONS,
   type AssignPlanDuration,
+  type AssignPlanProduct,
 } from './tenantAdminActions'
 
 export function SuperAdminPage() {
@@ -33,7 +35,11 @@ export function SuperAdminPage() {
   const [rows, setRows] = useState<TenantOverviewRow[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [assigning, setAssigning] = useState<{ tenantId: string; duration: AssignPlanDuration } | null>(null)
+  const [assigning, setAssigning] = useState<{
+    tenantId: string
+    duration: AssignPlanDuration
+    product: AssignPlanProduct
+  } | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -112,17 +118,26 @@ export function SuperAdminPage() {
     }
   }, [rows])
 
-  async function handleAssignPlan(tenantId: string, duration: AssignPlanDuration) {
+  async function handleAssignPlan(
+    tenantId: string,
+    product: AssignPlanProduct,
+    duration: AssignPlanDuration,
+  ) {
     const option = ASSIGN_PLAN_OPTIONS.find((o) => o.id === duration)
     if (!option) return
     setBusy(true)
-    setAssigning({ tenantId, duration })
+    setAssigning({ tenantId, duration, product })
     setMsg(null)
     setErr(null)
     try {
-      await assignExpertPlanFromNow(getDb(), tenantId, duration)
+      if (product === 'master') {
+        await assignMasterPlanFromNow(getDb(), tenantId, duration)
+        setMsg(`Plan Master asignado (${option.label}).`)
+      } else {
+        await assignExpertPlanFromNow(getDb(), tenantId, duration)
+        setMsg(`Plan Expert asignado (${option.label}).`)
+      }
       await reload()
-      setMsg(`Plan Expert asignado (${option.label}).`)
     } catch {
       setErr('No se pudo asignar el plan.')
     } finally {
@@ -382,8 +397,10 @@ export function SuperAdminPage() {
                   key={r.tenant.id}
                   row={r}
                   busy={busy}
-                  assigningId={
-                    assigning?.tenantId === r.tenant.id ? assigning.duration : null
+                  assigning={
+                    assigning?.tenantId === r.tenant.id
+                      ? { duration: assigning.duration, product: assigning.product }
+                      : null
                   }
                   onAssignPlan={handleAssignPlan}
                 />

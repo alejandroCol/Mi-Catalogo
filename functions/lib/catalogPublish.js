@@ -1,3 +1,4 @@
+import { isPaidBillingPlan } from './billingPlan.js';
 import { isSubscriptionEndsAtActive } from './subscriptionMs.js';
 import { isTenantMembershipActive } from './tenantMembership.js';
 export function isExplicitPublishGrandfathered(tenant) {
@@ -17,7 +18,7 @@ export function isCatalogPublishedFlag(tenant) {
     return tenant?.catalogPublished === true;
 }
 export function hasActiveExpertForPublish(tenant, nowMs = Date.now()) {
-    if (!tenant || tenant.billingPlan !== 'expert')
+    if (!tenant || !isPaidBillingPlan(tenant.billingPlan))
         return false;
     if (isSubscriptionEndsAtActive(tenant.subscriptionEndsAt, nowMs))
         return true;

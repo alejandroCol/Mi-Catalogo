@@ -483,3 +483,66 @@ export function IconGraduationCap({ size, className }: McIconProps) {
     </Svg>
   )
 }
+
+/** Live / transmisión en vivo */
+export function IconLive({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <circle cx="12" cy="12" r="3.25" fill="currentColor" />
+      <path
+        d="M12 4.5v1.5M12 18v1.5M4.5 12H3M21 12h-1.5M6.1 6.1l1.06 1.06M16.84 16.84l1.06 1.06M6.1 17.9l1.06-1.06M16.84 7.16l1.06-1.06"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+      />
+      <rect
+        x="5.5"
+        y="7.5"
+        width="13"
+        height="9"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth={stroke}
+      />
+    </Svg>
+  )
+}
+
+/** Celular / transmisión desde navegador */
+export function IconSmartphone({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <rect
+        x="7.5"
+        y="3.5"
+        width="9"
+        height="17"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth={stroke}
+      />
+      <path d="M10.5 6h3" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <circle cx="12" cy="17.5" r="0.75" fill="currentColor" />
+    </Svg>
+  )
+}
+
+/** Cámara / OBS / RTMP externo */
+export function IconVideoCamera({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M4.5 8.5h8.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5H4.5A1.5 1.5 0 0 1 3 15V10a1.5 1.5 0 0 1 1.5-1.5Z"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 11.5l5.5-3v9l-5.5-3v-3Z"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  )
+}

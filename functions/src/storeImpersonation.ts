@@ -12,6 +12,8 @@ const SESSIONS_COLLECTION = 'mc_impersonation_sessions'
 type McUserDoc = {
   isSuperAdmin?: boolean
   email?: string
+  role?: string
+  active?: boolean
 }
 
 type TenantDoc = {
@@ -19,16 +21,39 @@ type TenantDoc = {
   nombreTienda?: string
 }
 
-async function assertMcSuperAdminUid(uid: string): Promise<McUserDoc> {
+async function assertCanStartDemoImpersonation(
+  uid: string,
+): Promise<{ isSuperAdmin: boolean; isSalesRep: boolean; email?: string }> {
   const userSnap = await db.doc(`mc_users/${uid}`).get()
   if (!userSnap.exists) {
     throw new HttpsError('failed-precondition', 'Usuario no encontrado.')
   }
   const data = userSnap.data() as McUserDoc
-  if (data.isSuperAdmin !== true) {
-    throw new HttpsError('permission-denied', 'Solo súper admin.')
+  const isSuperAdmin = data.isSuperAdmin === true
+  const isSalesRep = data.role === 'sales_rep' && data.active !== false
+  if (!isSuperAdmin && !isSalesRep) {
+    throw new HttpsError('permission-denied', 'Solo súper admin o vendedor de Mi Catálogo.')
   }
-  return data
+  return {
+    isSuperAdmin,
+    isSalesRep,
+    email: typeof data.email === 'string' ? data.email : undefined,
+  }
+}
+
+async function assertDemoStoreTenant(tenantId: string): Promise<void> {
+  const snap = await db
+    .collection('mc_demo_stores')
+    .where('tenantId', '==', tenantId)
+    .where('active', '==', true)
+    .limit(1)
+    .get()
+  if (snap.empty) {
+    throw new HttpsError(
+      'permission-denied',
+      'Solo podés entrar a tiendas demo activas (mc_demo_stores).',
+    )
+  }
 }
 
 async function readExistingCustomClaims(uid: string): Promise<Record<string, unknown>> {
@@ -52,8 +77,12 @@ export const mcStartStoreImpersonation = onCall({ invoker: 'public' }, async (re
     throw new HttpsError('unauthenticated', 'Iniciá sesión.')
   }
 
-  const adminUser = await assertMcSuperAdminUid(uid)
+  const actor = await assertCanStartDemoImpersonation(uid)
   const tenantId = parseTenantId(request.data)
+
+  if (!actor.isSuperAdmin) {
+    await assertDemoStoreTenant(tenantId)
+  }
 
   const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
   if (!tenantSnap.exists) {
@@ -74,7 +103,8 @@ export const mcStartStoreImpersonation = onCall({ invoker: 'public' }, async (re
   await db.doc(`${SESSIONS_COLLECTION}/${sessionId}`).set({
     sessionId,
     adminUid: uid,
-    adminEmail: typeof adminUser.email === 'string' ? adminUser.email : '',
+    adminEmail: typeof actor.email === 'string' ? actor.email : '',
+    salesRepDemo: actor.isSalesRep,
     tenantId,
     tenantSlug: typeof tenant.slug === 'string' ? tenant.slug : '',
     tenantName: typeof tenant.nombreTienda === 'string' ? tenant.nombreTienda : '',
@@ -99,7 +129,7 @@ export const mcStopStoreImpersonation = onCall({ invoker: 'public' }, async (req
     throw new HttpsError('unauthenticated', 'Iniciá sesión.')
   }
 
-  await assertMcSuperAdminUid(uid)
+  await assertCanStartDemoImpersonation(uid)
 
   const claims = await readExistingCustomClaims(uid)
   const sessionId =

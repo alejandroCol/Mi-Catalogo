@@ -18,6 +18,7 @@ import {
 import type { McBillingPlan, McTenant } from '@/types/mc'
 
 export type AssignPlanDuration = '1m' | '3m' | '1y'
+export type AssignPlanProduct = 'expert' | 'master'
 
 export const ASSIGN_PLAN_OPTIONS: ReadonlyArray<{
   id: AssignPlanDuration
@@ -39,6 +40,23 @@ export async function assignExpertPlanFromNow(
   if (!option) return
   await updateDoc(doc(db, MC.tenants, tenantId), {
     billingPlan: 'expert' as McBillingPlan,
+    subscriptionEndsAt: setSubscriptionFromNow(option.ms),
+    subscriptionPlan: option.subscriptionPlan,
+    billingSubStatus: 'active',
+    billingGraceUntilMs: deleteField(),
+    billingPastDueSinceMs: deleteField(),
+  })
+}
+
+export async function assignMasterPlanFromNow(
+  db: Firestore,
+  tenantId: string,
+  duration: AssignPlanDuration,
+): Promise<void> {
+  const option = ASSIGN_PLAN_OPTIONS.find((o) => o.id === duration)
+  if (!option) return
+  await updateDoc(doc(db, MC.tenants, tenantId), {
+    billingPlan: 'master' as McBillingPlan,
     subscriptionEndsAt: setSubscriptionFromNow(option.ms),
     subscriptionPlan: option.subscriptionPlan,
     billingSubStatus: 'active',

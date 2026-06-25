@@ -8,6 +8,7 @@ import { LandingStoreShowcase } from '@/landing/components/LandingStoreShowcase'
 import { LandingZeroCost } from '@/landing/components/LandingZeroCost'
 import { LandingBentoFeatures } from '@/landing/components/LandingBentoFeatures'
 import { LandingHowItWorks } from '@/landing/components/LandingHowItWorks'
+import { LandingPosSection } from '@/landing/components/LandingPosSection'
 import { LandingFinalCta } from '@/landing/components/LandingFinalCta'
 import { LandingFooter } from '@/landing/components/LandingFooter'
 import { LandingMobileDock } from '@/landing/components/LandingMobileDock'
@@ -43,6 +44,7 @@ export function LandingPage() {
         <LandingStoreShowcase />
         <LandingZeroCost />
         <LandingBentoFeatures />
+        <LandingPosSection />
         <LandingHowItWorks />
         <LandingFinalCta />
       </main>

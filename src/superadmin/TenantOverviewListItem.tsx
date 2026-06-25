@@ -4,21 +4,64 @@ import {
   IconLink,
 } from '@/icons/McIcons'
 import { billingPlanOf } from '@/lib/catalogTheme'
+import { isPaidBillingPlan } from '@/lib/billingPlan'
 import { buildStorePublicUrl, formatStorePublicUrlLabel } from '@/lib/storePublicUrl'
 import { isTenantMembershipActive } from '@/lib/subscription'
 import { formatPlatformTermsVersionLabel } from '@/lib/platformTerms'
-import { ASSIGN_PLAN_OPTIONS, type AssignPlanDuration } from '@/superadmin/tenantAdminActions'
+import {
+  ASSIGN_PLAN_OPTIONS,
+  type AssignPlanDuration,
+  type AssignPlanProduct,
+} from '@/superadmin/tenantAdminActions'
 import { tenantPlanLabel } from '@/superadmin/tenantDisplayUtils'
 import type { TenantOverviewRow } from '@/superadmin/fetchTenantsOverview'
 
 type Props = {
   row: TenantOverviewRow
   busy: boolean
-  assigningId: AssignPlanDuration | null
-  onAssignPlan: (tenantId: string, duration: AssignPlanDuration) => void
+  assigning: { duration: AssignPlanDuration; product: AssignPlanProduct } | null
+  onAssignPlan: (tenantId: string, product: AssignPlanProduct, duration: AssignPlanDuration) => void
 }
 
-export function TenantOverviewListItem({ row, busy, assigningId, onAssignPlan }: Props) {
+function AssignPlanButtons({
+  product,
+  label,
+  tenantId,
+  busy,
+  assigning,
+  onAssign,
+  buttonClassName,
+}: {
+  product: AssignPlanProduct
+  label: string
+  tenantId: string
+  busy: boolean
+  assigning: Props['assigning']
+  onAssign: Props['onAssignPlan']
+  buttonClassName: string
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-mc-500">{label}</span>
+      {ASSIGN_PLAN_OPTIONS.map((option) => {
+        const isAssigning = busy && assigning?.product === product && assigning.duration === option.id
+        return (
+          <button
+            key={`${product}-${option.id}`}
+            type="button"
+            disabled={busy}
+            className={`rounded-lg border px-3 py-1.5 text-[13px] font-medium transition disabled:opacity-50 ${buttonClassName}`}
+            onClick={() => onAssign(tenantId, product, option.id)}
+          >
+            {isAssigning ? '…' : option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+export function TenantOverviewListItem({ row, busy, assigning, onAssignPlan }: Props) {
   const t = row.tenant
   const active = isTenantMembershipActive(t)
   const publicUrl = buildStorePublicUrl(t.slug)
@@ -50,12 +93,18 @@ export function TenantOverviewListItem({ row, busy, assigningId, onAssignPlan }:
               </span>
               <span
                 className={`border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${
-                  billingPlanOf(t) === 'expert'
-                    ? 'border-mc-900/25 text-mc-900'
+                  isPaidBillingPlan(billingPlanOf(t))
+                    ? billingPlanOf(t) === 'master'
+                      ? 'border-violet-300/80 text-violet-900'
+                      : 'border-mc-900/25 text-mc-900'
                     : 'border-neutral-200/70 text-mc-600'
                 }`}
               >
-                {billingPlanOf(t) === 'expert' ? 'Expert' : 'Free'}
+                {billingPlanOf(t) === 'master'
+                  ? 'Master'
+                  : billingPlanOf(t) === 'expert'
+                    ? 'Expert'
+                    : 'Free'}
               </span>
               {t.subscriptionPlan ? (
                 <span className="border border-neutral-200/70 px-2 py-0.5 text-[11px] font-medium text-mc-700">
@@ -96,48 +145,51 @@ export function TenantOverviewListItem({ row, busy, assigningId, onAssignPlan }:
           </div>
         </Link>
 
-        <div className="flex flex-col gap-3 border-t border-mc-100/90 bg-mc-50/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <a
-            href={publicUrl}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="group inline-flex min-w-0 items-center gap-2.5 rounded-lg border border-mc-200/90 bg-white px-3 py-2 text-[13px] font-medium text-mc-900 no-underline shadow-sm transition hover:border-mc-300 hover:bg-mc-50 sm:max-w-[min(100%,22rem)]"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-mc-900 text-white">
-              <IconLink size={16} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[13px] font-semibold">Ver tienda</span>
-              <span className="mt-0.5 block truncate font-mono text-[11px] font-normal text-mc-500">
-                {urlLabel}
+        <div className="flex flex-col gap-3 border-t border-mc-100/90 bg-mc-50/30 px-4 py-3 sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <a
+              href={publicUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="group inline-flex min-w-0 items-center gap-2.5 rounded-lg border border-mc-200/90 bg-white px-3 py-2 text-[13px] font-medium text-mc-900 no-underline shadow-sm transition hover:border-mc-300 hover:bg-mc-50 sm:max-w-[min(100%,22rem)]"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-mc-900 text-white">
+                <IconLink size={16} />
               </span>
-            </span>
-          </a>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-semibold">Ver tienda</span>
+                <span className="mt-0.5 block truncate font-mono text-[11px] font-normal text-mc-500">
+                  {urlLabel}
+                </span>
+              </span>
+            </a>
+          </div>
 
           <div
-            className="flex flex-wrap items-center gap-2"
+            className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
             role="presentation"
           >
-            <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-mc-500">
-              Asignar Expert
-            </span>
-            {ASSIGN_PLAN_OPTIONS.map((option) => {
-              const isAssigning = busy && assigningId === option.id
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  disabled={busy}
-                  className="rounded-lg border border-mc-200/90 bg-white px-3 py-1.5 text-[13px] font-medium text-mc-900 transition hover:border-mc-900/20 hover:bg-mc-50 disabled:opacity-50"
-                  onClick={() => onAssignPlan(t.id, option.id)}
-                >
-                  {isAssigning ? '…' : option.label}
-                </button>
-              )
-            })}
+            <AssignPlanButtons
+              product="expert"
+              label="Expert"
+              tenantId={t.id}
+              busy={busy}
+              assigning={assigning}
+              onAssign={onAssignPlan}
+              buttonClassName="border-mc-200/90 bg-white text-mc-900 hover:border-mc-900/20 hover:bg-mc-50"
+            />
+            <AssignPlanButtons
+              product="master"
+              label="Master"
+              tenantId={t.id}
+              busy={busy}
+              assigning={assigning}
+              onAssign={onAssignPlan}
+              buttonClassName="border-violet-300/80 bg-violet-50/80 text-violet-950 hover:border-violet-400 hover:bg-violet-100/80"
+            />
           </div>
         </div>
       </article>

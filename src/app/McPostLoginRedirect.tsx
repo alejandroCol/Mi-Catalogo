@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import {
+  isMcPosVendorUser,
   isMcSalesRepUser,
   isMcSuperAdminUser,
   resolveMcHomePath,
@@ -22,6 +23,13 @@ export function McPostLoginRedirect() {
     if (isMcSalesRepUser(profile)) {
       if (path === '/login' || path === '/app' || path.startsWith('/app/')) {
         nav('/vendedor', { replace: true })
+      }
+      return
+    }
+
+    if (isMcPosVendorUser(profile)) {
+      if (path === '/login' || path === '/app' || path.startsWith('/app/') || path === '/pos') {
+        nav('/pos/ventas', { replace: true })
       }
       return
     }

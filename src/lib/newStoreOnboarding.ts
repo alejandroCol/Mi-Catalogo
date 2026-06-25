@@ -4,6 +4,7 @@ import {
   isCheckoutVentasConfigured,
 } from '@/lib/checkoutVentasModo'
 import { isEnvioCheckoutConfigured } from '@/lib/checkoutShipping'
+import { isPaidBillingPlan } from '@/lib/billingPlan'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 
 /** Ventana para obtener Expert gratis al completar la tienda. */
@@ -59,7 +60,7 @@ export function isNewStoreChecklistEligible(
 ): boolean {
   if (!tenant) return false
   if (tenant.onboardingSetupCompletedAt) return false
-  if (tenant.billingPlan === 'expert') return false
+  if (isPaidBillingPlan(tenant.billingPlan)) return false
   return typeof tenant.createdAt === 'number'
 }
 

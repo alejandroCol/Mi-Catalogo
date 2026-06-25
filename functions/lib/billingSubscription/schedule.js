@@ -35,3 +35,7 @@ export function nextDebitDueFromPeriodEnd(periodEndMs, leadDays = 0) {
 export function idempotencyKeyForBillingDebit(tenantId, periodEndMs) {
     return `mcb-${tenantId.slice(0, 12)}-${periodEndMs}`.slice(0, 64);
 }
+/** Clave estable para el primer cobro de activación (evita débitos duplicados por reintentos). */
+export function idempotencyKeyForActivation(tenantId, period) {
+    return `mcb-${tenantId.slice(0, 12)}-init-${period}`.slice(0, 64);
+}

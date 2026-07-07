@@ -9,7 +9,7 @@ export type PosNavItem = {
 
 export const POS_ADMIN_NAV: PosNavItem[] = [
   { to: '/pos/admin', label: 'Inicio', icon: 'home', end: true },
-  { to: '/pos/admin/ventas', label: 'Ventas', icon: 'ventas' },
+  { to: '/pos/admin/ventas', label: 'Ventas', icon: 'ticket' },
   { to: '/pos/admin/caja', label: 'Caja', icon: 'caja' },
   { to: '/pos/admin/movimientos', label: 'Movimientos', icon: 'movimientos' },
   { to: '/pos/admin/inventario', label: 'Inventario', icon: 'inventario' },
@@ -40,7 +40,7 @@ export type PosModuleTile = {
 
 export const POS_ADMIN_TILES: PosModuleTile[] = [
   { to: '/pos/admin/ventas', label: 'Ventas', desc: 'Listado del día por sede', icon: 'ventas', tone: 'gold' },
-  { to: '/pos/admin/cobrar', label: 'Cobrar', desc: 'Registrar cobros en caja', icon: 'ventas-rapidas', tone: 'gold' },
+  { to: '/pos/ventas', label: 'Cobrar', desc: 'Registrar cobros en caja', icon: 'ventas-rapidas', tone: 'gold' },
   { to: '/pos/admin/caja', label: 'Caja del día', desc: 'Supervisión en vivo por sede', icon: 'caja', tone: 'cream' },
   { to: '/pos/admin/inventario', label: 'Inventario', desc: 'Productos y stock por sede', icon: 'inventario', tone: 'dark' },
   { to: '/pos/admin/devoluciones', label: 'Devoluciones', desc: 'Reembolsos y cambios', icon: 'devoluciones', tone: 'cream' },

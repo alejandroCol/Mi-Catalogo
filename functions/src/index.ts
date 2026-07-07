@@ -28,6 +28,11 @@ import {
 } from './onepayCatalogHelpers.js'
 import { productoPrecioVentaFromData } from './productoDescuento.js'
 import {
+  enrichLineasWithComboCost,
+  fulfillCatalogOrderInventory,
+  validateCatalogLineStock,
+} from './catalogInventoryFulfill.js'
+import {
   assertKybGeoCaller,
   fetchOnePayCities,
   fetchOnePayStates,
@@ -2088,7 +2093,18 @@ export const mcOnepaySubmitCompanyKyb = onCall(
 
 // --- Checkout: orden + link OnePay (precios y cupón resueltos en servidor)
 
-type LineaIn = { productId?: string; cantidad?: number }
+type LineaIn = {
+  productId?: string
+  cantidad?: number
+  varianteId?: string
+  tallaId?: string
+  comboColorSeleccion?: {
+    componenteIndex?: number
+    slotIndex?: number
+    varianteId?: string
+    varianteNombre?: string
+  }[]
+}
 
 export const mcOnepayStartCatalogCheckout = onCall(
   { invoker: 'public', secrets: [enviaApiToken] },
@@ -2281,17 +2297,68 @@ export const mcOnepayStartCatalogCheckout = onCall(
     }
   }
 
-  const lineasRes: {
+  type CatalogLineaRes = {
     productId: string
     nombre: string
     cantidad: number
     precioUnitarioCop: number
-  }[] = []
+    costoUnitarioCop?: number
+    varianteId?: string
+    tallaId?: string
+    esCombo?: boolean
+    comboColorSeleccion?: {
+      componenteIndex: number
+      slotIndex: number
+      varianteId?: string
+      varianteNombre?: string
+      tallaId?: string
+      tallaNombre?: string
+    }[]
+    componentesExpandidos?: {
+      productId: string
+      varianteId?: string
+      tallaId?: string
+      cantidad: number
+      costoUnitarioCop?: number
+      nombre?: string
+      varianteNombre?: string
+      tallaNombre?: string
+    }[]
+  }
+  const lineasRes: CatalogLineaRes[] = []
   for (const raw of lineas) {
     const productId = typeof raw?.productId === 'string' ? raw.productId.trim() : ''
     const cant = typeof raw?.cantidad === 'number' && raw.cantidad > 0 ? Math.floor(raw.cantidad) : 0
     if (!productId || cant < 1) {
       throw new HttpsError('invalid-argument', 'Línea de carrito inválida.')
+    }
+    const varianteId = typeof raw?.varianteId === 'string' ? raw.varianteId.trim() : undefined
+    const tallaId = typeof raw?.tallaId === 'string' ? raw.tallaId.trim() : undefined
+    const comboColorSeleccion = Array.isArray(raw?.comboColorSeleccion)
+      ? raw.comboColorSeleccion
+          .map((x) => {
+            if (!x || typeof x !== 'object') return null
+            const o = x as Record<string, unknown>
+            const componenteIndex =
+              typeof o.componenteIndex === 'number' ? Math.floor(o.componenteIndex) : -1
+            const slotIndex = typeof o.slotIndex === 'number' ? Math.floor(o.slotIndex) : -1
+            const vid = typeof o.varianteId === 'string' ? o.varianteId.trim() : ''
+            if (componenteIndex < 0 || slotIndex < 0 || !vid) return null
+            return {
+              componenteIndex,
+              slotIndex,
+              varianteId: vid,
+              ...(typeof o.varianteNombre === 'string' && o.varianteNombre.trim()
+                ? { varianteNombre: o.varianteNombre.trim().slice(0, 120) }
+                : {}),
+            }
+          })
+          .filter((x): x is NonNullable<typeof x> => x != null)
+      : undefined
+    try {
+      await validateCatalogLineStock(db, tenantId, { productId, cantidad: cant, varianteId, tallaId })
+    } catch (e) {
+      throw new HttpsError('failed-precondition', e instanceof Error ? e.message : 'Stock insuficiente.')
     }
     const pSnap = await db.doc(`mc_tenants/${tenantId}/productos/${productId}`).get()
     if (!pSnap.exists) {
@@ -2300,7 +2367,8 @@ export const mcOnepayStartCatalogCheckout = onCall(
     const p = pSnap.data() as {
       nombre?: string
       precioCop?: number
-      stock?: number
+      precioCostoCop?: number
+      tipoProducto?: string
       activo?: boolean
       enCatalogo?: boolean
       descuentoActivo?: boolean
@@ -2314,24 +2382,36 @@ export const mcOnepayStartCatalogCheckout = onCall(
     if (precio < 1) {
       throw new HttpsError('invalid-argument', 'Precio faltante en un producto.')
     }
-    const stock = Math.floor(p.stock ?? 0)
-    if (stock < cant) {
-      throw new HttpsError('failed-precondition', `Stock insuficiente: ${p.nombre ?? productId}`)
-    }
     lineasRes.push({
       productId,
       nombre: (p.nombre ?? 'Producto').slice(0, 200),
       cantidad: cant,
       precioUnitarioCop: precio,
+      ...(varianteId ? { varianteId } : {}),
+      ...(tallaId ? { tallaId } : {}),
+      ...(p.tipoProducto === 'combo' ? { esCombo: true } : {}),
+      ...(comboColorSeleccion?.length ? { comboColorSeleccion } : {}),
+      ...(p.tipoProducto !== 'combo' && p.precioCostoCop != null && p.precioCostoCop >= 0
+        ? { costoUnitarioCop: Math.round(p.precioCostoCop) }
+        : {}),
     })
   }
+
+  const lineasEnriched = await enrichLineasWithComboCost(db, tenantId, lineasRes)
+  lineasRes.length = 0
+  lineasRes.push(...lineasEnriched)
 
   const subtotalCop = lineasRes.reduce((s, l) => s + l.precioUnitarioCop * l.cantidad, 0)
   if (subtotalCop < 1) {
     throw new HttpsError('invalid-argument', 'Subtotal inválido.')
   }
 
-  const totalPiezas = lineasRes.reduce((s, l) => s + l.cantidad, 0)
+  const totalPiezas = lineasRes.reduce((s, l) => {
+    if (l.esCombo && l.componentesExpandidos?.length) {
+      return s + l.componentesExpandidos.reduce((x, c) => x + c.cantidad, 0)
+    }
+    return s + l.cantidad
+  }, 0)
   const envioResolution = await resolveCheckoutEnvioCop({
     tenant,
     platform: platformSettings,
@@ -2506,6 +2586,29 @@ export const mcOnepayStartCatalogCheckout = onCall(
   })
 
   return { orderId, onepayViewToken: viewToken, paymentLink, paymentId }
+})
+
+export const mcFulfillCatalogOrder = onCall({ invoker: 'public' }, async (request) => {
+  const d = request.data as { tenantId?: string; orderId?: string }
+  const tenantId = typeof d.tenantId === 'string' ? d.tenantId.trim() : ''
+  const orderId = typeof d.orderId === 'string' ? d.orderId.trim() : ''
+  if (!tenantId || !orderId) {
+    throw new HttpsError('invalid-argument', 'Datos incompletos.')
+  }
+  const orderSnap = await db.doc(`mc_tenants/${tenantId}/ordenes_catalogo/${orderId}`).get()
+  if (!orderSnap.exists) {
+    throw new HttpsError('not-found', 'Pedido no encontrado.')
+  }
+  const order = orderSnap.data() as { estado?: string; pagoSimulado?: boolean; pagoOnePay?: boolean }
+  const estadoOk =
+    order.estado === 'pagado' ||
+    order.estado === 'en_preparacion' ||
+    order.estado === 'listo_envio'
+  if (!estadoOk) {
+    throw new HttpsError('failed-precondition', 'El pedido aún no está pagado.')
+  }
+  const ok = await fulfillCatalogOrderInventory(db, tenantId, orderId)
+  return { ok }
 })
 
 export const mcOnepayCheckoutStatus = onCall({ invoker: 'public' }, async (request) => {
@@ -2788,15 +2891,24 @@ webhookApp.post(
       if (isPlatform && eventName.startsWith('charge.')) {
         const charge = await onepayGetCharge(payId, secretKey)
         if (charge && wantsApprove) {
-          const handled = await mcBillingTryFinalizeFromChargeWebhook({
+          const billingResult = await mcBillingTryFinalizeFromChargeWebhook({
             db,
             chargeId: payId,
             platformSk: secretKey,
             chargeMeta: charge.metadata,
+            chargeDetails: charge,
           })
-          if (handled) {
+          if (billingResult === 'handled') {
             await procRef.set({ at: Date.now(), event: eventName, billingCharge: true })
             res.status(200).send('ok')
+            return
+          }
+          if (billingResult === 'retry') {
+            console.warn('[mcOnepayCatalogWebhook] billing charge pending retry', {
+              chargeId: payId,
+              event: eventName,
+            })
+            res.status(503).send('billing retry')
             return
           }
         }
@@ -2878,6 +2990,12 @@ webhookApp.post(
           updatedAt: paidAt,
           seguimientoCompraAt: paidAt,
         })
+
+        try {
+          await fulfillCatalogOrderInventory(db, storeId, orderId)
+        } catch (fulfillErr) {
+          console.error('[webhook] fulfill inventario:', fulfillErr)
+        }
 
         const oCarritoId = (o as { carritoIniciadoId?: string }).carritoIniciadoId
         const oCupon = (o as { cuponCodigo?: string }).cuponCodigo
@@ -3021,6 +3139,8 @@ export const mcOnepayCatalogWebhook = onRequest(
 
 export { mcRecordStoreAnalytics } from './storeAnalytics.js'
 export { mcOnTenantCreatedNotify } from './newStoreRegistrationEmail.js'
+export { mcTallerRegister, mcTallerSendReminders } from './tallerEmail.js'
+export { mcTallerGetMeetLink } from './tallerGetMeetLink.js'
 export { mcFinalizeNewStoreOnboarding } from './onboardingExpertReward.js'
 export { mcQuoteEnvioCheckout } from './shipping/mcQuoteEnvioCheckout.js'
 export { mcStartStoreImpersonation, mcStopStoreImpersonation } from './storeImpersonation.js'
@@ -3029,6 +3149,7 @@ export { mcCreatePosVendor, mcSetPosVendorActive } from './posVendor.js'
 export { mcUpdatePosVendor, mcResetPosVendorPassword } from './posVendorUpdate.js'
 export { mcAdminCreateStore } from './adminCreateStore.js'
 export { mcSeedPosDemoData } from './posDemoSeed.js'
+export { mcSeedReportDemoData } from './reportDemoSeed.js'
 export {
   mcCatalogPublish,
   mcCatalogUnpublish,

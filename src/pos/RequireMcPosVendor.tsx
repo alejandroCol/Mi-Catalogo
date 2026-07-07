@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
-import { isMcPosVendorUser, isMcSalesRepUser, isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
+import { isMcPosVendorUser, isMcSalesRepUser, isMcStoreOwnerUser, isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 
 export function RequireMcPosVendor({ children }: { children: React.ReactNode }) {
   const { profile, profileReady, loading, isImpersonating } = useMcAuth()
@@ -8,6 +8,7 @@ export function RequireMcPosVendor({ children }: { children: React.ReactNode }) 
   if (loading || !profileReady) return null
   if (!profile) return <Navigate to="/login" replace />
   if (isMcPosVendorUser(profile)) return <>{children}</>
+  if (isMcStoreOwnerUser(profile)) return <>{children}</>
   if (
     isImpersonating &&
     (isMcSuperAdminUser(profile) || isMcSalesRepUser(profile))

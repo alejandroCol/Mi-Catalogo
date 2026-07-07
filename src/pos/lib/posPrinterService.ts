@@ -73,7 +73,8 @@ export class PosPrinterService {
     const openDrawer =
       options?.openDrawer !== false &&
       cfg.abrirCajon &&
-      !payload.ticket.esCredito
+      !payload.ticket.esCredito &&
+      !(payload.ticket.esContraEntrega && payload.ticket.pagos.length === 0)
 
     const shouldPrint = options?.forcePrint || cfg.imprimir
 

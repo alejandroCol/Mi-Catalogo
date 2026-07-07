@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import {
   collection,
   doc,
-  increment,
   writeBatch,
 } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
@@ -12,8 +11,6 @@ import { formatCop } from '@/lib/formatCop'
 import { isMcStoreOwnerUser } from '@/lib/mcUserFromFirestore'
 import { getDb } from '@/lib/firebase'
 import {
-  mcPosStockCollection,
-  mcPosStockDocId,
   mcPosVentasCollection,
 } from '@/lib/mcPosCollections'
 import { usePosProductos } from '@/pos/hooks/usePosProductos'
@@ -21,7 +18,6 @@ import { usePosSedes } from '@/pos/hooks/usePosSedes'
 import { usePosStock } from '@/pos/hooks/usePosStock'
 import { usePosTurnoAbierto } from '@/pos/hooks/usePosTurnoAbierto'
 import { PosPageHeader } from '@/pos/components/PosPageHeader'
-import { PosExpertSaleModal } from '@/pos/components/PosExpertSaleModal'
 import { PosSaleCelebration } from '@/pos/components/PosSaleCelebration'
 import { PosEmptyState } from '@/pos/components/PosEmptyState'
 import { burstPosConfetti } from '@/pos/lib/posConfetti'
@@ -29,9 +25,39 @@ import { playPosSaleSound } from '@/pos/lib/posSaleSound'
 import { emitMcPosVenta, ventaToPosPayload } from '@/pos/lib/posEvents'
 import { formatCopInputWhileTyping, parseCopInput } from '@/pos/lib/posCopInput'
 import { mcPosPrinter } from '@/pos/lib/posPrinterService'
-import { canCompletePosSale } from '@/pos/lib/posExpertSale'
 import { sumStockForProduct, syncCatalogStockFromPos } from '@/pos/lib/posCatalogSync'
-import type { McPosLineaPago, McPosLineaVenta, McPosMetodoPago, McPosProducto } from '@/types/mc'
+import { useCatalogProductos } from '@/pos/hooks/useCatalogProductos'
+import {
+  applyPosStockDeltasBatch,
+  buildPosStockDeltasForLine,
+  posComboCostoUnitario,
+} from '@/pos/lib/posComboStock'
+import { PosComboColorModal } from '@/pos/components/PosComboColorModal'
+import { PosRopaSkuPickerModal } from '@/pos/components/PosRopaSkuPickerModal'
+import {
+  posStockDisponibleSku,
+  resolvePosProductoSkuView,
+} from '@/pos/lib/posProductoSkus'
+import { inferPosStockModo } from '@/pos/lib/posProductoVariantes'
+import {
+  buildPosVentasCatalogContext,
+  posProductoStockDisponible,
+  posProductosEnCatalogoVentas,
+  posProductosVendibles,
+} from '@/pos/lib/posVentasCatalog'
+import { ensureComboPosMirrorsForSede } from '@/lib/comboPosSync'
+import { mcPosStockMapKey } from '@/lib/mcPosStockMapKey'
+import {
+  comboRequiereSeleccionCliente,
+  comboColorSeleccionCompleta,
+  esProductoCombo,
+  expandComboComponentes,
+  comboColorSeleccionKey,
+  comboColorSeleccionResumen,
+} from '@/lib/comboProducto'
+import type { McComboColorSeleccion, McPosLineaPago, McPosLineaVenta, McPosMetodoPago, McPosProducto } from '@/types/mc'
+
+const COMBO_OPCIONES_MSG = 'Completá color y talla de cada prenda del combo.'
 
 type ModoPagoUi = 'efectivo' | 'transferencia' | 'mixto'
 
@@ -44,8 +70,15 @@ const METODO_LABEL: Record<McPosMetodoPago, string> = {
 
 type LineaKey = string
 
-function lineaKey(productoId: string, varianteId?: string): LineaKey {
-  return varianteId ? `${productoId}__${varianteId}` : productoId
+function lineaKey(
+  productoId: string,
+  varianteId?: string,
+  tallaId?: string,
+  comboColorSeleccion?: McComboColorSeleccion[],
+): LineaKey {
+  const colorK = comboColorSeleccion?.length ? comboColorSeleccionKey(comboColorSeleccion) : ''
+  const variantK = varianteId && tallaId ? `${varianteId}__${tallaId}` : varianteId ?? ''
+  return `${productoId}__${variantK}__${colorK}`
 }
 
 function lineasParaFirestore(lineas: McPosLineaVenta[]): McPosLineaVenta[] {
@@ -56,7 +89,12 @@ function lineasParaFirestore(lineas: McPosLineaVenta[]): McPosLineaVenta[] {
     precioUnitarioCop: l.precioUnitarioCop,
     subtotalCop: l.subtotalCop,
     ...(l.varianteId ? { varianteId: l.varianteId } : {}),
+    ...(l.tallaId ? { tallaId: l.tallaId } : {}),
+    ...(l.costoUnitarioCop != null && l.costoUnitarioCop >= 0 ? { costoUnitarioCop: l.costoUnitarioCop } : {}),
     ...(l.descuentoCop != null && l.descuentoCop > 0 ? { descuentoCop: l.descuentoCop } : {}),
+    ...(l.esCombo ? { esCombo: true } : {}),
+    ...(l.componentesExpandidos?.length ? { componentesExpandidos: l.componentesExpandidos } : {}),
+    ...(l.comboColorSeleccion?.length ? { comboColorSeleccion: l.comboColorSeleccion } : {}),
   }))
 }
 
@@ -75,6 +113,7 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
   const sedeId = sedeIdOverride ?? (sedePicker || profile?.posSedeId) ?? null
   const sede = sedes.find((s) => s.id === sedeId)
   const { productos } = usePosProductos(tenantId, sedeId ?? undefined)
+  const { productos: catalogProductos } = useCatalogProductos(tenantId)
   const { stock } = usePosStock(tenantId, sedeId ?? undefined)
   const { stock: stockGlobal } = usePosStock(tenantId)
   const { turno, loading: loadingTurno } = usePosTurnoAbierto(tenantId, vendedorUid, sedeId)
@@ -82,6 +121,7 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
   const [lineas, setLineas] = useState<McPosLineaVenta[]>([])
   const [modoPago, setModoPago] = useState<ModoPagoUi>('efectivo')
   const [credito, setCredito] = useState(false)
+  const [contraEntrega, setContraEntrega] = useState(false)
   const [pagosManuales, setPagosManuales] = useState<McPosLineaPago[]>([])
   const [metodoLinea, setMetodoLinea] = useState<McPosMetodoPago>('efectivo')
   const [montoLinea, setMontoLinea] = useState('')
@@ -95,10 +135,24 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
   const [celebrationTotal, setCelebrationTotal] = useState(0)
   const [totalPulse, setTotalPulse] = useState(false)
   const [search, setSearch] = useState('')
-  const [expertModal, setExpertModal] = useState(false)
   const [variantPicker, setVariantPicker] = useState<(McPosProducto & { id: string }) | null>(null)
+  const [skuPicker, setSkuPicker] = useState<(McPosProducto & { id: string }) | null>(null)
+  const [comboColorPicker, setComboColorPicker] = useState<(McPosProducto & { id: string }) | null>(null)
+  const comboSyncRef = useRef('')
 
   const dismissCelebration = useCallback(() => setVentaOk(false), [])
+
+  useEffect(() => {
+    if (!tenantId || !sedeId) return
+    const combos = catalogProductos.filter((p) => esProductoCombo(p) && p.activo !== false)
+    if (combos.length === 0) return
+    const syncKey = `${tenantId}:${sedeId}:${combos.map((c) => c.id).sort().join(',')}`
+    if (comboSyncRef.current === syncKey) return
+    comboSyncRef.current = syncKey
+    void ensureComboPosMirrorsForSede(tenantId, sedeId, combos, productos).catch(() => {
+      comboSyncRef.current = ''
+    })
+  }, [tenantId, sedeId, catalogProductos, productos])
 
   useEffect(() => {
     if (isMcStoreOwnerUser(profile) || isImpersonating) return
@@ -107,28 +161,26 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
     }
   }, [loadingTurno, turno, sedeId, nav, cajaPath, profile, isImpersonating])
 
-  const stockMap = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const s of stock) {
-      map.set(lineaKey(s.productoId, s.varianteId), s.cantidad)
-    }
-    return map
-  }, [stock])
+  const ventasCatalog = useMemo(
+    () => buildPosVentasCatalogContext(productos, catalogProductos, stock, sedeId),
+    [productos, catalogProductos, stock, sedeId],
+  )
+  const { stockMap, catalogLookup, catalogToPos } = ventasCatalog
 
-  const productosConStock = useMemo(() => {
-    return productos.filter((p) => {
-      if (!p.activo) return false
-      if (p.variantes?.length) {
-        return p.variantes.some((v) => (stockMap.get(lineaKey(p.id, v.id)) ?? 0) > 0)
-      }
-      return (stockMap.get(lineaKey(p.id)) ?? 0) > 0
-    })
-  }, [productos, stockMap])
+  const productosCatalogo = useMemo(
+    () => posProductosEnCatalogoVentas(productos),
+    [productos],
+  )
+
+  const productosConStock = useMemo(
+    () => posProductosVendibles(productos, ventasCatalog),
+    [productos, ventasCatalog],
+  )
 
   const filteredProductos = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return productosConStock
-    return productosConStock.filter(
+    if (!q) return productosCatalogo
+    return productosCatalogo.filter(
       (p) =>
         p.nombre.toLowerCase().includes(q) ||
         (p.codigo?.toLowerCase().includes(q) ?? false) ||
@@ -140,12 +192,12 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
         ) ??
           false),
     )
-  }, [productosConStock, search])
+  }, [productosCatalogo, search])
 
   const subtotal = lineas.reduce((s, l) => s + l.subtotalCop, 0)
   const descGlobal = parseCopInput(descuentoGlobal)
   const total = Math.max(0, subtotal - descGlobal)
-  const showEditorPagos = credito || modoPago === 'mixto'
+  const showEditorPagos = (credito || modoPago === 'mixto') && !contraEntrega
 
   useEffect(() => {
     if (total <= 0) return
@@ -155,10 +207,11 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
   }, [total])
 
   const pagos: McPosLineaPago[] = useMemo(() => {
+    if (contraEntrega) return []
     if (credito || modoPago === 'mixto') return pagosManuales
     if (total <= 0) return []
     return [{ metodo: modoPago === 'transferencia' ? 'transferencia' : 'efectivo', monto: total }]
-  }, [credito, modoPago, pagosManuales, total])
+  }, [contraEntrega, credito, modoPago, pagosManuales, total])
 
   const vuelto =
     modoPago === 'efectivo' && !credito
@@ -168,31 +221,126 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
   const restantePago = total - pagos.reduce((s, p) => s + p.monto, 0)
 
   function resolverPrecio(p: McPosProducto & { id: string }, varianteId?: string) {
-    const v = p.variantes?.find((x) => x.id === varianteId)
-    return v?.precioCop ?? p.precioCop
+    const color =
+      p.posColores?.find((x) => x.id === varianteId) ?? p.variantes?.find((x) => x.id === varianteId)
+    if (color?.precioCop) return color.precioCop
+    return p.precioCop
   }
 
-  function agregarLinea(productoId: string, varianteId?: string, varianteNombre?: string) {
+  function catalogDeProducto(p: McPosProducto & { id: string }) {
+    return p.catalogProductoId ? catalogLookup.get(p.catalogProductoId) : undefined
+  }
+
+  function productoUsaSkuPicker(p: McPosProducto & { id: string }) {
+    return resolvePosProductoSkuView(p, catalogDeProducto(p)).usaMatriz
+  }
+
+  function stockDisponibleParaLinea(
+    p: McPosProducto & { id: string },
+    varianteId?: string,
+    tallaId?: string,
+  ) {
+    if (productoUsaSkuPicker(p) && varianteId && tallaId) {
+      const enCarrito = lineas
+        .filter((l) => l.productoId === p.id && l.varianteId === varianteId && l.tallaId === tallaId)
+        .reduce((s, l) => s + l.cantidad, 0)
+      return Math.max(0, posStockDisponibleSku(p.id, varianteId, tallaId, stockMap) - enCarrito)
+    }
+    const key = lineaKey(p.id, varianteId, tallaId)
+    const enCarrito = lineas
+      .filter((l) => lineaKey(l.productoId, l.varianteId, l.tallaId, l.comboColorSeleccion) === key)
+      .reduce((s, l) => s + l.cantidad, 0)
+    if (varianteId) {
+      return Math.max(0, (stockMap.get(mcPosStockMapKey(p.id, varianteId)) ?? 0) - enCarrito)
+    }
+    const totalEnProducto = lineas
+      .filter((l) => l.productoId === p.id)
+      .reduce((s, l) => s + l.cantidad, 0)
+    return Math.max(0, posProductoStockDisponible(p, ventasCatalog) - totalEnProducto)
+  }
+
+  function resolverCosto(p: McPosProducto & { id: string }) {
+    if (esProductoCombo(p)) {
+      return posComboCostoUnitario(p, catalogLookup)
+    }
+    return p.precioCostoCop != null && p.precioCostoCop >= 0 ? p.precioCostoCop : undefined
+  }
+
+  function comboDef(p: McPosProducto & { id: string }) {
+    const catalog = p.catalogProductoId ? catalogLookup.get(p.catalogProductoId) : undefined
+    return {
+      comboComponentes: p.comboComponentes,
+      comboPermiteElegirColor: p.comboPermiteElegirColor ?? catalog?.comboPermiteElegirColor,
+      comboPermiteElegirTalla: p.comboPermiteElegirTalla ?? catalog?.comboPermiteElegirTalla,
+      nombre: p.nombre,
+      tipoProducto: 'combo' as const,
+    }
+  }
+
+  function comboPideOpciones(p: McPosProducto & { id: string }) {
+    return comboRequiereSeleccionCliente(comboDef(p), catalogLookup)
+  }
+
+  function comboLineaOpcionesCompleta(p: McPosProducto & { id: string }, comboColorSeleccion?: McComboColorSeleccion[]) {
+    if (!comboPideOpciones(p)) return true
+    return comboColorSeleccionCompleta(comboDef(p), catalogLookup, comboColorSeleccion)
+  }
+
+  function agregarLinea(
+    productoId: string,
+    varianteId?: string,
+    varianteNombre?: string,
+    comboColorSeleccion?: McComboColorSeleccion[],
+    tallaId?: string,
+    tallaNombre?: string,
+  ) {
     const p = productos.find((x) => x.id === productoId)
     if (!p) return
-    const key = lineaKey(productoId, varianteId)
-    const disponible = stockMap.get(key) ?? 0
-    const enCarrito = lineas
-      .filter((l) => lineaKey(l.productoId, l.varianteId) === key)
-      .reduce((s, l) => s + l.cantidad, 0)
-    if (enCarrito >= disponible) {
+    if (esProductoCombo(p) && !comboLineaOpcionesCompleta(p, comboColorSeleccion)) {
+      setMsg(COMBO_OPCIONES_MSG)
+      return
+    }
+    const key = lineaKey(productoId, varianteId, tallaId, comboColorSeleccion)
+    const disponible = stockDisponibleParaLinea(p, varianteId, tallaId)
+    if (disponible <= 0) {
       setMsg('Sin stock suficiente.')
       return
     }
     const precio = resolverPrecio(p, varianteId)
-    const nombre = varianteNombre ? `${p.nombre} — ${varianteNombre}` : p.nombre
+    const costo = resolverCosto(p)
+    const partesNombre = [p.nombre]
+    if (varianteNombre) partesNombre.push(varianteNombre)
+    if (tallaNombre) partesNombre.push(tallaNombre)
+    const nombre = partesNombre.length > 1 ? partesNombre.join(' — ') : p.nombre
+    const comboExpanded =
+      esProductoCombo(p) && p.comboComponentes?.length
+        ? expandComboComponentes(comboDef(p), 1, catalogLookup, comboColorSeleccion)
+        : undefined
     setLineas((prev) => {
-      const idx = prev.findIndex((l) => lineaKey(l.productoId, l.varianteId) === key)
+      const idx = prev.findIndex(
+        (l) => lineaKey(l.productoId, l.varianteId, l.tallaId, l.comboColorSeleccion) === key,
+      )
       if (idx >= 0) {
         const next = [...prev]
         const row = next[idx]!
         const qty = row.cantidad + 1
-        next[idx] = { ...row, cantidad: qty, subtotalCop: qty * row.precioUnitarioCop }
+        next[idx] = {
+          ...row,
+          cantidad: qty,
+          subtotalCop: qty * row.precioUnitarioCop,
+          ...(comboExpanded
+            ? {
+                esCombo: true,
+                componentesExpandidos: expandComboComponentes(
+                  comboDef(p),
+                  qty,
+                  catalogLookup,
+                  comboColorSeleccion,
+                ),
+                ...(comboColorSeleccion?.length ? { comboColorSeleccion } : {}),
+              }
+            : {}),
+        }
         return next
       }
       return [
@@ -200,18 +348,45 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
         {
           productoId: p.id,
           varianteId,
+          ...(tallaId ? { tallaId } : {}),
           nombre,
           cantidad: 1,
           precioUnitarioCop: precio,
+          ...(costo != null ? { costoUnitarioCop: costo } : {}),
+          ...(esProductoCombo(p)
+            ? {
+                esCombo: true,
+                componentesExpandidos: comboExpanded,
+                ...(comboColorSeleccion?.length ? { comboColorSeleccion } : {}),
+              }
+            : {}),
           subtotalCop: precio,
         },
       ]
     })
     setMsg(null)
     setVariantPicker(null)
+    setSkuPicker(null)
+    setComboColorPicker(null)
   }
 
   function onProductClick(p: McPosProducto & { id: string }) {
+    if (posProductoStockDisponible(p, ventasCatalog) <= 0) {
+      setMsg(esProductoCombo(p) ? 'Este combo no tiene stock disponible.' : 'Sin stock disponible.')
+      return
+    }
+    if (esProductoCombo(p) && comboPideOpciones(p)) {
+      setComboColorPicker(p)
+      return
+    }
+    if (esProductoCombo(p)) {
+      agregarLinea(p.id)
+      return
+    }
+    if (productoUsaSkuPicker(p)) {
+      setSkuPicker(p)
+      return
+    }
     if (p.variantes?.length) {
       setVariantPicker(p)
       return
@@ -241,13 +416,34 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
 
   function quitarLinea(key: LineaKey) {
     setLineas((prev) => {
-      const idx = prev.findIndex((l) => lineaKey(l.productoId, l.varianteId) === key)
+      const idx = prev.findIndex(
+        (l) => lineaKey(l.productoId, l.varianteId, l.tallaId, l.comboColorSeleccion) === key,
+      )
       if (idx < 0) return prev
       const row = prev[idx]!
-      if (row.cantidad <= 1) return prev.filter((l) => lineaKey(l.productoId, l.varianteId) !== key)
+      if (row.cantidad <= 1) {
+        return prev.filter(
+          (l) => lineaKey(l.productoId, l.varianteId, l.tallaId, l.comboColorSeleccion) !== key,
+        )
+      }
       const next = [...prev]
       const qty = row.cantidad - 1
-      next[idx] = { ...row, cantidad: qty, subtotalCop: qty * row.precioUnitarioCop }
+      const posProduct = productos.find((p) => p.id === row.productoId)
+      const comboExpanded =
+        row.esCombo && posProduct?.comboComponentes?.length
+          ? expandComboComponentes(
+              comboDef(posProduct),
+              qty,
+              catalogLookup,
+              row.comboColorSeleccion,
+            )
+          : row.componentesExpandidos
+      next[idx] = {
+        ...row,
+        cantidad: qty,
+        subtotalCop: qty * row.precioUnitarioCop,
+        ...(comboExpanded ? { componentesExpandidos: comboExpanded } : {}),
+      }
       return next
     })
   }
@@ -272,11 +468,15 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
 
   async function confirmarVenta() {
     if (!tenantId || !sedeId || !vendedorUid || lineas.length === 0 || total <= 0) return
-    if (!canCompletePosSale(tenant)) {
-      setExpertModal(true)
-      return
+    for (const l of lineas) {
+      const posProduct = productos.find((p) => p.id === l.productoId)
+      if (!posProduct || !esProductoCombo(posProduct)) continue
+      if (!comboLineaOpcionesCompleta(posProduct, l.comboColorSeleccion)) {
+        setMsg(COMBO_OPCIONES_MSG)
+        return
+      }
     }
-    if (credito || modoPago === 'mixto') {
+    if (!contraEntrega && (credito || modoPago === 'mixto')) {
       const sumPagos = pagos.reduce((s, p) => s + p.monto, 0)
       if (sumPagos !== total) {
         setMsg('Los pagos deben sumar el total.')
@@ -301,24 +501,29 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
         ...(descGlobal > 0 ? { descuentoGlobalCop: descGlobal } : {}),
         ...(motivoDescuento.trim() ? { motivoDescuentoGlobal: motivoDescuento.trim() } : {}),
         ...(credito ? { esCredito: true } : {}),
+        ...(contraEntrega ? { esContraEntrega: true, estadoPago: 'pendiente' as const } : {}),
         createdAt: now,
       })
 
       for (const l of lineas) {
-        const stockRef = doc(
-          db,
-          mcPosStockCollection(tenantId),
-          mcPosStockDocId(sedeId, l.productoId, l.varianteId),
-        )
-        batch.set(stockRef, { cantidad: increment(-l.cantidad), updatedAt: now }, { merge: true })
+        const posProduct = productos.find((p) => p.id === l.productoId)
+        if (!posProduct) continue
+        const deltas = buildPosStockDeltasForLine(l, posProduct, catalogLookup, catalogToPos)
+        applyPosStockDeltasBatch(batch, db, tenantId, sedeId, deltas, -1, now)
       }
 
       await batch.commit()
 
-      const productoIds = [...new Set(lineas.map((l) => l.productoId))]
+      const posProductoIdsToSync = new Set<string>()
+      for (const l of lineas) {
+        const posProduct = productos.find((p) => p.id === l.productoId)
+        if (!posProduct) continue
+        const deltas = buildPosStockDeltasForLine(l, posProduct, catalogLookup, catalogToPos)
+        for (const d of deltas) posProductoIdsToSync.add(d.productoId)
+      }
       try {
         await Promise.all(
-          productoIds.map((pid) =>
+          [...posProductoIdsToSync].map((pid) =>
             syncCatalogStockFromPos(tenantId, pid, sumStockForProduct(stockGlobal, pid)),
           ),
         )
@@ -337,6 +542,7 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
           descuentoGlobalCop: descGlobal,
           motivoDescuentoGlobal: motivoDescuento,
           esCredito: credito,
+          esContraEntrega: contraEntrega,
           createdAt: now,
         },
         sede?.pos,
@@ -353,6 +559,9 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
       setMotivoDescuento('')
       setRecibidoEfectivo('')
       setPagosManuales([])
+      setContraEntrega(false)
+      setCredito(false)
+      setModoPago('efectivo')
     } catch (err) {
       console.error('[POS] Error al registrar venta:', err)
       const code = typeof err === 'object' && err && 'code' in err ? String((err as { code: string }).code) : ''
@@ -420,7 +629,12 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
               <p className="mc-pos-panel__eyebrow">Catálogo</p>
               <h2 className="mc-pos-panel__title">Productos</h2>
             </div>
-            <span className="mc-pos-panel__badge">{filteredProductos.length} con stock</span>
+            <span className="mc-pos-panel__badge">
+              {productosConStock.length} con stock
+              {productosCatalogo.length > productosConStock.length
+                ? ` · ${productosCatalogo.length - productosConStock.length} sin stock`
+                : ''}
+            </span>
           </div>
           <input
             className="mc-pos-search"
@@ -436,19 +650,27 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
           />
           <div className="mc-pos-product-grid">
             {filteredProductos.map((p) => {
-              const qty = p.variantes?.length
-                ? p.variantes.reduce((s, v) => s + (stockMap.get(lineaKey(p.id, v.id)) ?? 0), 0)
-                : stockMap.get(lineaKey(p.id)) ?? 0
+              const qty = posProductoStockDisponible(p, ventasCatalog)
+              const esCombo = esProductoCombo(p)
+              const sinStock = qty <= 0
               return (
                 <button
                   key={p.id}
                   type="button"
-                  className="mc-pos-product-card"
+                  className={clsx('mc-pos-product-card', sinStock && 'mc-pos-product-card--disabled')}
+                  disabled={sinStock}
                   onClick={() => onProductClick(p)}
                 >
-                  <span className="mc-pos-product-card__name">{p.nombre}</span>
+                  <span className="mc-pos-product-card__name">
+                    {p.nombre}
+                    {esCombo ? (
+                      <span className="ml-1.5 inline-block rounded-full bg-[var(--mc-landing-gold-dark)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                        Combo
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="mc-pos-product-card__price">{formatCop(p.precioCop)}</span>
-                  <span className="mc-pos-product-card__stock">{qty} uds</span>
+                  <span className="mc-pos-product-card__stock">{sinStock ? 'Sin stock' : `${qty} uds`}</span>
                 </button>
               )
             })}
@@ -456,9 +678,14 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
           {filteredProductos.length === 0 && (
             <PosEmptyState
               variant="productos"
-              title="Sin productos con stock"
-              hint="Agregá inventario en POS o sincronizá desde el catálogo para empezar a vender."
+              title="Sin productos en esta sede"
+              hint="Creá combos en Inventario o sincronizá productos desde el catálogo."
             />
+          )}
+          {filteredProductos.length > 0 && productosConStock.length === 0 && (
+            <p className="mc-pos-muted mt-3 text-sm">
+              Hay productos en el catálogo pero ninguno tiene stock. Revisá inventario o los componentes del combo.
+            </p>
           )}
           </section>
 
@@ -519,7 +746,11 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
                   <button
                     key={m}
                     type="button"
-                    className={clsx('mc-pos-payment-pill', modoPago === m && !credito && 'mc-pos-payment-pill--active')}
+                    className={clsx(
+                      'mc-pos-payment-pill',
+                      modoPago === m && !credito && !contraEntrega && 'mc-pos-payment-pill--active',
+                    )}
+                    disabled={contraEntrega}
                     onClick={() => {
                       if (m === 'mixto') activarPagoMixto()
                       else {
@@ -538,15 +769,35 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
                 <input
                   type="checkbox"
                   checked={credito}
+                  disabled={contraEntrega}
                   onChange={(e) => {
                     setCredito(e.target.checked)
-                    if (e.target.checked) setPagosManuales([])
+                    if (e.target.checked) {
+                      setPagosManuales([])
+                      setContraEntrega(false)
+                    }
                   }}
                 />
                 Venta a crédito
               </label>
 
-              {modoPago === 'efectivo' && !credito && total > 0 && (
+              <label className="mc-pos-check mc-pos-check--card">
+                <input
+                  type="checkbox"
+                  checked={contraEntrega}
+                  onChange={(e) => {
+                    setContraEntrega(e.target.checked)
+                    if (e.target.checked) {
+                      setCredito(false)
+                      setPagosManuales([])
+                      setModoPago('efectivo')
+                    }
+                  }}
+                />
+                Pago contra entrega
+              </label>
+
+              {modoPago === 'efectivo' && !credito && !contraEntrega && total > 0 && (
                 <div className="mc-pos-vuelto">
                   <button type="button" className="mc-landing-btn-ghost text-sm" onClick={() => setVueltoAbierto((v) => !v)}>
                     Calcular vuelto
@@ -617,7 +868,11 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
               disabled={confirmando || lineas.length === 0 || total <= 0}
               onClick={confirmarVenta}
             >
-              {confirmando ? 'Registrando…' : `Cobrar ${formatCop(total)}`}
+              {confirmando
+                ? 'Registrando…'
+                : contraEntrega
+                  ? `Registrar contra entrega ${formatCop(total)}`
+                  : `Cobrar ${formatCop(total)}`}
             </button>
 
             <div className="mc-pos-cart-panel__items">
@@ -631,11 +886,23 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
               ) : (
                 <ul className="mc-pos-cart-list">
                   {lineas.map((l) => {
-                    const key = lineaKey(l.productoId, l.varianteId)
+                    const key = lineaKey(l.productoId, l.varianteId, l.tallaId, l.comboColorSeleccion)
+                    const posProduct = productos.find((p) => p.id === l.productoId)
+                    const colorResumen =
+                      l.comboColorSeleccion?.length && posProduct
+                        ? comboColorSeleccionResumen(
+                            comboDef(posProduct),
+                            catalogLookup,
+                            l.comboColorSeleccion,
+                          )
+                        : ''
                     return (
                       <li key={key} className="mc-pos-cart-item">
                         <div className="mc-pos-cart-item__main">
                           <p className="mc-pos-cart-item__name">{l.nombre}</p>
+                          {colorResumen ? (
+                            <p className="mc-pos-cart-item__meta text-violet-800/90">{colorResumen}</p>
+                          ) : null}
                           <p className="mc-pos-cart-item__meta">
                             {formatCop(l.precioUnitarioCop)} × {l.cantidad}
                           </p>
@@ -659,10 +926,13 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
       {variantPicker && (
         <div className="mc-pos-modal-overlay" role="dialog" aria-modal="true">
           <div className="mc-pos-modal">
-            <h2 className="mc-pos-modal__title">Elegir variante — {variantPicker.nombre}</h2>
+            <h2 className="mc-pos-modal__title">
+              {inferPosStockModo(variantPicker) === 'tallas' ? 'Elegir talla' : 'Elegir variante'} —{' '}
+              {variantPicker.nombre}
+            </h2>
             <div className="mc-pos-variant-pick-grid">
               {variantPicker.variantes?.map((v) => {
-                const disp = stockMap.get(lineaKey(variantPicker.id, v.id)) ?? 0
+                const disp = stockMap.get(mcPosStockMapKey(variantPicker.id, v.id)) ?? 0
                 return (
                   <button
                     key={v.id}
@@ -671,7 +941,17 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
                     disabled={disp <= 0}
                     onClick={() => agregarLinea(variantPicker.id, v.id, v.nombre)}
                   >
-                    <span>{v.nombre}</span>
+                    <span className="flex items-center gap-2">
+                      {v.hex ? (
+                        <span
+                          className="h-4 w-4 shrink-0 rounded-full border border-neutral-200/70"
+                          style={{ backgroundColor: v.hex }}
+                          aria-hidden
+                        />
+                      ) : null}
+                      <span>{v.nombre}</span>
+                      {v.tipo ? <span className="mc-pos-muted text-xs">({v.tipo})</span> : null}
+                    </span>
                     <span className="mc-pos-muted text-sm">{disp} uds</span>
                   </button>
                 )
@@ -684,7 +964,27 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
         </div>
       )}
 
-      <PosExpertSaleModal open={expertModal} onClose={() => setExpertModal(false)} />
+      {skuPicker && (
+        <PosRopaSkuPickerModal
+          producto={skuPicker}
+          catalogProducto={catalogDeProducto(skuPicker)}
+          stockMap={stockMap}
+          onClose={() => setSkuPicker(null)}
+          onConfirm={(colorId, colorNombre, tallaId, tallaNombre) =>
+            agregarLinea(skuPicker.id, colorId, colorNombre, undefined, tallaId, tallaNombre)
+          }
+        />
+      )}
+
+      {comboColorPicker && (
+        <PosComboColorModal
+          producto={comboColorPicker}
+          catalogProductos={catalogProductos}
+          onClose={() => setComboColorPicker(null)}
+          onConfirm={(seleccion) => agregarLinea(comboColorPicker.id, undefined, undefined, seleccion)}
+        />
+      )}
+
     </div>
   )
 }

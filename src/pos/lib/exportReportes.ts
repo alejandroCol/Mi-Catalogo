@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import { formatCop } from '@/lib/formatCop'
+import { ingresoContableCop, isVentaPendienteCobro } from '@/pos/lib/posVentaUtils'
 import type { McPosVenta } from '@/types/mc'
 
 export function exportVentasExcel(ventas: McPosVenta[], filename: string) {
@@ -8,8 +9,13 @@ export function exportVentasExcel(ventas: McPosVenta[], filename: string) {
     Vendedor: v.vendedorNombre,
     Sede: v.sedeId,
     Total: v.totalCop,
+    Cobrado: ingresoContableCop(v),
+    Estado: isVentaPendienteCobro(v) ? 'Pendiente cobro' : v.estado === 'anulada' ? 'Anulada' : 'Cobrada',
     Lineas: v.lineas.map((l) => `${l.nombre}×${l.cantidad}`).join('; '),
     Pagos: v.pagos.map((p) => `${p.metodo}:${p.monto}`).join('; '),
+    'Cobrado el':
+      v.pagadoAt != null ? new Date(v.pagadoAt).toLocaleString('es-CO') : '',
+    'Cobrado por': v.cobradoPorNombre ?? '',
   }))
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()

@@ -86,6 +86,8 @@ export function PosReportesPage() {
     sedeId: sedeFilter || undefined,
     desdeMs: start,
     hastaMs: end,
+    cobradasDesdeMs: start,
+    cobradasHastaMs: end,
     enabled: tab !== 'comparativo' && tab !== 'turnos',
   })
 
@@ -102,12 +104,16 @@ export function PosReportesPage() {
     sedeId: sedeFilter || undefined,
     desdeMs: compRangeA.start,
     hastaMs: compRangeA.end,
+    cobradasDesdeMs: compRangeA.start,
+    cobradasHastaMs: compRangeA.end,
     enabled: tab === 'comparativo',
   })
   const { ventas: ventasCompB, loading: loadingCompB } = usePosVentas(tenantId, {
     sedeId: sedeFilter || undefined,
     desdeMs: compRangeB.start,
     hastaMs: compRangeB.end,
+    cobradasDesdeMs: compRangeB.start,
+    cobradasHastaMs: compRangeB.end,
     enabled: tab === 'comparativo',
   })
 

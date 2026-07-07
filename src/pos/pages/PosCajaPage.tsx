@@ -88,7 +88,13 @@ export function PosCajaPage({ ventasPath, movimientosPath, sedeIdOverride, admin
     adminView ? null : vendedorUid,
     adminView ? null : sedeId,
   )
-  const { ventas } = usePosVentas(tenantId, { sedeId: sedeId || undefined, desdeMs: start, hastaMs: end })
+  const { ventas } = usePosVentas(tenantId, {
+    sedeId: sedeId || undefined,
+    desdeMs: start,
+    hastaMs: end,
+    cobradasDesdeMs: start,
+    cobradasHastaMs: end,
+  })
 
   const [saldoInicialInput, setSaldoInicialInput] = useState('')
   const [efectivoContado, setEfectivoContado] = useState('')

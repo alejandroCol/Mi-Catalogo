@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { deleteField, doc, updateDoc } from 'firebase/firestore'
 import { ProductoDescuentoEditor, parseProductoDescuentoDraft, productoDescuentoDraftFromProduct } from '@/components/producto/ProductoDescuentoEditor'
 import { ProductoFormSection } from '@/components/producto/ProductoFormSection'
 import { ProductoImagenesEditor } from '@/components/producto/ProductoImagenesEditor'
 import { ProductoOpcionToggle } from '@/components/producto/ProductoOpcionToggle'
 import { ProductoTallasEditor } from '@/components/producto/ProductoTallasEditor'
+import { ProductoRopaSkuMatrixEditor } from '@/components/producto/ProductoRopaSkuMatrixEditor'
 import { ProductoVariantesEditor } from '@/components/producto/ProductoVariantesEditor'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { getDb, getStorageApp, firebaseStorageConfigured } from '@/lib/firebase'
@@ -17,6 +18,13 @@ import {
   type ProductoImagenDraft,
 } from '@/lib/productoImagenes'
 import { formatIntegerEsCo } from '@/lib/formatCop'
+import {
+  buildRopaStockPayload,
+  ensureSkuDraftMatrix,
+  ropaUsaMatrizEnForm,
+  skusDraftFromProducto,
+  type SkuDraft,
+} from '@/lib/productoSkus'
 import {
   buildTallasFromDrafts,
   createCurvaTallasDraft,
@@ -36,7 +44,7 @@ import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategori
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 import { categoriasNavFromProductForm, clearQuickAddDraft } from '@/lib/productFormCategoriaNav'
 import { isProductoBorrador } from '@/lib/productoFormDraft'
-import { markPosProductPublished } from '@/pos/lib/posCatalogSync'
+import { markPosProductPublished, refreshComboCatalogStocksUsingComponent } from '@/pos/lib/posCatalogSync'
 
 export function EditProductModal({
   tenantId,
@@ -56,6 +64,11 @@ export function EditProductModal({
   const [precio, setPrecio] = useState(
     product.precioCop > 0 ? formatIntegerEsCo(product.precioCop) : '',
   )
+  const [precioCosto, setPrecioCosto] = useState(
+    product.precioCostoCop != null && product.precioCostoCop > 0
+      ? formatIntegerEsCo(product.precioCostoCop)
+      : '',
+  )
   const [stock, setStock] = useState(String(product.stock ?? 0))
   const [marcarNovedad, setMarcarNovedad] = useState(!!product.marcarNovedad)
   const [mostrarDescargaImagen, setMostrarDescargaImagen] = useState(!!product.mostrarDescargaImagen)
@@ -70,6 +83,7 @@ export function EditProductModal({
       : [],
   )
   const [variantes, setVariantes] = useState(() => variantesDraftFromProducto(product))
+  const [skuMatrix, setSkuMatrix] = useState<SkuDraft[]>(() => skusDraftFromProducto(product))
   const [descuento, setDescuento] = useState(() => productoDescuentoDraftFromProduct(product))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -88,6 +102,19 @@ export function EditProductModal({
 
   const { showSaveSuccess } = useSaveSuccess()
   const tieneVariantes = variantes.length > 0
+  const colorRows = variantes.filter((v) => v.nombre.trim())
+  const usaMatrizRopa = ropaUsaMatrizEnForm(esRopa, colorRows.length)
+  const colorMatrixKey = colorRows.map((v) => `${v.id}:${v.nombre.trim()}`).join('|')
+  const tallaMatrixKey = tallas.map((t) => `${t.id}:${t.nombre}`).join('|')
+
+  useEffect(() => {
+    if (!usaMatrizRopa) return
+    const builtTallas = buildTallasFromDrafts(tallas)
+    const builtVar = colorRows
+      .map((v) => buildVarianteFromDraft(v))
+      .filter((v): v is McProductoVariante => v != null)
+    setSkuMatrix((prev) => ensureSkuDraftMatrix(builtVar, builtTallas, prev))
+  }, [usaMatrizRopa, tallaMatrixKey, colorMatrixKey])
 
   function onPrecioChange(raw: string) {
     const digits = raw.replace(/\D/g, '')
@@ -103,10 +130,25 @@ export function EditProductModal({
     setPrecio(formatIntegerEsCo(n))
   }
 
+  function onPrecioCostoChange(raw: string) {
+    const digits = raw.replace(/\D/g, '')
+    if (digits === '') {
+      setPrecioCosto('')
+      return
+    }
+    const n = Number(digits)
+    if (!Number.isFinite(n)) {
+      setPrecioCosto('')
+      return
+    }
+    setPrecioCosto(formatIntegerEsCo(n))
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
     const precioNum = Number(precio.replace(/\D/g, ''))
+    const precioCostoNum = precioCosto.replace(/\D/g, '') ? Number(precioCosto.replace(/\D/g, '')) : undefined
     const stockNum = Number(stock.replace(/\D/g, ''))
     if (!nombre.trim()) {
       setErr('Poné un nombre.')
@@ -133,9 +175,27 @@ export function EditProductModal({
 
     const varianteRows = variantes.filter((v) => v.nombre.trim())
     const builtTallas = esRopa ? buildTallasFromDrafts(tallas) : []
-    if (esRopa && sumarStockTallas(builtTallas) <= 0) {
-      setErr('Indicá stock en al menos una talla.')
-      return
+    const builtVarPreview = varianteRows
+      .map((v) => buildVarianteFromDraft(v))
+      .filter((v): v is McProductoVariante => v != null)
+      .map((item) => {
+        if (esRopa) delete item.stock
+        return item
+      })
+
+    const ropaStock = esRopa
+      ? buildRopaStockPayload({ tallas: builtTallas, variantes: builtVarPreview, skuDrafts: skuMatrix })
+      : null
+
+    if (esRopa) {
+      if (ropaStock!.usaMatriz && ropaStock!.stockFinal <= 0) {
+        setErr('Indicá stock en al menos una combinación color × talla.')
+        return
+      }
+      if (!ropaStock!.usaMatriz && sumarStockTallas(builtTallas) <= 0) {
+        setErr('Indicá stock en al menos una talla.')
+        return
+      }
     }
 
     const hasNewUploads = imagenes.some((i) => i.kind === 'new') || varianteRows.some((v) => v.file)
@@ -185,8 +245,8 @@ export function EditProductModal({
       }
 
       let stockFinal = Number.isFinite(stockNum) ? stockNum : 0
-      if (esRopa) {
-        stockFinal = sumarStockTallas(builtTallas)
+      if (esRopa && ropaStock) {
+        stockFinal = ropaStock.stockFinal
       } else if (builtVariantes.length > 0 && variantesConStockDefinido(builtVariantes)) {
         stockFinal = sumarStockVariantes(builtVariantes)
       }
@@ -195,6 +255,9 @@ export function EditProductModal({
         nombre: nombre.trim(),
         descripcion: descripcion.trim() ? descripcion.trim() : deleteField(),
         precioCop: precioNum,
+        ...(precioCostoNum != null && Number.isFinite(precioCostoNum)
+          ? { precioCostoCop: precioCostoNum }
+          : { precioCostoCop: deleteField() }),
         stock: stockFinal,
         updatedAt: Date.now(),
         imageUrl: imageUrl ?? deleteField(),
@@ -202,7 +265,12 @@ export function EditProductModal({
         mostrarDescargaImagen,
         mostrarBotonDocena,
         esRopa: esRopa ? true : deleteField(),
-        tallas: esRopa && builtTallas.length > 0 ? builtTallas : deleteField(),
+        tallas:
+          esRopa && ropaStock && ropaStock.tallas.length > 0 ? ropaStock.tallas : deleteField(),
+        skus:
+          esRopa && ropaStock?.skus?.length
+            ? ropaStock.skus
+            : deleteField(),
         ...(descParsed.fields.descuentoActivo
           ? descParsed.fields
           : {
@@ -229,6 +297,8 @@ export function EditProductModal({
       if (clearingPosPendiente) {
         await markPosProductPublished(tenantId, product.id, product.posProductoId)
       }
+
+      await refreshComboCatalogStocksUsingComponent(tenantId, product.id)
 
       showSaveSuccess({
         title: esBorrador ? 'Producto publicado' : 'Cambios guardados',
@@ -265,7 +335,9 @@ export function EditProductModal({
               {esBorrador
                 ? 'Completá los datos y publicá cuando esté listo.'
                 : esRopa
-                  ? 'Prenda de vestir: stock por talla y variantes de color o tela.'
+                  ? usaMatrizRopa
+                    ? 'Prenda de vestir: stock por color y talla.'
+                    : 'Prenda de vestir: stock por talla y variantes de color o tela.'
                   : 'Actualizá datos, fotos y variantes.'}
             </p>
           </div>
@@ -338,10 +410,39 @@ export function EditProductModal({
                     autoComplete="off"
                   />
                 </div>
-                <ProductoTallasEditor tallas={tallas} onChange={setTallas} disabled={busy} />
+                <div>
+                  <label className="ios-footnote font-medium text-mc-700">Precio de costo (opcional)</label>
+                  <input
+                    className="mc-input mt-1.5 bg-white"
+                    inputMode="numeric"
+                    value={precioCosto}
+                    onChange={(e) => onPrecioCostoChange(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <ProductoTallasEditor
+                  tallas={tallas}
+                  onChange={setTallas}
+                  disabled={busy}
+                  hideStock={usaMatrizRopa}
+                />
+                {usaMatrizRopa ? (
+                  <ProductoRopaSkuMatrixEditor
+                    variantes={colorRows.map((v) => ({
+                      id: v.id,
+                      nombre: v.nombre.trim(),
+                      hex: v.hex,
+                      tipo: v.tipo,
+                    }))}
+                    tallas={tallas}
+                    skus={skuMatrix}
+                    onChange={setSkuMatrix}
+                    disabled={busy}
+                  />
+                ) : null}
               </div>
             ) : (
-              <div className={tieneVariantes ? 'space-y-2' : 'grid grid-cols-2 gap-3'}>
+              <div className={tieneVariantes ? 'grid grid-cols-1 gap-3 sm:grid-cols-2' : 'grid grid-cols-2 gap-3'}>
                 <div>
                   <label className="ios-footnote font-medium text-mc-700">Precio base (COP)</label>
                   <input
@@ -349,6 +450,16 @@ export function EditProductModal({
                     inputMode="numeric"
                     value={precio}
                     onChange={(e) => onPrecioChange(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="ios-footnote font-medium text-mc-700">Precio de costo (opcional)</label>
+                  <input
+                    className="mc-input mt-1.5 bg-white"
+                    inputMode="numeric"
+                    value={precioCosto}
+                    onChange={(e) => onPrecioCostoChange(e.target.value)}
                     autoComplete="off"
                   />
                 </div>

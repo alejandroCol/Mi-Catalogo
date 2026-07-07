@@ -301,17 +301,46 @@ export async function onepayCreateBillingCharge(params: {
   return { id: data.id, status: data.status, message: data.message }
 }
 
+export type OnePayChargeDetails = {
+  id: string
+  status?: string
+  metadata?: unknown
+  amount?: number
+  external_id?: string
+  customer_id?: string
+}
+
 export async function onepayGetCharge(
   chargeId: string,
   secretKey: string,
-): Promise<{ id: string; status?: string; metadata?: unknown; amount?: number } | null> {
+): Promise<OnePayChargeDetails | null> {
   const res = await fetch(`${ONEPAY_CHARGES_API}/${encodeURIComponent(chargeId)}`, {
     headers: { Authorization: `Bearer ${secretKey.trim()}` },
   })
   if (!res.ok) return null
-  const data = await readOnePayJson<{ id?: string; status?: string; metadata?: unknown; amount?: number }>(res)
+  const data = await readOnePayJson<{
+    id?: string
+    status?: string
+    metadata?: unknown
+    amount?: number
+    external_id?: string
+    customer_id?: string
+    customer?: { id?: string }
+  }>(res)
   if (!data.id) return null
-  return { id: data.id, status: data.status, metadata: data.metadata, amount: data.amount }
+  return {
+    id: data.id,
+    status: data.status,
+    metadata: data.metadata,
+    amount: data.amount,
+    external_id: typeof data.external_id === 'string' ? data.external_id : undefined,
+    customer_id:
+      typeof data.customer_id === 'string'
+        ? data.customer_id
+        : typeof data.customer?.id === 'string'
+          ? data.customer.id
+          : undefined,
+  }
 }
 
 export function chargeStatusPaid(status: string | undefined): boolean {

@@ -19,6 +19,7 @@ export type PosTicketData = {
   motivoDescuentoGlobal?: string
   pagos: { etiqueta: string; monto: number }[]
   esCredito?: boolean
+  esContraEntrega?: boolean
 }
 
 export type PosPrintJob = {

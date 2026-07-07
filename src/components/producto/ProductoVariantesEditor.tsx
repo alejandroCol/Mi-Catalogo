@@ -242,7 +242,7 @@ export function ProductoVariantesEditor({ variantes, onChange, allowImage = fals
           <p className="ios-footnote font-semibold text-mc-900">Variantes del producto</p>
           <p className="mt-1 text-[12px] leading-relaxed text-mc-600">
             {esRopa
-              ? 'Color, tela u otra opción. El stock se maneja por talla arriba.'
+              ? 'Color, tela u otra opción. Con colores, el stock se define en la matriz color × talla.'
               : 'Color, olor, capacidad… Cada variante tiene nombre, stock y, si querés, color y precio propios.'}
           </p>
         </div>

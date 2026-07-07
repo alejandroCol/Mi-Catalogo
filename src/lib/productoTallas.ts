@@ -1,6 +1,7 @@
 import type { LineaCarritoSimple } from '@/catalog-local/simpleCartTypes'
 import type { McProducto, McProductoTalla } from '@/types/mc'
 import { parseStockInput } from '@/lib/productoVariantes'
+import { productoUsaMatrizSku, stockDisponibleRopa } from '@/lib/productoSkus'
 
 /** Curva estándar mostrada al crear ropa. */
 export const CURVA_TALLAS_DEFAULT = ['XS', 'S', 'M', 'L', 'XL'] as const
@@ -89,7 +90,11 @@ export function stockTallaUi(
   prod: McProducto,
   talla: McProductoTalla,
   lines: LineaCarritoSimple[],
+  varianteId?: string,
 ): number {
+  if (productoUsaMatrizSku(prod)) {
+    return stockDisponibleRopa(prod, { varianteId, tallaId: talla.id }, lines)
+  }
   const enCart = tallaEnCarrito(lines, prod.id, talla.id)
   return stockDisponibleTalla(prod, talla, enCart)
 }

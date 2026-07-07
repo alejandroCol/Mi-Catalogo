@@ -262,6 +262,13 @@ export function SuperAdminPage() {
       </Link>
 
       <Link
+        to="/superadmin/talleres"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-amber-200/90 bg-gradient-to-br from-amber-50/80 to-white px-4 py-3 text-[14px] font-semibold text-amber-950 no-underline transition hover:border-amber-300/90 hover:bg-amber-50 sm:w-auto sm:justify-start"
+      >
+        Talleres (inscripción y recordatorios)
+      </Link>
+
+      <Link
         to="/superadmin/planes"
         className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-mc-50/60 px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:bg-mc-100/70 sm:w-auto sm:justify-start"
       >

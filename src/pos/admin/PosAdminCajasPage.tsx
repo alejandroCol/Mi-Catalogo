@@ -15,7 +15,12 @@ export function PosAdminCajasPage() {
   const { sedes } = usePosSedes(tenantId)
   const { vendors } = usePosVendors(tenantId)
   const { start, end } = posRangoDiaLocal(fechaKey)
-  const { ventas } = usePosVentas(tenantId, { desdeMs: start, hastaMs: end })
+  const { ventas } = usePosVentas(tenantId, {
+    desdeMs: start,
+    hastaMs: end,
+    cobradasDesdeMs: start,
+    cobradasHastaMs: end,
+  })
 
   return (
     <div className="mc-pos-page">

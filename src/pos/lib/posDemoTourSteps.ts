@@ -32,7 +32,7 @@ export const POS_DEMO_TOUR_STEPS: PosDemoTourStep[] = [
     title: '3 · Cobrar venta',
     description:
       'En Cobrar, agregá la blusa al carrito y confirmá el pago. Escuchá el sonido de caja y mirá el flash de éxito + sync con catálogo.',
-    path: '/pos/admin/cobrar',
+    path: '/pos/ventas',
     seconds: 15,
   },
   {

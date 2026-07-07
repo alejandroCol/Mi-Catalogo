@@ -32,7 +32,13 @@ export function PosMovimientosCajaPage({ sedeIdOverride }: Props) {
   const fechaKey = posFechaKeyLocal()
   const { caja } = usePosCajaDiaria(tenantId, sedeId, vendedorUid, fechaKey)
   const { start, end } = posRangoDiaLocal(fechaKey)
-  const { ventas } = usePosVentas(tenantId, { sedeId, desdeMs: start, hastaMs: end })
+  const { ventas } = usePosVentas(tenantId, {
+    sedeId,
+    desdeMs: start,
+    hastaMs: end,
+    cobradasDesdeMs: start,
+    cobradasHastaMs: end,
+  })
   const ventasEfectivo = ventasEfectivoDelDia(ventas, sedeId, vendedorUid, fechaKey)
 
   const [modalTipo, setModalTipo] = useState<'ingreso' | 'egreso' | null>(null)

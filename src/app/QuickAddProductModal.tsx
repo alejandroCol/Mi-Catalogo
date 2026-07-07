@@ -6,6 +6,7 @@ import { ProductoFormSection } from '@/components/producto/ProductoFormSection'
 import { ProductoImagenesEditor } from '@/components/producto/ProductoImagenesEditor'
 import { ProductoOpcionToggle } from '@/components/producto/ProductoOpcionToggle'
 import { ProductoTallasEditor } from '@/components/producto/ProductoTallasEditor'
+import { ProductoRopaSkuMatrixEditor } from '@/components/producto/ProductoRopaSkuMatrixEditor'
 import { ProductoVariantesEditor } from '@/components/producto/ProductoVariantesEditor'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import type { VarianteDraftConArchivo } from '@/lib/productoVariantes'
@@ -20,6 +21,12 @@ import {
   type QuickAddFormSnapshot,
 } from '@/lib/productoFormDraft'
 import { uploadProductoImagenes, uploadVarianteImagen, type ProductoImagenDraft } from '@/lib/productoImagenes'
+import {
+  buildRopaStockPayload,
+  ensureSkuDraftMatrix,
+  ropaUsaMatrizEnForm,
+  type SkuDraft,
+} from '@/lib/productoSkus'
 import {
   buildTallasFromDrafts,
   createCurvaTallasDraft,
@@ -67,6 +74,7 @@ export function QuickAddProductModal({
   const [nombre, setNombre] = useState(initialDraft?.nombre ?? '')
   const [descripcion, setDescripcion] = useState(initialDraft?.descripcion ?? '')
   const [precio, setPrecio] = useState(initialDraft?.precio ?? '')
+  const [precioCosto, setPrecioCosto] = useState(initialDraft?.precioCosto ?? '')
   const [stock, setStock] = useState(initialDraft?.stock ?? '')
   const [tallas, setTallas] = useState<TallaDraft[]>(
     () => initialDraft?.tallas ?? createCurvaTallasDraft(),
@@ -93,6 +101,7 @@ export function QuickAddProductModal({
   const [variantes, setVariantes] = useState<VarianteDraftConArchivo[]>(
     () => initialDraft?.variantes ?? [],
   )
+  const [skuMatrix, setSkuMatrix] = useState<SkuDraft[]>(() => initialDraft?.skuMatrix ?? [])
   const [categoriaIds, setCategoriaIds] = useState<string[]>(initialDraft?.categoriaIds ?? [])
   const [draftProductId, setDraftProductId] = useState<string | null>(
     initialDraft?.draftProductId ?? null,
@@ -112,6 +121,19 @@ export function QuickAddProductModal({
 
   const { showSaveSuccess } = useSaveSuccess()
   const tieneVariantes = variantes.length > 0
+  const colorRows = variantes.filter((v) => v.nombre.trim())
+  const usaMatrizRopa = ropaUsaMatrizEnForm(esRopa, colorRows.length)
+  const colorMatrixKey = colorRows.map((v) => `${v.id}:${v.nombre.trim()}`).join('|')
+  const tallaMatrixKey = tallas.map((t) => `${t.id}:${t.nombre}`).join('|')
+
+  useEffect(() => {
+    if (!usaMatrizRopa) return
+    const builtTallas = buildTallasFromDrafts(tallas)
+    const builtVar = colorRows
+      .map((v) => buildVarianteFromDraft(v))
+      .filter((v): v is McProductoVariante => v != null)
+    setSkuMatrix((prev) => ensureSkuDraftMatrix(builtVar, builtTallas, prev))
+  }, [usaMatrizRopa, tallaMatrixKey, colorMatrixKey])
 
   const createCategoriasNav = categoriasNavFromProductForm({ mode: 'add' }, '← Agregar producto')
 
@@ -121,6 +143,7 @@ export function QuickAddProductModal({
       nombre,
       descripcion,
       precio,
+      precioCosto,
       stock,
       tallas,
       marcarNovedad,
@@ -128,6 +151,7 @@ export function QuickAddProductModal({
       mostrarBotonDocena,
       descuento,
       variantes,
+      skuMatrix,
       categoriaIds,
     }
   }, [
@@ -142,6 +166,7 @@ export function QuickAddProductModal({
     mostrarBotonDocena,
     descuento,
     variantes,
+    skuMatrix,
     categoriaIds,
   ])
 
@@ -152,6 +177,7 @@ export function QuickAddProductModal({
       nombre,
       descripcion,
       precio,
+      precioCosto,
       stock,
       tallas,
       marcarNovedad,
@@ -159,6 +185,7 @@ export function QuickAddProductModal({
       mostrarBotonDocena,
       descuento,
       variantes: variantes.map(({ file: _file, ...rest }) => rest),
+      skuMatrix,
       categoriaIds,
       ...(draftProductIdRef.current ? { draftProductId: draftProductIdRef.current } : {}),
     })
@@ -257,6 +284,20 @@ export function QuickAddProductModal({
     setPrecio(formatIntegerEsCo(n))
   }
 
+  function onPrecioCostoChange(raw: string) {
+    const digits = raw.replace(/\D/g, '')
+    if (digits === '') {
+      setPrecioCosto('')
+      return
+    }
+    const n = Number(digits)
+    if (!Number.isFinite(n)) {
+      setPrecioCosto('')
+      return
+    }
+    setPrecioCosto(formatIntegerEsCo(n))
+  }
+
   function onStockChange(raw: string) {
     setStock(raw.replace(/\D/g, ''))
   }
@@ -276,6 +317,7 @@ export function QuickAddProductModal({
     e.preventDefault()
     setErr(null)
     const precioNum = Number(precio.replace(/\D/g, ''))
+    const precioCostoNum = precioCosto.replace(/\D/g, '') ? Number(precioCosto.replace(/\D/g, '')) : undefined
     const stockNum = Number(stock.replace(/\D/g, ''))
     if (!nombre.trim()) {
       showCreateError('Poné un nombre corto.')
@@ -302,9 +344,20 @@ export function QuickAddProductModal({
 
     const varianteRows = variantes.filter((v) => v.nombre.trim())
     const builtTallas = esRopa ? buildTallasFromDrafts(tallas) : []
-    if (esRopa && sumarStockTallas(builtTallas) <= 0) {
-      showCreateError('Indicá stock en al menos una talla.')
-      return
+    const builtVar = buildVariantesForSave(varianteRows)
+    const ropaStock = esRopa
+      ? buildRopaStockPayload({ tallas: builtTallas, variantes: builtVar, skuDrafts: skuMatrix })
+      : null
+
+    if (esRopa) {
+      if (ropaStock!.usaMatriz && ropaStock!.stockFinal <= 0) {
+        showCreateError('Indicá stock en al menos una combinación color × talla.')
+        return
+      }
+      if (!ropaStock!.usaMatriz && sumarStockTallas(builtTallas) <= 0) {
+        showCreateError('Indicá stock en al menos una talla.')
+        return
+      }
     }
 
     const needsStorage =
@@ -314,11 +367,9 @@ export function QuickAddProductModal({
       return
     }
 
-    const builtVar = buildVariantesForSave(varianteRows)
-
     let stockFinal = Number.isFinite(stockNum) ? stockNum : 0
-    if (esRopa) {
-      stockFinal = sumarStockTallas(builtTallas)
+    if (esRopa && ropaStock) {
+      stockFinal = ropaStock.stockFinal
     } else if (builtVar.length > 0 && variantesConStockDefinido(builtVar)) {
       stockFinal = sumarStockVariantes(builtVar)
     }
@@ -331,12 +382,19 @@ export function QuickAddProductModal({
         nombre: nombre.trim(),
         ...(descripcion.trim() ? { descripcion: descripcion.trim() } : {}),
         precioCop: precioNum,
+        ...(precioCostoNum != null && Number.isFinite(precioCostoNum) ? { precioCostoCop: precioCostoNum } : {}),
         stock: stockFinal,
         activo: true,
         enCatalogo: true,
         esBorrador: deleteField(),
         updatedAt: Date.now(),
-        ...(esRopa ? { esRopa: true, tallas: builtTallas } : {}),
+        ...(esRopa && ropaStock
+          ? {
+              esRopa: true,
+              tallas: ropaStock.tallas,
+              ...(ropaStock.skus?.length ? { skus: ropaStock.skus } : {}),
+            }
+          : {}),
         ...(marcarNovedad ? { marcarNovedad: true } : {}),
         ...(mostrarDescargaImagen ? { mostrarDescargaImagen: true } : {}),
         ...(mostrarBotonDocena ? { mostrarBotonDocena: true } : {}),
@@ -354,13 +412,20 @@ export function QuickAddProductModal({
             nombre: nombre.trim(),
             ...(descripcion.trim() ? { descripcion: descripcion.trim() } : {}),
             precioCop: precioNum,
+            ...(precioCostoNum != null && Number.isFinite(precioCostoNum) ? { precioCostoCop: precioCostoNum } : {}),
             stock: stockFinal,
             activo: true,
             enCatalogo: true,
             orden: nextOrden,
             createdAt: Date.now(),
             updatedAt: Date.now(),
-            ...(esRopa ? { esRopa: true, tallas: builtTallas } : {}),
+            ...(esRopa && ropaStock
+          ? {
+              esRopa: true,
+              tallas: ropaStock.tallas,
+              ...(ropaStock.skus?.length ? { skus: ropaStock.skus } : {}),
+            }
+          : {}),
             ...(marcarNovedad ? { marcarNovedad: true } : {}),
             ...(mostrarDescargaImagen ? { mostrarDescargaImagen: true } : {}),
             ...(mostrarBotonDocena ? { mostrarBotonDocena: true } : {}),
@@ -531,10 +596,43 @@ export function QuickAddProductModal({
                         autoComplete="off"
                       />
                     </div>
-                    <ProductoTallasEditor tallas={tallas} onChange={setTallas} disabled={busy} />
+                    <div>
+                      <label className="ios-footnote font-medium text-mc-700">Precio de costo (opcional)</label>
+                      <input
+                        className="mc-input mt-1.5 bg-white"
+                        inputMode="numeric"
+                        value={precioCosto}
+                        onChange={(e) => onPrecioCostoChange(e.target.value)}
+                        placeholder="12.000"
+                        autoComplete="off"
+                      />
+                      <p className="mt-1 text-[11px] leading-relaxed text-mc-500">
+                        Para calcular ganancias en reportes. No afecta el precio de venta.
+                      </p>
+                    </div>
+                    <ProductoTallasEditor
+                      tallas={tallas}
+                      onChange={setTallas}
+                      disabled={busy}
+                      hideStock={usaMatrizRopa}
+                    />
+                    {usaMatrizRopa ? (
+                      <ProductoRopaSkuMatrixEditor
+                        variantes={colorRows.map((v) => ({
+                          id: v.id,
+                          nombre: v.nombre.trim(),
+                          hex: v.hex,
+                          tipo: v.tipo,
+                        }))}
+                        tallas={tallas}
+                        skus={skuMatrix}
+                        onChange={setSkuMatrix}
+                        disabled={busy}
+                      />
+                    ) : null}
                   </div>
                 ) : (
-                  <div className={tieneVariantes ? 'space-y-2' : 'grid grid-cols-2 gap-3'}>
+                  <div className={tieneVariantes ? 'grid grid-cols-1 gap-3 sm:grid-cols-2' : 'grid grid-cols-2 gap-3'}>
                     <div>
                       <label className="ios-footnote font-medium text-mc-700">Precio base (COP)</label>
                       <input
@@ -543,6 +641,17 @@ export function QuickAddProductModal({
                         value={precio}
                         onChange={(e) => onPrecioChange(e.target.value)}
                         placeholder="25.000"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div>
+                      <label className="ios-footnote font-medium text-mc-700">Precio de costo (opcional)</label>
+                      <input
+                        className="mc-input mt-1.5 bg-white"
+                        inputMode="numeric"
+                        value={precioCosto}
+                        onChange={(e) => onPrecioCostoChange(e.target.value)}
+                        placeholder="12.000"
                         autoComplete="off"
                       />
                     </div>

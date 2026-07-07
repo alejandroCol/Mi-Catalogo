@@ -615,6 +615,18 @@ service cloud.firestore {
       }
     }
 
+    /** Talleres formativos: lectura pública solo si están activos; inscripciones vía Cloud Functions. */
+    match /mc_talleres/{slug} {
+      allow get: if resource.data.active == true;
+      allow list: if mcIsSuperAdmin();
+      allow create, update, delete: if mcIsSuperAdmin();
+
+      match /registrations/{regId} {
+        allow read: if mcIsSuperAdmin();
+        allow write: if false;
+      }
+    }
+
     match /mc_billing_checkouts/{checkoutId} {
       allow read, write: if false;
     }
@@ -950,8 +962,8 @@ service cloud.firestore {
 
     match /mc_tenants/{tid}/pos_productos/{productoId} {
       allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
-      allow create, update: if (mcBelongsToTenant(tid) && mcIsTenantOwner(tid)) || mcSuperAdminPosDemoSeedWrite();
-      allow delete: if (mcBelongsToTenant(tid) && mcIsTenantOwner(tid)) || mcSuperAdminPosDemoSeedDelete();
+      allow create, update: if (mcBelongsToTenant(tid) && (mcIsTenantOwner(tid) || mcImpersonatingTenant(tid))) || mcSuperAdminPosDemoSeedWrite();
+      allow delete: if (mcBelongsToTenant(tid) && (mcIsTenantOwner(tid) || mcImpersonatingTenant(tid))) || mcSuperAdminPosDemoSeedDelete();
     }
 
     match /mc_tenants/{tid}/pos_stock/{stockId} {
@@ -971,7 +983,10 @@ service cloud.firestore {
 
     match /mc_tenants/{tid}/pos_ventas/{ventaId} {
       allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
-      allow create: if (mcPosCanWriteVenta(tid) && request.resource.data.createdAt is int)
+      allow create: if (
+          mcPosCanWriteVenta(tid)
+          && request.resource.data.createdAt is int
+        )
         || (mcSuperAdminPosDemoSeedWrite() && request.resource.data.createdAt is int);
       allow update: if mcPosCanWriteVenta(tid)
         && resource.data.get('estado', 'activa') != 'anulada'
@@ -979,8 +994,26 @@ service cloud.firestore {
         && request.resource.data.anuladaAt is int
         && request.resource.data.anuladaPorUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['estado', 'anuladaAt', 'anuladaPorUid']);
-      allow delete: if false;
+          .hasOnly(['estado', 'anuladaAt', 'anuladaPorUid'])
+        || (
+          mcPosOwnerOrVendor(tid)
+          && resource.data.get('estado', 'activa') != 'anulada'
+          && resource.data.get('esContraEntrega', false) == true
+          && resource.data.get('estadoPago', 'pendiente') == 'pendiente'
+          && request.resource.data.estadoPago == 'pagado'
+          && request.resource.data.pagadoAt is int
+          && request.resource.data.cobradoPorUid == request.auth.uid
+          && request.resource.data.cobradoPorUid is string
+          && request.resource.data.cobradoPorUid.size() > 0
+          && request.resource.data.cobradoPorNombre is string
+          && request.resource.data.pagos is list
+          && request.resource.data.pagos.size() == 1
+          && request.resource.data.pagos[0].metodo in ['efectivo', 'transferencia', 'nequi']
+          && request.resource.data.pagos[0].monto == resource.data.totalCop
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['pagos', 'estadoPago', 'pagadoAt', 'cobradoPorUid', 'cobradoPorNombre'])
+        );
+      allow delete: if mcIsSuperAdmin();
     }
 
     match /mc_tenants/{tid}/pos_caja_diaria/{cajaId} {

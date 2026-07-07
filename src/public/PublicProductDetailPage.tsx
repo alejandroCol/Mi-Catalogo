@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { doc, onSnapshot } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import clsx from 'clsx'
 import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext'
 import type { LineaCarritoSimple } from '@/catalog-local/simpleCartTypes'
@@ -24,13 +24,28 @@ import {
   variantesValidas,
 } from '@/lib/productoVariantes'
 import {
+  productoUsaMatrizSku,
+  stockDisponibleRopa,
+} from '@/lib/productoSkus'
+import {
   stockDisponibleTalla,
   stockTallaUi,
   tallaEnCarrito,
   tallasValidas,
 } from '@/lib/productoTallas'
 import { buildProductShareData, canUseWebShare, shareSafe } from '@/lib/webShare'
-import type { McProducto, McProductoTalla, McProductoVariante } from '@/types/mc'
+import type { McComboColorSeleccion, McProducto, McProductoTalla, McProductoVariante } from '@/types/mc'
+import {
+  comboIncluyeResumen,
+  comboPrecioSeparado,
+  comboStockDisponible,
+  comboClienteSlots,
+  comboColorSeleccionCompleta,
+  comboColorSeleccionResumen,
+  esProductoCombo,
+  type ProductoLookup,
+} from '@/lib/comboProducto'
+import { ComboColorPicker } from '@/components/producto/ComboColorPicker'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { usePublicProductViewTracking } from '@/public/usePublicCatalogAnalytics'
@@ -117,6 +132,8 @@ export function PublicProductDetailPage() {
   const [selectedOption, setSelectedOption] = useState<'none' | 'original' | string>('none')
   const [selectedTid, setSelectedTid] = useState<string | null>(null)
   const [qtyToAdd, setQtyToAdd] = useState(1)
+  const [componentLookup, setComponentLookup] = useState<ProductoLookup>(new Map())
+  const [comboColorSeleccion, setComboColorSeleccion] = useState<McComboColorSeleccion[]>([])
 
   const preset = tenant ? resolvePublicCatalogTheme(tenant).preset : 'morning'
 
@@ -151,7 +168,39 @@ export function PublicProductDetailPage() {
     )
   }, [tenantId, productId])
 
+  useEffect(() => {
+    if (!tenantId || !p || !esProductoCombo(p)) {
+      setComponentLookup(new Map())
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const map: ProductoLookup = new Map()
+      const db = getDb()
+      for (const c of p.comboComponentes ?? []) {
+        if (map.has(c.productId)) continue
+        const snap = await getDoc(doc(db, mcProductosCollection(tenantId), c.productId))
+        if (snap.exists()) map.set(c.productId, { id: snap.id, ...(snap.data() as Omit<McProducto, 'id'>) })
+      }
+      if (!cancelled) setComponentLookup(map)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tenantId, p?.id, p?.comboComponentes, p?.updatedAt])
+
   const prod = p
+  const isCombo = prod ? esProductoCombo(prod) : false
+  const comboClienteSlotsList = useMemo(
+    () => (prod && isCombo ? comboClienteSlots(prod, componentLookup) : []),
+    [prod, isCombo, componentLookup],
+  )
+  const comboPideOpciones = comboClienteSlotsList.length > 0
+  const comboOpcionesOk = comboColorSeleccionCompleta(prod ?? { comboComponentes: [] }, componentLookup, comboColorSeleccion)
+
+  useEffect(() => {
+    setComboColorSeleccion([])
+  }, [prod?.id, prod?.comboPermiteElegirColor, prod?.comboPermiteElegirTalla])
   const vars = prod ? variantesPublicas(prod) : []
   usePublicProductViewTracking(
     productId,
@@ -159,8 +208,9 @@ export function PublicProductDetailPage() {
     prod?.imageUrl ?? prod?.galeriaImagenes?.[0],
   )
   const tallas = prod ? tallasValidas(prod) : []
-  const hasVariants = vars.length > 0
-  const hasTallas = !!(prod?.esRopa && tallas.length > 0)
+  const hasVariants = !isCombo && vars.length > 0
+  const hasTallas = !isCombo && !!(prod?.esRopa && tallas.length > 0)
+  const hasMatrizSku = !isCombo && !!prod && productoUsaMatrizSku(prod)
   const selected =
     hasVariants && typeof selectedOption === 'string' && selectedOption !== 'original' && selectedOption !== 'none'
       ? vars.find((v) => v.id === selectedOption)
@@ -234,7 +284,9 @@ export function PublicProductDetailPage() {
     if (!prod) return
     const totalCart = lines.filter((l) => l.productId === prod.id).reduce((s, l) => s + l.cantidad, 0)
     let d = 0
-    if (hasTallas && selectedTalla) {
+    if (hasMatrizSku && selectedTalla && selected) {
+      d = stockDisponibleRopa(prod, { varianteId: selected.id, tallaId: selectedTalla.id }, lines)
+    } else if (hasTallas && selectedTalla) {
       d = stockDisponibleTalla(prod, selectedTalla, tallaEnCarrito(lines, prod.id, selectedTalla.id))
     } else if (hasVariants && selected) {
       d = stockDisponibleVariante(prod, selected, enCarrito, totalCart)
@@ -275,6 +327,13 @@ export function PublicProductDetailPage() {
 
   const product = prod
   const disp = (() => {
+    if (isCombo) {
+      const base = comboStockDisponible(prod, componentLookup)
+      return Math.max(0, base - totalEnCarritoProducto)
+    }
+    if (hasMatrizSku && selectedTalla && selected) {
+      return stockDisponibleRopa(product, { varianteId: selected.id, tallaId: selectedTalla.id }, lines)
+    }
     if (hasTallas && selectedTalla) {
       return stockDisponibleTalla(product, selectedTalla, tallaEnCarrito(lines, product.id, selectedTalla.id))
     }
@@ -300,15 +359,28 @@ export function PublicProductDetailPage() {
   }
 
   function sumar(cant: number, sourceEl?: HTMLElement) {
-    if (hasTallas && !selectedTalla) return
+    if (!isCombo && hasTallas && !selectedTalla) return
+    if (!isCombo && hasMatrizSku && !selected) {
+      window.alert('Elegí el color antes de añadir al carrito.')
+      return
+    }
+    if (isCombo && comboPideOpciones && !comboColorSeleccionCompleta(product, componentLookup, comboColorSeleccion)) {
+      window.alert('Completá color y talla de cada prenda del combo.')
+      return
+    }
     if (cant > disp) {
       window.alert(`Máximo ${disp} unidades disponibles.`)
       return
     }
     const partes = [product.nombre]
-    if (hasVariants && selected) partes.push(selected.nombre)
-    if (hasTallas && selectedTalla) partes.push(selectedTalla.nombre)
+    if (!isCombo && hasVariants && selected) partes.push(selected.nombre)
+    if (!isCombo && hasTallas && selectedTalla) partes.push(selectedTalla.nombre)
     const titulo = partes.join(' · ')
+    const incluye = isCombo
+      ? comboPideOpciones && comboColorSeleccion.length
+        ? comboColorSeleccionResumen(product, componentLookup, comboColorSeleccion)
+        : comboIncluyeResumen(product, componentLookup).join(', ')
+      : undefined
     if (sourceEl) {
       pulseAddButton(sourceEl)
       playAddToCartFly({ sourceEl, imageUrl: galeriaUrls[0] })
@@ -319,9 +391,11 @@ export function PublicProductDetailPage() {
         varianteId: hasVariants && selected ? selected.id : undefined,
         tallaId: hasTallas ? selectedTalla!.id : undefined,
         titulo,
-        subtitulo: formatCop(effectivePrice),
+        subtitulo: incluye ?? formatCop(effectivePrice),
         precioUnitarioCop: effectivePrice,
         cantidad: cant,
+        ...(isCombo ? { esCombo: true } : {}),
+        ...(isCombo && comboColorSeleccion.length ? { comboColorSeleccion } : {}),
       },
       sourceEl ? { deferBadgeMs: Math.round(CART_FLY_DURATION_MS * 0.88) } : undefined,
     )
@@ -490,7 +564,7 @@ export function PublicProductDetailPage() {
 
   const TallaChip = ({ t }: { t: McProductoTalla }) => {
     const active = t.id === selectedTalla?.id
-    const dispT = stockTallaUi(product, t, lines)
+    const dispT = stockTallaUi(product, t, lines, hasMatrizSku ? selected?.id : undefined)
     const agotada = dispT < 1
 
     return (
@@ -573,7 +647,12 @@ export function PublicProductDetailPage() {
       <button
         type="button"
         className="mc-pc-add-to-cart-btn min-h-[52px] w-full rounded-2xl bg-[#0a0a0a] px-4 py-3.5 text-[15px] font-semibold text-white shadow-sm transition duration-200 ease-in-out hover:bg-neutral-800 disabled:opacity-40 sm:min-h-[48px] sm:text-base"
-        disabled={disp < 1 || (hasTallas && !selectedTalla)}
+        disabled={
+          disp < 1 ||
+          (hasTallas && !selectedTalla) ||
+          (hasMatrizSku && !selected) ||
+          (isCombo && comboPideOpciones && !comboOpcionesOk)
+        }
         onClick={(e) => sumar(qtyToAdd, e.currentTarget)}
       >
         Añadir al carrito
@@ -582,7 +661,7 @@ export function PublicProductDetailPage() {
         <button
           type="button"
           className="mc-pc-add-to-cart-btn min-h-[48px] w-full rounded-2xl border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out hover:border-[color-mix(in_srgb,var(--cat-text)_28%,transparent)] hover:bg-[color-mix(in_srgb,var(--cat-text)_4%,var(--cat-surface))] active:scale-[0.99] disabled:opacity-40"
-          disabled={disp < DOCENA || (hasTallas && !selectedTalla)}
+          disabled={disp < DOCENA || (hasTallas && !selectedTalla) || (hasMatrizSku && !selected)}
           onClick={(e) => sumar(DOCENA, e.currentTarget)}
         >
           Añadir 1 docena
@@ -712,6 +791,46 @@ export function PublicProductDetailPage() {
               <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--cat-text)] sm:text-[15px]">
                 {product.descripcion.trim()}
               </p>
+            </div>
+          ) : null}
+
+          {isCombo ? (
+            <div className="mt-5 rounded-2xl border border-violet-200/60 bg-violet-50/40 px-4 py-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-violet-800">Incluye</p>
+              {!comboPideOpciones ? (
+                <ul className="mt-2 space-y-1 text-[14px] text-violet-950">
+                  {comboIncluyeResumen(product, componentLookup).map((line) => (
+                    <li key={line}>· {line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-[14px] text-violet-950">
+                  Elegí color y/o talla de cada prenda en el selector de abajo.
+                </p>
+              )}
+              {product.comboPrecioSeparadoCop != null &&
+              product.comboPrecioSeparadoCop > effectivePrice ? (
+                <p className="mt-2 text-[13px] font-medium text-emerald-700">
+                  Ahorrás {formatCop(product.comboPrecioSeparadoCop - effectivePrice)} vs comprar por separado
+                </p>
+              ) : comboPrecioSeparado(product, componentLookup) > effectivePrice ? (
+                <p className="mt-2 text-[13px] font-medium text-emerald-700">
+                  Ahorrás {formatCop(comboPrecioSeparado(product, componentLookup) - effectivePrice)} vs comprar por
+                  separado
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isCombo && comboPideOpciones ? (
+            <div className="mt-5">
+              <ComboColorPicker
+                slots={comboClienteSlotsList}
+                products={componentLookup}
+                value={comboColorSeleccion}
+                onChange={setComboColorSeleccion}
+                variant="catalog"
+              />
             </div>
           ) : null}
 

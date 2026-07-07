@@ -1,6 +1,7 @@
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { hasActiveExpertForPublish } from './catalogPublish.js'
 import { db } from './firebaseAdmin.js'
 
 async function assertStoreOwner(uid: string, tenantId: string): Promise<void> {
@@ -50,6 +51,15 @@ export const mcCreatePosVendor = onCall({ invoker: 'public' }, async (request) =
 
   if (!tenantId) throw new HttpsError('invalid-argument', 'Falta la tienda.')
   await assertStoreOwner(uid, tenantId)
+
+  const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get()
+  const tenantData = tenantSnap.data()
+  if (!hasActiveExpertForPublish(tenantData)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Activá el plan Expert para agregar vendedores POS.',
+    )
+  }
 
   if (!email || !email.includes('@')) {
     throw new HttpsError('invalid-argument', 'Correo inválido.')

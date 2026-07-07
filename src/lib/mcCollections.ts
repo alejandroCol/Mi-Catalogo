@@ -9,7 +9,12 @@ export const MC = {
   tutorialSections: 'mc_tutorial_sections',
   salesVisits: 'mc_sales_visits',
   demoStores: 'mc_demo_stores',
+  talleres: 'mc_talleres',
 } as const
+
+export function mcTallerRegistrationsCollection(slug: string) {
+  return `${MC.talleres}/${slug}/registrations` as const
+}
 
 export function mcTutorialsCollection(sectionId: string) {
   return `${MC.tutorialSections}/${sectionId}/tutorials` as const

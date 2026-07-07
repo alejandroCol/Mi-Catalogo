@@ -149,6 +149,14 @@
       ]
     },
     {
+      "collectionGroup": "pos_ventas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sedeId", "order": "ASCENDING" },
+        { "fieldPath": "pagadoAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "pos_turnos",
       "queryScope": "COLLECTION",
       "fields": [

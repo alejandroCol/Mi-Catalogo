@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { collection, doc, getDoc, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { deleteObject, ref } from 'firebase/storage'
@@ -8,9 +8,11 @@ import { mcProductosCollection, MC } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
 import { productoPrecioVentaDesde, productoTieneDescuento } from '@/lib/productoDescuento'
 import { productoStockEfectivo, variantesValidas } from '@/lib/productoVariantes'
+import { esProductoCombo } from '@/lib/comboProducto'
 import type { McPlatformSettings, McProducto } from '@/types/mc'
 import { BulkAddProductsModal } from '@/app/BulkAddProductsModal'
 import { EditProductModal } from '@/app/EditProductModal'
+import { ComboProductModal } from '@/app/ComboProductModal'
 import { QuickAddProductModal } from '@/app/QuickAddProductModal'
 import {
   maxProductosForTenant,
@@ -46,6 +48,8 @@ export function InventarioPage() {
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [comboModalOpen, setComboModalOpen] = useState(false)
+  const [editComboProduct, setEditComboProduct] = useState<(McProducto & { id: string }) | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<(McProducto & { id: string }) | null>(null)
   const [editInitialCategoriaIds, setEditInitialCategoriaIds] = useState<string[] | undefined>()
@@ -127,7 +131,11 @@ export function InventarioPage() {
       ? mergeCategoriaId(reopenProductForm.categoriaIds, newCategoriaId)
       : reopenProductForm.categoriaIds
     setEditInitialCategoriaIds(categoriaIds)
-    setEditProduct(product)
+    if (esProductoCombo(product)) {
+      setEditComboProduct(product)
+    } else {
+      setEditProduct(product)
+    }
     setPendingResume(null)
   }, [pendingResume, rows])
 
@@ -185,6 +193,27 @@ export function InventarioPage() {
     setBulkOpen(true)
   }
 
+  function openComboModal() {
+    if (atLimit && limitMsg) {
+      setLimitHint(limitMsg)
+      return
+    }
+    setLimitHint(null)
+    setComboModalOpen(true)
+  }
+
+  const productsLookup = useMemo(() => {
+    const m = new Map<string, McProducto & { id: string }>()
+    for (const p of rows) m.set(p.id, p)
+    return m
+  }, [rows])
+
+  function openEditProduct(p: McProducto & { id: string }) {
+    setEditInitialCategoriaIds(undefined)
+    if (esProductoCombo(p)) setEditComboProduct(p)
+    else setEditProduct(p)
+  }
+
   return (
     <div className="mc-shell">
       <h1 className="ios-large-title">Inventario</h1>
@@ -212,6 +241,13 @@ export function InventarioPage() {
         >
           <IconPlus size={20} className="text-[var(--cat-accent-text)]" />
           Agregar producto
+        </button>
+        <button
+          type="button"
+          className="mc-btn-secondary inline-flex w-full items-center justify-center px-5 py-3 text-[15px] sm:w-auto"
+          onClick={() => openComboModal()}
+        >
+          Crear combo
         </button>
         <button
           type="button"
@@ -253,6 +289,11 @@ export function InventarioPage() {
                     Borrador
                   </span>
                 ) : null}
+                {esProductoCombo(p) ? (
+                  <span className="inline-block rounded-full bg-violet-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    Combo
+                  </span>
+                ) : null}
               </div>
               <p className="ios-subhead tabular-nums">
                 {productoTieneDescuento(p) ? (
@@ -266,7 +307,10 @@ export function InventarioPage() {
                 ) : (
                   formatCop(p.precioCop)
                 )}
-                {' · '}stock {productoStockEfectivo(p)}
+                {' · '}
+                {esProductoCombo(p)
+                  ? `stock ${productoStockEfectivo(p, productsLookup)} (automático)`
+                  : `stock ${productoStockEfectivo(p, productsLookup)}`}
                 {variantesValidas(p).length > 0 ? (
                   <span className="text-mc-500"> · {variantesValidas(p).length} variantes</span>
                 ) : null}
@@ -302,10 +346,7 @@ export function InventarioPage() {
                   <button
                     type="button"
                     className="rounded-md border border-[color-mix(in_srgb,var(--mc-landing-gold)_40%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_10%,white)] px-3 py-1.5 text-[13px] font-semibold text-mc-brand-gray transition hover:opacity-90"
-                    onClick={() => {
-                      setEditInitialCategoriaIds(undefined)
-                      setEditProduct(p)
-                    }}
+                    onClick={() => openEditProduct(p)}
                   >
                     Publicar en tienda
                   </button>
@@ -313,10 +354,7 @@ export function InventarioPage() {
                 <button
                   type="button"
                   className="rounded-md border border-[var(--cat-accent)]/35 bg-[color-mix(in_srgb,var(--cat-accent)_8%,transparent)] px-3 py-1.5 text-[13px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out hover:opacity-90"
-                  onClick={() => {
-                    setEditInitialCategoriaIds(undefined)
-                    setEditProduct(p)
-                  }}
+                  onClick={() => openEditProduct(p)}
                 >
                   Editar
                 </button>
@@ -389,6 +427,20 @@ export function InventarioPage() {
           initialCategoriaIds={editInitialCategoriaIds}
           onClose={() => {
             setEditProduct(null)
+            setEditInitialCategoriaIds(undefined)
+          }}
+        />
+      )}
+
+      {(comboModalOpen || editComboProduct) && effectiveTenantId && (
+        <ComboProductModal
+          tenantId={effectiveTenantId}
+          product={editComboProduct ?? undefined}
+          nextOrden={rows.length}
+          initialCategoriaIds={editInitialCategoriaIds}
+          onClose={() => {
+            setComboModalOpen(false)
+            setEditComboProduct(null)
             setEditInitialCategoriaIds(undefined)
           }}
         />

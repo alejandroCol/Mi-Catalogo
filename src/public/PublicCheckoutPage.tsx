@@ -27,6 +27,8 @@ import { MunicipioCombobox } from '@/public/MunicipioCombobox'
 import { COLOMBIA_DEPARTAMENTOS, formatoDepartamentoEtiqueta, MC_CHECKOUT_DOCUMENTO_TIPOS } from '@/lib/colombiaGeo'
 import { buildCheckoutWhatsappText, whatsappUrlFromNumber } from '@/catalog-local/buildWhatsappUrl'
 import { buildNumeroReferencia, publicCatalogSuccessPath } from '@/lib/catalogOrderTracking'
+import { enrichCatalogLineasWithCost } from '@/lib/catalogLineCost'
+import { fulfillCatalogOrder } from '@/lib/catalogFulfillClient'
 import { markCarritoIniciadoOnOrderComplete } from '@/lib/markCarritoIniciadoOnOrder'
 import { useCarritoIniciadoCheckoutSync } from '@/hooks/useCarritoIniciadoCheckoutSync'
 import {
@@ -122,6 +124,11 @@ export function PublicCheckoutPage() {
       nombre: l.titulo,
       cantidad: l.cantidad,
       precioUnitarioCop: Math.max(0, Math.round(l.precioUnitarioCop ?? 0)),
+      ...(l.varianteId ? { varianteId: l.varianteId } : {}),
+      ...(l.tallaId ? { tallaId: l.tallaId } : {}),
+      ...(l.subtitulo ? { subtitulo: l.subtitulo } : {}),
+      ...(l.esCombo ? { esCombo: true } : {}),
+      ...(l.comboColorSeleccion?.length ? { comboColorSeleccion: l.comboColorSeleccion } : {}),
     }))
     const t = lineas.reduce((s, x) => s + x.precioUnitarioCop * x.cantidad, 0)
     const ok = lineas.every((x) => x.precioUnitarioCop > 0)
@@ -322,11 +329,12 @@ export function PublicCheckoutPage() {
       const db = getDb()
       const orderRef = doc(collection(db, mcOrdenesCatalogoCollection(tenantId)))
       const numeroReferencia = buildNumeroReferencia(orderRef.id)
+      const lineasConCosto = await enrichCatalogLineasWithCost(tenantId, lineasOrden)
       const base: Record<string, unknown> = {
         createdAt: now,
         updatedAt: now,
         estado: 'pagado',
-        lineas: lineasOrden,
+        lineas: lineasConCosto,
         subtotalCop,
         envioCop,
         descuentoCop: descFinal,
@@ -360,6 +368,11 @@ export function PublicCheckoutPage() {
       if (carritoIniciadoId) base.carritoIniciadoId = carritoIniciadoId
 
       await setDoc(orderRef, base)
+      try {
+        await fulfillCatalogOrder(tenantId, orderRef.id)
+      } catch (fulfillErr) {
+        console.warn('[checkout] fulfill inventario:', fulfillErr)
+      }
       await markCarritoIniciadoOnOrderComplete({
         tenantId,
         slug,
@@ -512,7 +525,13 @@ export function PublicCheckoutPage() {
       const fn = httpsCallable(getFirebaseFunctions(), 'mcOnepayStartCatalogCheckout')
       const res = await fn({
         slug,
-        lineas: lines.map((l) => ({ productId: l.productId, cantidad: l.cantidad })),
+        lineas: lines.map((l) => ({
+          productId: l.productId,
+          cantidad: l.cantidad,
+          ...(l.varianteId ? { varianteId: l.varianteId } : {}),
+          ...(l.tallaId ? { tallaId: l.tallaId } : {}),
+          ...(l.comboColorSeleccion?.length ? { comboColorSeleccion: l.comboColorSeleccion } : {}),
+        })),
         cuponCodigo: cuponVigente ? cuponVigente.codigo : undefined,
         nombre: nombre.trim(),
         telefono: telefono.trim(),

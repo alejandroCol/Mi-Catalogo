@@ -12,6 +12,8 @@ export function lineasToCarritoIniciado(lines: LineaCarritoSimple[]): McCarritoI
     ...(l.subtitulo ? { subtitulo: l.subtitulo } : {}),
     ...(l.precioUnitarioCop != null ? { precioUnitarioCop: l.precioUnitarioCop } : {}),
     cantidad: l.cantidad,
+    ...(l.esCombo ? { esCombo: true } : {}),
+    ...(l.comboColorSeleccion?.length ? { comboColorSeleccion: l.comboColorSeleccion } : {}),
   }))
 }
 
@@ -24,6 +26,8 @@ export function carritoIniciadoToSimpleLines(lineas: McCarritoIniciadoLinea[]): 
     ...(l.subtitulo ? { subtitulo: l.subtitulo } : {}),
     ...(l.precioUnitarioCop != null ? { precioUnitarioCop: l.precioUnitarioCop } : {}),
     cantidad: l.cantidad,
+    ...(l.esCombo ? { esCombo: true } : {}),
+    ...(l.comboColorSeleccion?.length ? { comboColorSeleccion: l.comboColorSeleccion } : {}),
   }))
 }
 

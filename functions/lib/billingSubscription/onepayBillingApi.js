@@ -234,7 +234,18 @@ export async function onepayGetCharge(chargeId, secretKey) {
     const data = await readOnePayJson(res);
     if (!data.id)
         return null;
-    return { id: data.id, status: data.status, metadata: data.metadata, amount: data.amount };
+    return {
+        id: data.id,
+        status: data.status,
+        metadata: data.metadata,
+        amount: data.amount,
+        external_id: typeof data.external_id === 'string' ? data.external_id : undefined,
+        customer_id: typeof data.customer_id === 'string'
+            ? data.customer_id
+            : typeof data.customer?.id === 'string'
+                ? data.customer.id
+                : undefined,
+    };
 }
 export function chargeStatusPaid(status) {
     const s = (status ?? '').toLowerCase();

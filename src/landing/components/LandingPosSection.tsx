@@ -23,7 +23,7 @@ export function LandingPosSection() {
         </div>
         <p className="mc-landing-section-lead">
           Mi Catálogo POS conecta caja, stock por sede e impresora térmica. Configurá sedes y
-          vendedores gratis; activá Expert solo cuando quieras registrar ventas en caja.
+          Configurá sedes e inventario gratis; activá Expert para sumar vendedores POS y cobrar en caja.
         </p>
         <ul className="mc-landing-pos-features">
           {FEATURES.map((f) => (

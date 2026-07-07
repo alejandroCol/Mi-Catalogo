@@ -26,6 +26,7 @@ export function ventaToPosPayload(
     descuentoGlobalCop?: number
     motivoDescuentoGlobal?: string
     esCredito?: boolean
+    esContraEntrega?: boolean
     createdAt: number
   },
   config?: import('@/types/mc').McPosSedeConfig,
@@ -55,6 +56,7 @@ export function ventaToPosPayload(
         monto: p.monto,
       })),
       esCredito: venta.esCredito,
+      esContraEntrega: venta.esContraEntrega,
     },
     config,
   }

@@ -338,6 +338,7 @@ function buildProducts(profile: StoreProfile): (McProducto & { id: string })[] {
   const now = Date.now()
   return profile.products.map((p, i) => ({
     ...p,
+    precioCostoCop: Math.round(p.precioCop * 0.58),
     id: `demo-prod-${i + 1}`,
     createdAt: now - (i + 1) * 86400000,
     updatedAt: now - i * 3600000,
@@ -413,6 +414,7 @@ function buildVentas(
           nombre: prod.nombre,
           cantidad: s.qty,
           precioUnitarioCop: prod.precioCop,
+          costoUnitarioCop: prod.precioCostoCop,
         },
       ],
       totalCop: total,

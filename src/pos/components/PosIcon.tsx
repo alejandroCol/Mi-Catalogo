@@ -23,6 +23,8 @@ export type PosIconName =
   | 'ticket'
   | 'sync'
   | 'arrow-right'
+  | 'chevron-down'
+  | 'download'
   | 'cash-drawer'
   | 'multi-sede'
 
@@ -189,6 +191,14 @@ const ICONS: Record<PosIconName, ReactNode> = {
       <circle cx="18" cy="8" r="2.5" />
       <circle cx="12" cy="17" r="2.5" />
       <path d="M8 9.5 10.5 15M16 9.5 13.5 15M8.5 8h7" />
+    </>
+  ),
+  'chevron-down': <path d="M6 9l6 6 6-6" />,
+  download: (
+    <>
+      <path d="M12 3v12" />
+      <path d="M8 11l4 4 4-4" />
+      <path d="M4 19h16" />
     </>
   ),
 }

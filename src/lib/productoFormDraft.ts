@@ -1,7 +1,12 @@
 import type { ProductoDescuentoDraft } from '@/components/producto/ProductoDescuentoEditor'
 import { parseProductoDescuentoDraft } from '@/components/producto/ProductoDescuentoEditor'
 import type { TallaDraft } from '@/lib/productoTallas'
-import { buildTallasFromDrafts, sumarStockTallas } from '@/lib/productoTallas'
+import { buildTallasFromDrafts } from '@/lib/productoTallas'
+import {
+  buildRopaStockPayload,
+  sumarStockSkuDrafts,
+  type SkuDraft,
+} from '@/lib/productoSkus'
 import {
   buildVarianteFromDraft,
   sumarStockVariantes,
@@ -15,6 +20,7 @@ export type QuickAddFormSnapshot = {
   nombre: string
   descripcion: string
   precio: string
+  precioCosto: string
   stock: string
   tallas: TallaDraft[]
   marcarNovedad: boolean
@@ -22,6 +28,7 @@ export type QuickAddFormSnapshot = {
   mostrarBotonDocena: boolean
   descuento: ProductoDescuentoDraft
   variantes: VarianteDraftConArchivo[]
+  skuMatrix: SkuDraft[]
   categoriaIds: string[]
 }
 
@@ -50,6 +57,7 @@ export function quickAddFormHasDraftContent(form: QuickAddFormSnapshot): boolean
   if (form.marcarNovedad || form.mostrarDescargaImagen || form.mostrarBotonDocena) return true
   if (form.descuento.activo) return true
   if (form.esRopa && form.tallas.some((t) => Number(t.stock.replace(/\D/g, '')) > 0)) return true
+  if (form.esRopa && sumarStockSkuDrafts(form.skuMatrix) > 0) return true
   return false
 }
 
@@ -59,14 +67,22 @@ export function buildProductoPayloadFromQuickAddForm(
   nextOrden: number,
 ): Omit<McProducto, 'id'> {
   const precioNum = Number(form.precio.replace(/\D/g, ''))
+  const precioCostoNum = form.precioCosto.replace(/\D/g, '') ? Number(form.precioCosto.replace(/\D/g, '')) : undefined
   const stockNum = Number(form.stock.replace(/\D/g, ''))
   const varianteRows = form.variantes.filter((v) => v.nombre.trim())
   const builtTallas = form.esRopa ? buildTallasFromDrafts(form.tallas) : []
   const builtVar = buildVariantesForSave(varianteRows, form.esRopa)
+  const ropaStock = form.esRopa
+    ? buildRopaStockPayload({
+        tallas: builtTallas,
+        variantes: builtVar,
+        skuDrafts: form.skuMatrix,
+      })
+    : null
 
   let stockFinal = Number.isFinite(stockNum) ? stockNum : 0
-  if (form.esRopa) {
-    stockFinal = sumarStockTallas(builtTallas)
+  if (form.esRopa && ropaStock) {
+    stockFinal = ropaStock.stockFinal
   } else if (builtVar.length > 0 && variantesConStockDefinido(builtVar)) {
     stockFinal = sumarStockVariantes(builtVar)
   }
@@ -82,6 +98,7 @@ export function buildProductoPayloadFromQuickAddForm(
     nombre: form.nombre.trim(),
     ...(form.descripcion.trim() ? { descripcion: form.descripcion.trim() } : {}),
     precioCop: Number.isFinite(precioNum) && precioNum >= 0 ? precioNum : 0,
+    ...(precioCostoNum != null && Number.isFinite(precioCostoNum) ? { precioCostoCop: precioCostoNum } : {}),
     stock: stockFinal,
     activo: false,
     enCatalogo: false,
@@ -89,7 +106,13 @@ export function buildProductoPayloadFromQuickAddForm(
     orden: nextOrden,
     createdAt: now,
     updatedAt: now,
-    ...(form.esRopa ? { esRopa: true, tallas: builtTallas } : {}),
+    ...(form.esRopa && ropaStock
+      ? {
+          esRopa: true,
+          tallas: ropaStock.tallas,
+          ...(ropaStock.skus?.length ? { skus: ropaStock.skus } : {}),
+        }
+      : {}),
     ...(form.marcarNovedad ? { marcarNovedad: true } : {}),
     ...(form.mostrarDescargaImagen ? { mostrarDescargaImagen: true } : {}),
     ...(form.mostrarBotonDocena ? { mostrarBotonDocena: true } : {}),

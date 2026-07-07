@@ -1,5 +1,8 @@
 import type { McProducto, McProductoVariante } from '@/types/mc'
 import { formatIntegerEsCo } from '@/lib/formatCop'
+import type { ProductoLookup } from '@/lib/comboProducto'
+import { comboStockDisponible } from '@/lib/comboProducto'
+import { productoUsaMatrizSku, sumarStockSkus } from '@/lib/productoSkus'
 
 /** Tipos sugeridos al crear variantes (el vendedor puede escribir otro). */
 export const VARIANTE_TIPOS_SUGERIDOS = [
@@ -103,7 +106,17 @@ export function varianteStockRaw(v: McProductoVariante): number {
 }
 
 /** Stock total del producto para listados y filtros. */
-export function productoStockEfectivo(prod: McProducto): number {
+export function productoStockEfectivo(
+  prod: McProducto,
+  productsLookup?: ProductoLookup,
+): number {
+  if (prod.tipoProducto === 'combo') {
+    if (productsLookup) return comboStockDisponible(prod, productsLookup)
+    return Math.max(0, Math.floor(prod.stock ?? 0))
+  }
+  if (prod.esRopa && productoUsaMatrizSku(prod)) {
+    return sumarStockSkus(prod.skus ?? [])
+  }
   if (prod.esRopa && (prod.tallas?.length ?? 0) > 0) {
     return (prod.tallas ?? []).reduce(
       (s, t) => s + Math.max(0, Math.floor(t.stock ?? 0)),

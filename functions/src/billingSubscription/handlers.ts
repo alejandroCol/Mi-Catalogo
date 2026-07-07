@@ -19,6 +19,8 @@ import {
   mcBillingEnsureCustomerV2,
   mcBillingListPaymentHistory,
   mcBillingProcessGraceExpiries,
+  mcBillingReconcilePendingActivations,
+  mcBillingReconcileFailedWebhookEvents,
   mcBillingResolvePrice,
   mcBillingRunDueRenewals,
   mcBillingTryFinalizeFromChargeWebhook,
@@ -588,6 +590,8 @@ export const mcBillingCron = onSchedule(
     const pc = await db.doc('mc_platform/credentials_onepay').get()
     const sk = (pc.data() as { secretKey?: string } | undefined)?.secretKey?.trim()
     if (!sk) return
+    await mcBillingReconcileFailedWebhookEvents(db, sk)
+    await mcBillingReconcilePendingActivations(db, sk)
     await mcBillingRunDueRenewals(db, sk)
     await mcBillingProcessGraceExpiries(db)
   },

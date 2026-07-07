@@ -25,6 +25,7 @@ import {
   resolveCatalogDescuentosTabLabel,
 } from '@/lib/productoDescuento'
 import { productoStockEfectivo } from '@/lib/productoVariantes'
+import type { ProductoLookup } from '@/lib/comboProducto'
 import type { McCatalogThemePreset, McProducto } from '@/types/mc'
 import { CatalogListToolbar } from '@/public/CatalogListToolbar'
 import {
@@ -99,11 +100,13 @@ function ReyProductCard({
   productPath,
   showNovedadBadge,
   layout,
+  productsLookup,
 }: {
   p: McProducto & { id: string }
   productPath: (productId: string) => string
   showNovedadBadge: boolean
   layout: { density: 'comfortable' | 'compact'; aspect: '4/5' | '3/4' }
+  productsLookup?: ProductoLookup
 }) {
   const img = p.imageUrl
   const { density, aspect } = layout
@@ -165,7 +168,9 @@ function ReyProductCard({
         </h3>
         <CatalogProductPrice product={p} size="sm" showDesde className="mt-1.5" />
         <p className="mt-1 text-[10px] leading-relaxed mc-pc-muted sm:text-[11px]">
-          {productoStockEfectivo(p) > 0 ? `${productoStockEfectivo(p)} en stock` : 'Stock a consultar'}
+          {productoStockEfectivo(p, productsLookup) > 0
+            ? `${productoStockEfectivo(p, productsLookup)} en stock`
+            : 'Stock a consultar'}
         </p>
       </Link>
     </article>
@@ -176,10 +181,12 @@ function ReyProductCardBold({
   p,
   productPath,
   showNovedadBadge,
+  productsLookup,
 }: {
   p: McProducto & { id: string }
   productPath: (productId: string) => string
   showNovedadBadge: boolean
+  productsLookup?: ProductoLookup
 }) {
   const img = p.imageUrl
   return (
@@ -220,7 +227,9 @@ function ReyProductCardBold({
         </h3>
         <CatalogProductPrice product={p} size="md" showDesde className="mt-2 justify-center" />
         <p className="mt-2 text-sm mc-pc-muted">
-          {productoStockEfectivo(p) > 0 ? `Stock ${productoStockEfectivo(p)}` : 'Consultar stock'}
+          {productoStockEfectivo(p, productsLookup) > 0
+            ? `Stock ${productoStockEfectivo(p, productsLookup)}`
+            : 'Consultar stock'}
         </p>
       </Link>
     </article>
@@ -265,6 +274,7 @@ export function PublicCatalogListPage() {
   }, [tenantId])
 
   const descuentos = useMemo(() => rows.filter((p) => productoTieneDescuento(p)), [rows])
+  const productsLookup = useMemo(() => new Map(rows.map((p) => [p.id, p])), [rows])
   const descuentosTabLabel = tenant ? resolveCatalogDescuentosTabLabel(tenant) : 'Descuento'
   const showDescuentosTab = tenant ? catalogDescuentosTabVisible(tenant, descuentos.length) : false
 
@@ -327,6 +337,7 @@ export function PublicCatalogListPage() {
               p={p}
               productPath={productPath}
               showNovedadBadge={novedadFor(p)}
+              productsLookup={productsLookup}
             />
           ))}
         </div>
@@ -342,6 +353,7 @@ export function PublicCatalogListPage() {
               productPath={productPath}
               showNovedadBadge={novedadFor(p)}
               layout={{ density: 'compact', aspect: '3/4' }}
+              productsLookup={productsLookup}
             />
           ))}
         </div>
@@ -357,6 +369,7 @@ export function PublicCatalogListPage() {
               productPath={productPath}
               showNovedadBadge={novedadFor(p)}
               layout={{ density: 'compact', aspect: '3/4' }}
+              productsLookup={productsLookup}
             />
           ))}
         </div>
@@ -371,6 +384,7 @@ export function PublicCatalogListPage() {
             productPath={productPath}
             showNovedadBadge={novedadFor(p)}
             layout={{ density: 'comfortable', aspect: '4/5' }}
+            productsLookup={productsLookup}
           />
         ))}
       </div>

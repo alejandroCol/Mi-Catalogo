@@ -176,14 +176,22 @@ export function PedidosPage() {
     <div className="mc-shell space-y-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <h1 className="ios-large-title">Ventas</h1>
-        {showSaldoLink ? (
+        <div className="flex flex-wrap gap-2">
           <Link
-            to="/app/mi-saldo"
+            to="/app/reportes"
             className="mc-btn-secondary inline-flex items-center justify-center px-4 py-2.5 text-[14px] font-medium no-underline"
           >
-            Ver mi saldo
+            Reportes
           </Link>
-        ) : null}
+          {showSaldoLink ? (
+            <Link
+              to="/app/mi-saldo"
+              className="mc-btn-secondary inline-flex items-center justify-center px-4 py-2.5 text-[14px] font-medium no-underline"
+            >
+              Ver mi saldo
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <section className="space-y-2">

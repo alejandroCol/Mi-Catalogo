@@ -21,6 +21,52 @@ async function mcBillingRecordPayment(db, tenantId, params) {
 function subRef(db, tenantId) {
     return db.doc(`mc_tenants/${tenantId}/${MC_BILLING_SUB_COLLECTION}/${MC_BILLING_SUB_DOC}`);
 }
+/** Firestore rechaza valores `undefined` explícitos. */
+function omitUndefined(obj) {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+        if (v !== undefined)
+            out[k] = v;
+    }
+    return out;
+}
+function isBillingChargeExternalId(externalId) {
+    return Boolean(externalId?.trim().startsWith('mcb-'));
+}
+function parsePeriodFromExternalId(externalId) {
+    return externalId?.includes('yearly') ? 'yearly' : 'monthly';
+}
+function billingChargeIsRenewal(tenant, sub) {
+    if (sub?.lastProcessedChargeId)
+        return true;
+    return (tenant.billingPlan === 'expert' &&
+        typeof tenant.subscriptionEndsAt === 'number' &&
+        tenant.subscriptionEndsAt > Date.now());
+}
+async function resolveBillingTenantFromCharge(db, chargeMeta, chargeDetails) {
+    const tenantFromMeta = readBillingMeta(chargeMeta, MC_BILLING_METADATA_KEYS.tenantId);
+    if (tenantFromMeta) {
+        const periodRaw = readBillingMeta(chargeMeta, MC_BILLING_METADATA_KEYS.period);
+        return { tenantId: tenantFromMeta, period: periodRaw === 'yearly' ? 'yearly' : 'monthly' };
+    }
+    const externalId = chargeDetails?.external_id?.trim();
+    if (!isBillingChargeExternalId(externalId))
+        return null;
+    const customerId = chargeDetails?.customer_id?.trim();
+    if (!customerId)
+        return null;
+    const snap = await db
+        .collection('mc_tenants')
+        .where('billingOnePayCustomerId', '==', customerId)
+        .limit(2)
+        .get();
+    if (snap.size !== 1)
+        return null;
+    return {
+        tenantId: snap.docs[0].id,
+        period: parsePeriodFromExternalId(externalId),
+    };
+}
 function buildMeta(tenantId, periodKey, period) {
     return billingMetadataForApi([
         { key: MC_BILLING_METADATA_KEYS.purpose, value: MC_BILLING_PURPOSE },
@@ -87,8 +133,10 @@ export async function mcBillingApplyPaidPeriod(params) {
     const { db, tenantId, period, amountCop, discountCodeId, freeMonths, freeTrialDays, chargeId, isRenewal } = params;
     const tenantRef = db.doc(`mc_tenants/${tenantId}`);
     const tenantSnap = await tenantRef.get();
-    if (!tenantSnap.exists)
+    if (!tenantSnap.exists) {
+        console.warn('[mcBillingApplyPaidPeriod] tenant not found', { tenantId, chargeId });
         return;
+    }
     const tenant = tenantSnap.data();
     const now = Date.now();
     const subSnap = await subRef(db, tenantId).get();
@@ -131,7 +179,9 @@ export async function mcBillingApplyPaidPeriod(params) {
     };
     await subRef(db, tenantId).set({
         ...subPayload,
-        ...(chargeId ? { pendingChargeId: FieldValue.delete() } : {}),
+        ...(chargeId
+            ? { pendingChargeId: FieldValue.delete(), lastProcessedChargeId: chargeId }
+            : {}),
     }, { merge: true });
     await tenantRef.set({
         billingPlan: 'expert',
@@ -143,6 +193,13 @@ export async function mcBillingApplyPaidPeriod(params) {
         billingPastDueSinceMs: FieldValue.delete(),
         updatedAt: now,
     }, { merge: true });
+    console.info('[mcBillingApplyPaidPeriod] expert activated', {
+        tenantId,
+        chargeId,
+        period,
+        isRenewal: Boolean(isRenewal),
+        subscriptionEndsAt,
+    });
     if (chargeId && amountCop > 0) {
         await mcBillingRecordPayment(db, tenantId, {
             chargeId,
@@ -247,13 +304,27 @@ export async function mcBillingActivateWithCharge(params) {
         const pendingStatus = existingCharge?.status;
         if (existingCharge && !chargeStatusFailed(pendingStatus)) {
             const paid = chargeStatusPaid(pendingStatus);
+            if (paid) {
+                const finalized = await mcBillingTryFinalizeFromChargeWebhook({
+                    db: params.db,
+                    chargeId: pendingId,
+                    platformSk: params.platformSk,
+                    chargeMeta: existingCharge.metadata,
+                    chargeDetails: existingCharge,
+                });
+                if (finalized === 'handled') {
+                    return { chargeId: pendingId, status: pendingStatus, pending: false };
+                }
+            }
             return {
                 chargeId: pendingId,
                 status: pendingStatus,
                 pending: !paid,
                 message: paid
                     ? undefined
-                    : 'Pago en proceso. En cuanto OnePay confirme, activamos tu plan (suele tardar segundos).',
+                    : params.method === 'nequi'
+                        ? 'Te enviamos una notificación a Nequi. Abrí la app y aprobá el cobro para activar tu plan.'
+                        : 'Pago en proceso. En cuanto OnePay confirme, activamos tu plan (suele tardar segundos).',
             };
         }
     }
@@ -277,21 +348,16 @@ export async function mcBillingActivateWithCharge(params) {
         billingPinnedAccountId: params.method === 'nequi' && params.accountId ? params.accountId : FieldValue.delete(),
     };
     await params.db.doc(`mc_tenants/${params.tenantId}`).set(pin, { merge: true });
-    const periodStart = Date.now();
-    const periodEnd = computeFirstPeriodEndMs(periodStart, params.period);
-    const subInit = {
+    const subInit = omitUndefined({
         status: 'active',
         billingPeriod: params.period,
-        currentPeriodStartMs: periodStart,
-        currentPeriodEndMs: periodEnd,
-        nextDebitDueAtMs: nextDebitDueFromPeriodEnd(periodEnd, 0),
         amountCop: pricing.finalPriceCop,
-        discountCodeId: pricing.discountCodeId,
+        ...(pricing.discountCodeId ? { discountCodeId: pricing.discountCodeId } : {}),
         autoRenewEnabled: true,
         lastChargeId: ch.id,
         debitMethodKind: params.method === 'nequi' ? 'account' : 'card',
         updatedAt: FieldValue.serverTimestamp(),
-    };
+    });
     await subRef(params.db, params.tenantId).set({
         ...subInit,
         ...(chargeStatusPaid(ch.status)
@@ -304,7 +370,7 @@ export async function mcBillingActivateWithCharge(params) {
             tenantId: params.tenantId,
             period: params.period,
             amountCop: pricing.finalPriceCop,
-            discountCodeId: pricing.discountCodeId,
+            ...(pricing.discountCodeId ? { discountCodeId: pricing.discountCodeId } : {}),
             chargeId: ch.id,
         });
         return { chargeId: ch.id, status: ch.status, pending: false, message: ch.message };
@@ -316,45 +382,179 @@ export async function mcBillingActivateWithCharge(params) {
         chargeId: ch.id,
         status: ch.status,
         pending: true,
-        message: ch.message ??
-            'Pago en proceso. En cuanto OnePay confirme, activamos tu plan (suele tardar segundos).',
+        message: params.method === 'nequi'
+            ? 'Te enviamos una notificación a Nequi. Abrí la app y aprobá el cobro para activar tu plan.'
+            : ch.message ??
+                'Pago en proceso. En cuanto OnePay confirme, activamos tu plan (suele tardar segundos).',
     };
 }
 export async function mcBillingTryFinalizeFromChargeWebhook(params) {
-    const { db, chargeId, platformSk, chargeMeta } = params;
-    const purpose = readBillingMeta(chargeMeta, MC_BILLING_METADATA_KEYS.purpose);
+    const { db, chargeId, chargeMeta, chargeDetails } = params;
+    let details = chargeDetails ?? null;
+    if (!details) {
+        details = await onepayGetCharge(chargeId, params.platformSk);
+    }
+    if (!details) {
+        console.warn('[mcBillingTryFinalizeFromChargeWebhook] charge not found', { chargeId });
+        return 'retry';
+    }
+    if (!chargeStatusPaid(details.status)) {
+        return 'not_billing';
+    }
+    const meta = chargeMeta ?? details.metadata;
+    const purpose = readBillingMeta(meta, MC_BILLING_METADATA_KEYS.purpose);
+    const resolved = await resolveBillingTenantFromCharge(db, meta, details);
     if (purpose && purpose !== MC_BILLING_PURPOSE)
-        return false;
-    const tenantId = readBillingMeta(chargeMeta, MC_BILLING_METADATA_KEYS.tenantId);
-    if (!tenantId)
-        return false;
-    const periodRaw = readBillingMeta(chargeMeta, MC_BILLING_METADATA_KEYS.period);
-    const period = periodRaw === 'yearly' ? 'yearly' : 'monthly';
+        return 'not_billing';
+    if (!resolved && !isBillingChargeExternalId(details.external_id))
+        return 'not_billing';
+    if (!resolved) {
+        console.warn('[mcBillingTryFinalizeFromChargeWebhook] could not resolve tenant', {
+            chargeId,
+            externalId: details.external_id,
+        });
+        return 'retry';
+    }
+    const { tenantId, period } = resolved;
+    const tenantRef = db.doc(`mc_tenants/${tenantId}`);
+    const tenantSnap = await tenantRef.get();
+    if (!tenantSnap.exists) {
+        console.warn('[mcBillingTryFinalizeFromChargeWebhook] tenant missing', { tenantId, chargeId });
+        return 'retry';
+    }
+    const tenant = tenantSnap.data();
     const sref = subRef(db, tenantId);
     const snap = await sref.get();
-    if (!snap.exists)
-        return false;
-    const d = snap.data();
-    if (d.status !== 'active' && d.status !== 'past_due')
-        return false;
-    const processed = d.lastProcessedChargeId;
-    if (processed === chargeId)
-        return true;
-    const lastC = d.lastChargeId;
-    const pend = d.pendingChargeId;
-    if (lastC !== chargeId && pend !== chargeId)
-        return false;
+    let sub = snap.exists ? snap.data() : null;
+    if (sub?.lastProcessedChargeId === chargeId)
+        return 'handled';
+    const lastC = sub?.lastChargeId;
+    const pend = sub?.pendingChargeId;
+    const chargeMatches = lastC === chargeId || pend === chargeId;
+    if (!sub) {
+        await sref.set(omitUndefined({
+            status: 'active',
+            billingPeriod: period,
+            amountCop: Math.max(0, Math.round(Number(details.amount ?? 0))),
+            lastChargeId: chargeId,
+            pendingChargeId: chargeId,
+            updatedAt: FieldValue.serverTimestamp(),
+        }), { merge: true });
+        sub = {
+            status: 'active',
+            billingPeriod: period,
+            currentPeriodStartMs: 0,
+            currentPeriodEndMs: 0,
+            amountCop: Math.max(0, Math.round(Number(details.amount ?? 0))),
+            lastChargeId: chargeId,
+            pendingChargeId: chargeId,
+        };
+    }
+    else if (!chargeMatches) {
+        console.warn('[mcBillingTryFinalizeFromChargeWebhook] chargeId mismatch', {
+            tenantId,
+            chargeId,
+            lastChargeId: lastC,
+            pendingChargeId: pend,
+        });
+        return 'not_billing';
+    }
+    else if (sub.status !== 'active' && sub.status !== 'past_due') {
+        return 'retry';
+    }
+    const amountCop = sub.amountCop > 0 ? sub.amountCop : Math.max(0, Math.round(Number(details.amount ?? 0)));
+    const isRenewal = billingChargeIsRenewal(tenant, sub);
     await mcBillingApplyPaidPeriod({
         db,
         tenantId,
-        period: d.billingPeriod ?? period,
-        amountCop: d.amountCop,
-        discountCodeId: d.discountCodeId,
+        period: sub.billingPeriod ?? period,
+        amountCop,
+        ...(sub.discountCodeId ? { discountCodeId: sub.discountCodeId } : {}),
         chargeId,
-        isRenewal: Boolean(d.currentPeriodEndMs && d.currentPeriodEndMs > Date.now()),
+        isRenewal,
     });
-    await sref.set({ lastProcessedChargeId: chargeId, pendingChargeId: FieldValue.delete() }, { merge: true });
-    return true;
+    console.info('[mcBillingTryFinalizeFromChargeWebhook] finalized', {
+        tenantId,
+        chargeId,
+        isRenewal,
+    });
+    return 'handled';
+}
+/** Recupera activaciones atascadas: cargo pagado en OnePay pero tenant aún en Free. */
+export async function mcBillingReconcilePendingActivations(db, platformSk) {
+    let recovered = 0;
+    const subsSnap = await db.collectionGroup(MC_BILLING_SUB_COLLECTION).where('status', '==', 'active').limit(100).get();
+    for (const doc of subsSnap.docs) {
+        const tenantId = doc.ref.parent.parent?.id;
+        if (!tenantId)
+            continue;
+        const sub = doc.data();
+        const chargeId = sub.pendingChargeId?.trim() || sub.lastChargeId?.trim();
+        if (!chargeId || sub.lastProcessedChargeId === chargeId)
+            continue;
+        const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get();
+        if (!tenantSnap.exists)
+            continue;
+        const tenant = tenantSnap.data();
+        if (tenant.billingPlan === 'expert' && typeof tenant.subscriptionEndsAt === 'number' && tenant.subscriptionEndsAt > Date.now()) {
+            continue;
+        }
+        const charge = await onepayGetCharge(chargeId, platformSk);
+        if (!charge || !chargeStatusPaid(charge.status))
+            continue;
+        const result = await mcBillingTryFinalizeFromChargeWebhook({
+            db,
+            chargeId,
+            platformSk,
+            chargeMeta: charge.metadata,
+            chargeDetails: charge,
+        });
+        if (result === 'handled')
+            recovered++;
+    }
+    if (recovered > 0) {
+        console.info('[mcBillingReconcilePendingActivations] recovered', { recovered });
+    }
+    return recovered;
+}
+/** Reintenta webhooks de billing que se marcaron procesados sin activar Expert. */
+export async function mcBillingReconcileFailedWebhookEvents(db, platformSk) {
+    let recovered = 0;
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const snap = await db.collection('mc_onpay_event_log').where('at', '>=', since).limit(200).get();
+    for (const doc of snap.docs) {
+        const data = doc.data();
+        if (data.billingCharge === true)
+            continue;
+        const event = typeof data.event === 'string' ? data.event : '';
+        if (!event.startsWith('charge.'))
+            continue;
+        if (event !== 'charge.succeeded' && event !== 'charge.paid')
+            continue;
+        const chargeId = doc.id.split('__')[0]?.trim();
+        if (!chargeId)
+            continue;
+        const charge = await onepayGetCharge(chargeId, platformSk);
+        if (!charge || !chargeStatusPaid(charge.status))
+            continue;
+        if (!isBillingChargeExternalId(charge.external_id))
+            continue;
+        const result = await mcBillingTryFinalizeFromChargeWebhook({
+            db,
+            chargeId,
+            platformSk,
+            chargeMeta: charge.metadata,
+            chargeDetails: charge,
+        });
+        if (result !== 'handled')
+            continue;
+        await doc.ref.set({ billingCharge: true, reconciledAt: Date.now() }, { merge: true });
+        recovered++;
+    }
+    if (recovered > 0) {
+        console.info('[mcBillingReconcileFailedWebhookEvents] recovered', { recovered });
+    }
+    return recovered;
 }
 export async function mcBillingRunDueRenewals(db, platformSk) {
     const now = Date.now();
@@ -414,7 +614,7 @@ export async function mcBillingRunDueRenewals(db, platformSk) {
                     tenantId,
                     period: sub.billingPeriod,
                     amountCop: sub.amountCop,
-                    discountCodeId: sub.discountCodeId,
+                    ...(sub.discountCodeId ? { discountCodeId: sub.discountCodeId } : {}),
                     chargeId: ch.id,
                     isRenewal: true,
                 });
@@ -459,7 +659,7 @@ export async function mcBillingActivateFreeWithCode(params) {
         tenantId: params.tenantId,
         period: params.period,
         amountCop: 0,
-        discountCodeId: pricing.discountCodeId,
+        ...(pricing.discountCodeId ? { discountCodeId: pricing.discountCodeId } : {}),
         freeMonths: pricing.freeMonths,
         freeTrialDays: pricing.freeTrialDays ?? (params.period === 'yearly' ? 365 : 30),
     });
@@ -488,7 +688,7 @@ async function mcBillingActivatePromoWithPaymentMethod(params) {
         tenantId,
         period,
         amountCop: pricing.basePriceCop,
-        discountCodeId: pricing.discountCodeId,
+        ...(pricing.discountCodeId ? { discountCodeId: pricing.discountCodeId } : {}),
         freeMonths: pricing.freeMonths,
         freeTrialDays: pricing.freeTrialDays,
     });

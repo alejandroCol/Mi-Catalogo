@@ -28,6 +28,7 @@ export type QuickAddProductDraft = {
   nombre: string
   descripcion: string
   precio: string
+  precioCosto?: string
   stock: string
   tallas: TallaDraft[]
   marcarNovedad: boolean
@@ -35,6 +36,7 @@ export type QuickAddProductDraft = {
   mostrarBotonDocena: boolean
   descuento: ProductoDescuentoDraft
   variantes: Omit<VarianteDraftConArchivo, 'file'>[]
+  skuMatrix?: import('@/lib/productoSkus').SkuDraft[]
   categoriaIds: string[]
   /** ID del producto borrador en Firestore, si ya se creó. */
   draftProductId?: string

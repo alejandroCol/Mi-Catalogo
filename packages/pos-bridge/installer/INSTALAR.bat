@@ -43,6 +43,9 @@ if errorlevel 1 (
   echo [AVISO] No se pudo copiar al Inicio. Usa INICIAR-PUENTE.bat manualmente.
 )
 
+echo Registrando acceso rapido micatalogo-pos-bridge:// ...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0register-protocol.ps1" -InstallDir "%DEST%"
+
 echo.
 echo  Instalacion completa.
 echo  El puente escuchara en http://127.0.0.1:9123

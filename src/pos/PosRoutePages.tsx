@@ -4,6 +4,7 @@ import { PosInventarioPage } from '@/pos/pages/PosInventarioPage'
 import { PosDevolucionesPage } from '@/pos/pages/PosDevolucionesPage'
 import { PosVentasDelDiaPage } from '@/pos/pages/PosVentasDelDiaPage'
 import { PosMovimientosCajaPage } from '@/pos/pages/PosMovimientosCajaPage'
+import { PosExpertAccessGate } from '@/pos/components/PosExpertAccessGate'
 import { usePosVendorSedeOverride } from '@/pos/hooks/usePosVendorSedeOverride'
 
 export function PosAdminVentasPage() {
@@ -11,13 +12,17 @@ export function PosAdminVentasPage() {
 }
 
 export function PosAdminCobrarPage() {
-  return <PosVentasPage cajaPath="/pos/admin/caja" />
+  return (
+    <PosExpertAccessGate variant="sale">
+      <PosVentasPage cajaPath="/pos/admin/caja" />
+    </PosExpertAccessGate>
+  )
 }
 
 export function PosAdminCajaPage() {
   return (
     <PosCajaPage
-      ventasPath="/pos/admin/ventas"
+      ventasPath="/pos/ventas"
       movimientosPath="/pos/admin/movimientos"
       adminView
     />

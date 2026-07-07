@@ -130,14 +130,24 @@ export function ExpertPlanPurchaseFlow({ purchase, stickyCheckout = true, onPurc
                 setCheckoutOpen(false)
                 onPurchaseSuccess?.()
               }}
-              onError={(m) => setMsg(m)}
+              onError={() => {
+                /* Errores de carga SDK; el checkout muestra su propio estado */
+              }}
             />
           </div>
         </section>
       )}
 
       {msg && (
-        <p className="shrink-0 rounded-md border border-neutral-200/50 bg-neutral-50/80 px-4 py-2.5 text-[14px] text-[var(--cat-text)]">
+        <p
+          className={`shrink-0 rounded-md border px-4 py-2.5 text-[14px] ${
+            msg.includes('¡Listo') || msg.includes('activo')
+              ? 'border-emerald-200/80 bg-emerald-50/90 text-emerald-950'
+              : msg.includes('confirmándose') || msg.includes('Recibimos')
+                ? 'border-amber-200/80 bg-amber-50/90 text-amber-950'
+                : 'border-neutral-200/50 bg-neutral-50/80 text-[var(--cat-text)]'
+          }`}
+        >
           {msg}
         </p>
       )}

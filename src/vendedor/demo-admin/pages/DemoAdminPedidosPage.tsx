@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { formatCop } from '@/lib/formatCop'
 import { formatoDepartamentoEtiqueta } from '@/lib/colombiaGeo'
 import { IconChevronRight } from '@/icons/McIcons'
 import type { McOrdenCatalogo } from '@/types/mc'
 import { useDemoAdmin } from '@/vendedor/demo-admin/DemoAdminContext'
 import { demoOrdenEstadoLabels as estadoLabels } from '@/vendedor/demo-admin/demoAdminMockData'
+import { demoAdminPath } from '@/vendedor/demo-admin/demoAdminPaths'
 
 function previewCliente(o: McOrdenCatalogo) {
   const p = [o.clienteNombre, o.clienteTelefono, o.clienteEmail].filter(Boolean).join(' · ')
@@ -29,7 +31,7 @@ const ESTADO_TONE: Record<string, string> = {
 }
 
 export function DemoAdminPedidosPage() {
-  const { ventas, manualPedidos } = useDemoAdmin()
+  const { demo, ventas, manualPedidos } = useDemoAdmin()
   const [expandedVentaId, setExpandedVentaId] = useState<string | null>(ventas[0]?.id ?? null)
   const listShell = 'overflow-hidden rounded-md border border-neutral-200/50 bg-[var(--cat-surface)]'
 
@@ -37,9 +39,17 @@ export function DemoAdminPedidosPage() {
     <div className="mc-shell space-y-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <h1 className="ios-large-title">Ventas</h1>
-        <span className="mc-btn-secondary inline-flex cursor-default items-center justify-center px-4 py-2.5 text-[14px] font-medium opacity-80">
-          Ver mi saldo
-        </span>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to={demoAdminPath(demo.id, 'reportes')}
+            className="mc-btn-secondary inline-flex items-center justify-center px-4 py-2.5 text-[14px] font-medium no-underline"
+          >
+            Reportes
+          </Link>
+          <span className="mc-btn-secondary inline-flex cursor-default items-center justify-center px-4 py-2.5 text-[14px] font-medium opacity-80">
+            Ver mi saldo
+          </span>
+        </div>
       </div>
 
       <section className="space-y-2">

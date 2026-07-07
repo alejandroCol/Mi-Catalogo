@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { formatCop } from '@/lib/formatCop'
 import { montoTransferenciaVenta } from '@/pos/lib/cajaCalculos'
-import { isVentaActiva } from '@/pos/lib/posVentaUtils'
+import { isVentaActiva, ingresoContableCop } from '@/pos/lib/posVentaUtils'
 import type { McPosCajaDiaria, McPosVenta } from '@/types/mc'
 
 const GOLD = { r: 197, g: 163, b: 103 }
@@ -35,7 +35,7 @@ export function descargarReporteCierreCajaPdf(datos: DatosReporteCierreCaja) {
   const totalEgresos = egresos.reduce((s, e) => s + e.montoCop, 0)
   const ventasPdf = datos.ventas.filter(isVentaActiva)
   const ventasTransf = ventasPdf.reduce((s, v) => s + montoTransferenciaVenta(v), 0)
-  const totalVentas = ventasPdf.reduce((s, v) => s + v.totalCop, 0)
+  const totalVentas = ventasPdf.reduce((s, v) => s + ingresoContableCop(v), 0)
   const efectivoEsperado =
     datos.caja.efectivoEsperado ??
     datos.caja.saldoInicialEfectivo + datos.ventasEfectivo + totalIngresos - totalEgresos

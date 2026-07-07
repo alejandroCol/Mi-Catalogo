@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Area,
   AreaChart,
@@ -23,7 +23,9 @@ import { usePosVentas } from '@/pos/hooks/usePosVentas'
 import { usePosVendors } from '@/pos/hooks/usePosVendors'
 import { POS_ADMIN_NAV } from '@/pos/lib/posNavConfig'
 import { posFechaKeyLocal, posFormatFechaCorta, posFormatHora } from '@/pos/lib/posDate'
-import { ventasActivas } from '@/pos/lib/posVentaUtils'
+import { ventasActivas, ingresoContableCop, ingresoContableMs } from '@/pos/lib/posVentaUtils'
+import { PosExpertSaleModal } from '@/pos/components/PosExpertSaleModal'
+import { hasPosExpertAccess } from '@/pos/lib/posExpertGate'
 
 const CHART_GOLD = '#c5a367'
 
@@ -35,8 +37,10 @@ const QUICK_LINKS = POS_ADMIN_NAV.filter((n) => n.to !== '/pos/admin')
 
 export function PosAdminDashboardPage() {
   const { tenant, profile } = useMcAuth()
+  const nav = useNavigate()
   const tenantId = tenant?.id ?? profile?.tenantId
   const [demoOpen, setDemoOpen] = useState(false)
+  const [expertModal, setExpertModal] = useState(false)
   const {
     preset,
     setPreset,
@@ -51,11 +55,16 @@ export function PosAdminDashboardPage() {
   } = usePosRangoFechas('hoy')
   const { sedes } = usePosSedes(tenantId)
   const { vendors } = usePosVendors(tenantId)
-  const { ventas, loading } = usePosVentas(tenantId, { desdeMs: start, hastaMs: end })
+  const { ventas, loading } = usePosVentas(tenantId, {
+    desdeMs: start,
+    hastaMs: end,
+    cobradasDesdeMs: start,
+    cobradasHastaMs: end,
+  })
 
   const ventasActivasList = ventasActivas(ventas)
-  const totalVentas = ventasActivasList.reduce((s, v) => s + v.totalCop, 0)
-  const ventasKpiLabel = preset === 'hoy' ? 'Ventas hoy' : `Ventas (${label})`
+  const totalVentas = ventasActivasList.reduce((s, v) => s + ingresoContableCop(v), 0)
+  const ventasKpiLabel = preset === 'hoy' ? 'Cobrado hoy' : `Cobrado (${label})`
   const firstName = profile?.displayName?.split(' ')[0] ?? 'admin'
   const sedesActivas = sedes.filter((s) => s.activa).length
   const vendedoresActivos = vendors.filter((v) => v.active !== false).length
@@ -67,8 +76,10 @@ export function PosAdminDashboardPage() {
       total: 0,
     }))
     for (const v of ventasActivasList) {
-      const h = new Date(v.createdAt).getHours()
-      buckets[h]!.total += v.totalCop
+      const ms = ingresoContableMs(v)
+      if (ms == null) continue
+      const h = new Date(ms).getHours()
+      buckets[h]!.total += ingresoContableCop(v)
     }
     return buckets.filter((b) => b.total > 0 || preset === 'hoy')
   }, [ventasActivasList, preset])
@@ -76,8 +87,10 @@ export function PosAdminDashboardPage() {
   const porDia = useMemo(() => {
     const map = new Map<string, number>()
     for (const v of ventasActivasList) {
-      const key = posFechaKeyLocal(new Date(v.createdAt))
-      map.set(key, (map.get(key) ?? 0) + v.totalCop)
+      const ms = ingresoContableMs(v)
+      if (ms == null) continue
+      const key = posFechaKeyLocal(new Date(ms))
+      map.set(key, (map.get(key) ?? 0) + ingresoContableCop(v))
     }
     return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
@@ -90,7 +103,9 @@ export function PosAdminDashboardPage() {
   const porVendedor = useMemo(() => {
     const map = new Map<string, number>()
     for (const v of ventasActivasList) {
-      map.set(v.vendedorNombre, (map.get(v.vendedorNombre) ?? 0) + v.totalCop)
+      const ingreso = ingresoContableCop(v)
+      if (ingreso <= 0) continue
+      map.set(v.vendedorNombre, (map.get(v.vendedorNombre) ?? 0) + ingreso)
     }
     return [...map.entries()]
       .map(([nombre, total]) => ({ nombre, total }))
@@ -99,6 +114,14 @@ export function PosAdminDashboardPage() {
   }, [ventasActivasList])
 
   const ultimasVentas = ventasActivasList.slice(0, 5)
+
+  function irACobrar() {
+    if (!hasPosExpertAccess(tenant)) {
+      setExpertModal(true)
+      return
+    }
+    nav('/pos/ventas')
+  }
 
   return (
     <div className="mc-pos-page mc-pos-dashboard">
@@ -165,10 +188,14 @@ export function PosAdminDashboardPage() {
           </div>
 
           <div className="mc-pos-dashboard-hero__actions">
-            <Link to="/pos/admin/cobrar" className="mc-landing-btn-primary mc-pos-dashboard-hero__cta no-underline">
+            <button
+              type="button"
+              className="mc-landing-btn-primary mc-pos-dashboard-hero__cta"
+              onClick={irACobrar}
+            >
               <PosIcon name="ventas" size={18} />
               Cobrar venta
-            </Link>
+            </button>
             <button type="button" className="mc-landing-btn-secondary text-sm" onClick={() => setDemoOpen(true)}>
               Ver demo 90 seg
             </button>
@@ -278,8 +305,7 @@ export function PosAdminDashboardPage() {
           </ul>
           <Link to="/pos/admin/ventas" className="mc-pos-dashboard-recent__link no-underline">
             Ver listado completo →
-          </Link>
-        </div>
+          </Link>        </div>
 
         <nav className="mc-pos-dashboard-quick" aria-label="Accesos rápidos">
           <h2 className="mc-pos-dashboard-section-title">
@@ -296,6 +322,8 @@ export function PosAdminDashboardPage() {
           </div>
         </nav>
       </section>
+
+      <PosExpertSaleModal variant="sale" open={expertModal} onClose={() => setExpertModal(false)} />
     </div>
   )
 }

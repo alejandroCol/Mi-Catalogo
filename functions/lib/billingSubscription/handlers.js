@@ -3,7 +3,7 @@ import { db } from '../firebaseAdmin.js';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { accountReadyForDebit, onepayCreateNequiAccount, onepayCreateTokenizedCard, onepayGetAccount, onepayListAccounts, onepayListCards, onepayListNequiBanks, onepayValidateAccount, } from './onepayBillingApi.js';
-import { mcBillingActivateWithCharge, mcBillingCancelAutoRenew, mcBillingEnsureCustomerV2, mcBillingListPaymentHistory, mcBillingProcessGraceExpiries, mcBillingResolvePrice, mcBillingRunDueRenewals, } from './service.js';
+import { mcBillingActivateWithCharge, mcBillingCancelAutoRenew, mcBillingEnsureCustomerV2, mcBillingListPaymentHistory, mcBillingProcessGraceExpiries, mcBillingReconcilePendingActivations, mcBillingReconcileFailedWebhookEvents, mcBillingResolvePrice, mcBillingRunDueRenewals, } from './service.js';
 import { MC_BILLING_SUB_COLLECTION, MC_BILLING_SUB_DOC } from './constants.js';
 const DEFAULT_CAPTURE_ROUTE_ID = 'ggMoeO2K3G';
 async function resolveTenantOwner(uid) {
@@ -488,6 +488,8 @@ export const mcBillingCron = onSchedule({ schedule: 'every 6 hours', timeZone: '
     const sk = pc.data()?.secretKey?.trim();
     if (!sk)
         return;
+    await mcBillingReconcileFailedWebhookEvents(db, sk);
+    await mcBillingReconcilePendingActivations(db, sk);
     await mcBillingRunDueRenewals(db, sk);
     await mcBillingProcessGraceExpiries(db);
 });

@@ -118,7 +118,7 @@ export function VendedorDashboardPage() {
             }}
             icon={<IconChartBars size={20} />}
             title="Demo POS"
-            description="Admin con reportes o vista cajera con ventas del día."
+            description="Cargá data demo para reportes, entrá al POS real o al mock offline."
             accent="gold"
             size="medium"
           />

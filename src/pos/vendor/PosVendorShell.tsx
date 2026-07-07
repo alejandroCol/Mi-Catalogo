@@ -1,9 +1,12 @@
 import { useEffect } from 'react'
 import { signOut } from 'firebase/auth'
-import { Outlet } from 'react-router-dom'
+import { Link, Outlet } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { StoreImpersonationBanner } from '@/auth/StoreImpersonationBanner'
+import { McOutletBoundary } from '@/components/McOutletBoundary'
+import { McSaveSuccessProvider } from '@/components/McSaveSuccessModal'
 import { getAuthApp } from '@/lib/firebase'
+import { isMcStoreOwnerUser } from '@/lib/mcUserFromFirestore'
 import { usePosSedes } from '@/pos/hooks/usePosSedes'
 import { usePosHardware } from '@/pos/hooks/usePosHardware'
 import { PosBrandLogo } from '@/pos/components/PosBrandLogo'
@@ -15,6 +18,7 @@ import { POS_VENDOR_NAV } from '@/pos/lib/posNavConfig'
 export function PosVendorShell() {
   const { profile, tenant } = useMcAuth()
   const tenantId = tenant?.id ?? profile?.tenantId
+  const isAdminCobro = isMcStoreOwnerUser(profile)
   const sedeId = profile?.posSedeId
   const { sedes } = usePosSedes(tenantId)
   const sede = sedes.find((s) => s.id === sedeId) ?? sedes.find((s) => s.activa !== false) ?? sedes[0]
@@ -25,7 +29,8 @@ export function PosVendorShell() {
   }, [])
 
   return (
-    <div className="mc-landing mc-pos mc-pos-vendor">
+    <McSaveSuccessProvider>
+      <div className="mc-landing mc-pos mc-pos-vendor">
       <StoreImpersonationBanner />
       <div className="mc-pos-shell-pattern" aria-hidden />
       <header className="mc-pos-header">
@@ -36,7 +41,12 @@ export function PosVendorShell() {
           </div>
           <div className="mc-pos-header__actions">
             <PosBridgeStatus config={sede?.pos} />
-            <PosBridgeDownloadButton compact />
+            <PosBridgeDownloadButton compact config={sede?.pos} />
+            {isAdminCobro ? (
+              <Link to="/pos/admin" className="mc-landing-btn-ghost text-sm no-underline">
+                Volver a administrar
+              </Link>
+            ) : null}
             <span className="mc-pos-header__user">{profile?.displayName}</span>
             <button
               type="button"
@@ -50,8 +60,11 @@ export function PosVendorShell() {
         <PosNavPills items={POS_VENDOR_NAV} ariaLabel="Módulos POS vendedor" />
       </header>
       <main className="mc-pos-main mc-landing-container">
-        <Outlet />
+        <McOutletBoundary>
+          <Outlet />
+        </McOutletBoundary>
       </main>
-    </div>
+      </div>
+    </McSaveSuccessProvider>
   )
 }

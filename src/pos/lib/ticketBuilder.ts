@@ -76,6 +76,8 @@ export function buildSaleTicketEscPos(
 
   if (data.esCredito) {
     body.text('*** CREDITO / PENDIENTE ***').newline()
+  } else if (data.esContraEntrega && data.pagos.length === 0) {
+    body.text('*** CONTRA ENTREGA / PENDIENTE ***').newline()
   } else {
     for (const pago of data.pagos) {
       body.text(escPosLinePair(pago.etiqueta, formatCopTicket(pago.monto), width)).newline()

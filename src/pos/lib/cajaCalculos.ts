@@ -1,13 +1,19 @@
 import type { McPosVenta } from '@/types/mc'
-import { isVentaActiva } from '@/pos/lib/posVentaUtils'
+import {
+  cajaAtribucionMs,
+  cajaAtribucionVendedorUid,
+  ingresoContableCop,
+  isVentaActiva,
+  isVentaCobrada,
+} from '@/pos/lib/posVentaUtils'
 
 export function montoEfectivoVenta(v: McPosVenta) {
-  if (!isVentaActiva(v)) return 0
+  if (!isVentaActiva(v) || !isVentaCobrada(v)) return 0
   return v.pagos.filter((p) => p.metodo === 'efectivo').reduce((s, p) => s + p.monto, 0)
 }
 
 export function montoTransferenciaVenta(v: McPosVenta) {
-  if (!isVentaActiva(v)) return 0
+  if (!isVentaActiva(v) || !isVentaCobrada(v)) return 0
   return v.pagos
     .filter((p) => p.metodo === 'transferencia' || p.metodo === 'nequi')
     .reduce((s, p) => s + p.monto, 0)
@@ -19,17 +25,18 @@ function rangoDiaMs(fechaKey: string) {
   return { start, end: start + 86400000 }
 }
 
-export function ventasDelDiaSede(ventas: McPosVenta[], sedeId: string, fechaKey: string) {
+function ventaEnCajaDia(v: McPosVenta, sedeId: string, fechaKey: string, vendedorUid?: string) {
   const { start, end } = rangoDiaMs(fechaKey)
+  const ms = cajaAtribucionMs(v)
+  if (!isVentaActiva(v) || v.sedeId !== sedeId || ms < start || ms >= end) return false
+  if (vendedorUid != null && cajaAtribucionVendedorUid(v) !== vendedorUid) return false
+  return true
+}
+
+export function ventasDelDiaSede(ventas: McPosVenta[], sedeId: string, fechaKey: string) {
   return ventas
-    .filter(
-      (v) =>
-        isVentaActiva(v) &&
-        v.sedeId === sedeId &&
-        v.createdAt >= start &&
-        v.createdAt < end,
-    )
-    .sort((a, b) => a.createdAt - b.createdAt)
+    .filter((v) => ventaEnCajaDia(v, sedeId, fechaKey))
+    .sort((a, b) => cajaAtribucionMs(a) - cajaAtribucionMs(b))
 }
 
 export function ventasDelDiaVendedor(
@@ -38,17 +45,9 @@ export function ventasDelDiaVendedor(
   vendedorUid: string,
   fechaKey: string,
 ) {
-  const { start, end } = rangoDiaMs(fechaKey)
   return ventas
-    .filter(
-      (v) =>
-        isVentaActiva(v) &&
-        v.sedeId === sedeId &&
-        v.vendedorUid === vendedorUid &&
-        v.createdAt >= start &&
-        v.createdAt < end,
-    )
-    .sort((a, b) => a.createdAt - b.createdAt)
+    .filter((v) => ventaEnCajaDia(v, sedeId, fechaKey, vendedorUid))
+    .sort((a, b) => cajaAtribucionMs(a) - cajaAtribucionMs(b))
 }
 
 export function ventasEfectivoDelDiaSede(ventas: McPosVenta[], sedeId: string, fechaKey: string) {
@@ -56,7 +55,7 @@ export function ventasEfectivoDelDiaSede(ventas: McPosVenta[], sedeId: string, f
 }
 
 export function totalVentasDelDiaSede(ventas: McPosVenta[], sedeId: string, fechaKey: string) {
-  return ventasDelDiaSede(ventas, sedeId, fechaKey).reduce((s, v) => s + v.totalCop, 0)
+  return ventasDelDiaSede(ventas, sedeId, fechaKey).reduce((s, v) => s + ingresoContableCop(v), 0)
 }
 
 export function ventasEfectivoDelDia(
@@ -80,8 +79,6 @@ export function efectivoEsperadoCaja(
   return saldoInicial + ventasEfectivo + totalIngresos - totalEgresos
 }
 
-export function totalMovimientosCaja(
-  movimientos: { montoCop: number }[],
-) {
+export function totalMovimientosCaja(movimientos: { montoCop: number }[]) {
   return movimientos.reduce((s, m) => s + m.montoCop, 0)
 }

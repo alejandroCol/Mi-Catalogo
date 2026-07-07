@@ -331,6 +331,8 @@ export interface McCarritoIniciadoLinea {
   subtitulo?: string
   precioUnitarioCop?: number
   cantidad: number
+  esCombo?: boolean
+  comboColorSeleccion?: McComboColorSeleccion[]
 }
 
 export type McCarritoIniciadoEstado = 'activo' | 'comprado' | 'recuperado'
@@ -358,12 +360,68 @@ export interface McCarritoIniciado {
   recuperadoAt?: number
 }
 
+export type McProductoTipo = 'simple' | 'combo'
+
+/** Ítem fijo incluido en un combo (referencia a producto del inventario). */
+export interface McComboComponente {
+  productId: string
+  /** Unidades de este componente por cada combo vendido. */
+  cantidad: number
+  varianteId?: string
+  tallaId?: string
+  /** Si true, el cliente elige color/tela al comprar (solo con `comboPermiteElegirColor`). */
+  permiteElegirColor?: boolean
+  /** Si true, el cliente elige talla al comprar (solo con `comboPermiteElegirTalla`). */
+  permiteElegirTalla?: boolean
+  /** Snapshot para UI al armar el combo. */
+  nombreSnapshot?: string
+  imageUrlSnapshot?: string
+}
+
+/** Color elegido por el cliente para una unidad dentro del combo. */
+export interface McComboColorSeleccion {
+  /** Índice en `comboComponentes`. */
+  componenteIndex: number
+  /** 0 … cantidad−1 dentro de un combo vendido. */
+  slotIndex: number
+  varianteId?: string
+  varianteNombre?: string
+  tallaId?: string
+  tallaNombre?: string
+}
+
+/** Detalle de componente expandido al vender (auditoría / devoluciones). */
+export interface McComboComponenteExpandido {
+  productId: string
+  varianteId?: string
+  tallaId?: string
+  cantidad: number
+  costoUnitarioCop?: number
+  nombre?: string
+  varianteNombre?: string
+  tallaNombre?: string
+}
+
 /** Talla de prenda con stock propio (independiente de variantes de color/tela). */
 export interface McProductoTalla {
   id: string
   /** Etiqueta visible: «XS», «M», «Talla única», etc. */
   nombre: string
   stock: number
+}
+
+/**
+ * Intersección color × talla con stock propio (solo `esRopa` con variantes de color).
+ * Cuando existe, el inventario se resuelve por SKU y no por talla global.
+ */
+export interface McProductoSku {
+  id: string
+  varianteId: string
+  tallaId: string
+  stock: number
+  precioCop?: number
+  precioCostoCop?: number
+  codigoBarras?: string
 }
 
 /** Variante vendible (color, olor, capacidad, tela, etc.). Precio, imagen y stock opcionales. */
@@ -379,6 +437,8 @@ export interface McProductoVariante {
   stock?: number
   /** Si se define, sustituye al precio base del producto para esta variante. */
   precioCop?: number
+  /** Costo de adquisición por unidad (opcional; para calcular margen). */
+  precioCostoCop?: number
   /** Foto propia de la variante (opcional). */
   imageUrl?: string
 }
@@ -399,9 +459,21 @@ export interface McCategoria {
 export interface McProducto {
   id: string
   nombre: string
+  /** `combo` = producto empaquetado con componentes del inventario; default `simple`. */
+  tipoProducto?: McProductoTipo
+  /** Componentes fijos del combo (solo si `tipoProducto === 'combo'`). */
+  comboComponentes?: McComboComponente[]
+  /** Si true, el cliente puede elegir color/tela de las prendas incluidas al comprar. */
+  comboPermiteElegirColor?: boolean
+  /** Si true, el cliente puede elegir la talla de las prendas incluidas al comprar. */
+  comboPermiteElegirTalla?: boolean
+  /** Suma de precios de componentes al crear/editar (referencia de ahorro). */
+  comboPrecioSeparadoCop?: number
   /** Texto libre visible en la ficha pública del producto. */
   descripcion?: string
   precioCop: number
+  /** Costo de adquisición por unidad (opcional; retrocompatible). */
+  precioCostoCop?: number
   stock: number
   imageUrl?: string
   /** Fotos extra de galería (la principal sigue siendo `imageUrl`). */
@@ -412,6 +484,8 @@ export interface McProducto {
   esRopa?: boolean
   /** Curva de tallas con stock individual (solo si `esRopa`). */
   tallas?: McProductoTalla[]
+  /** Stock por combinación color × talla (solo si `esRopa` y hay variantes de color). */
+  skus?: McProductoSku[]
   activo: boolean
   enCatalogo: boolean
   /** Producto incompleto guardado automáticamente al crear; no visible en catálogo hasta publicar. */
@@ -470,20 +544,37 @@ export interface McPosSede {
 export interface McPosVariante {
   id: string
   nombre: string
+  /** Categoría de la opción: Color, Capacidad, Olor… */
+  tipo?: string
+  /** Muestra de color en UI (swatch), ej. #c41e3a. */
+  hex?: string
   codigoBarras?: string
   /** Si se define, sustituye al precio base del producto. */
   precioCop?: number
 }
 
+/** Cómo se gestiona el stock en inventario POS. */
+export type McPosStockModo = 'tallas' | 'variantes' | 'skus'
+
 /** Artículo de inventario POS (`mc_tenants/{tid}/pos_productos`). */
 export interface McPosProducto {
   id: string
   nombre: string
+  tipoProducto?: McProductoTipo
+  comboComponentes?: McComboComponente[]
+  comboPermiteElegirColor?: boolean
+  comboPermiteElegirTalla?: boolean
   codigo?: string
   codigoBarras?: string
   precioCop: number
+  /** Costo de adquisición por unidad (opcional; retrocompatible). */
+  precioCostoCop?: number
   activo: boolean
   sedeId: string
+  /** Tallas ropa/zapatos vs variantes de catálogo (color, capacidad…) vs matriz color × talla. */
+  posStockModo?: McPosStockModo
+  /** Colores cuando `posStockModo === 'skus'` (stock en combinación con tallas). */
+  posColores?: McPosVariante[]
   variantes?: McPosVariante[]
   createdAt: number
   updatedAt: number
@@ -497,13 +588,18 @@ export interface McPosStock {
   id: string
   sedeId: string
   productoId: string
-  /** Ausente = producto sin variantes. */
+  /** Ausente = producto sin variantes. En modo `skus`: id del color. */
   varianteId?: string
+  /** Solo modo `skus`: id de la talla. */
+  tallaId?: string
   cantidad: number
   updatedAt: number
 }
 
 export type McPosMetodoPago = 'efectivo' | 'transferencia' | 'nequi' | 'credito'
+
+/** Cobro diferido: el cliente paga al recibir el producto. */
+export type McPosEstadoPago = 'pendiente' | 'pagado'
 
 export interface McPosLineaPago {
   metodo: McPosMetodoPago
@@ -513,11 +609,18 @@ export interface McPosLineaPago {
 export interface McPosLineaVenta {
   productoId: string
   varianteId?: string
+  /** Talla vendida (modo `skus` en ropa). */
+  tallaId?: string
   nombre: string
   cantidad: number
   precioUnitarioCop: number
+  /** Costo unitario al momento de la venta (opcional). */
+  costoUnitarioCop?: number
   descuentoCop?: number
   subtotalCop: number
+  esCombo?: boolean
+  componentesExpandidos?: McComboComponenteExpandido[]
+  comboColorSeleccion?: McComboColorSeleccion[]
 }
 
 /** Venta registrada en caja (`mc_tenants/{tid}/pos_ventas`). */
@@ -532,6 +635,13 @@ export interface McPosVenta {
   descuentoGlobalCop?: number
   motivoDescuentoGlobal?: string
   esCredito?: boolean
+  /** Venta registrada sin cobro inmediato; el pago se completa al entregar. */
+  esContraEntrega?: boolean
+  estadoPago?: McPosEstadoPago
+  /** Millis en que se registró el cobro (atribución de caja e ingresos). */
+  pagadoAt?: number
+  cobradoPorUid?: string
+  cobradoPorNombre?: string
   estado?: 'activa' | 'anulada'
   anuladaAt?: number
   anuladaPorUid?: string
@@ -622,6 +732,14 @@ export interface McOrdenCatalogoLinea {
   nombre: string
   cantidad: number
   precioUnitarioCop: number
+  /** Costo unitario al momento de la venta (opcional). */
+  costoUnitarioCop?: number
+  varianteId?: string
+  tallaId?: string
+  subtitulo?: string
+  esCombo?: boolean
+  componentesExpandidos?: McComboComponenteExpandido[]
+  comboColorSeleccion?: McComboColorSeleccion[]
 }
 
 export interface McOrdenCatalogo {
@@ -629,6 +747,8 @@ export interface McOrdenCatalogo {
   updatedAt: number
   estado: McOrdenCatalogoEstado
   lineas: McOrdenCatalogoLinea[]
+  /** Millis cuando se descontó inventario de componentes (idempotente). */
+  inventarioDescontadoAt?: number
   /** Total cobrado: subtotal − descuento + envío. */
   totalCop: number
   pagoSimulado: boolean
@@ -862,6 +982,44 @@ export interface McLiveSessionProduct {
   pinnedAt: number | null
   snapshot: McLiveSessionProductSnapshot
   updatedAt: number
+}
+
+/** Tipo de marca en inscripción a taller (`mc_talleres/{slug}/registrations`). */
+export type McTallerBrandType =
+  | 'start_selling'
+  | 'new_brand'
+  | 'established_brand'
+  | 'switch_for_costs'
+  | 'other'
+
+/** Taller / evento formativo (`mc_talleres/{slug}`). El `slug` es el id del documento. */
+export interface McTaller {
+  slug: string
+  title: string
+  description: string
+  /** Fecha y hora del evento (epoch ms, zona America/Bogota al mostrar). */
+  dateMs: number
+  requirements: string[]
+  zoomLink: string
+  /** Alias legacy / redundante del enlace Meet. */
+  meetLink?: string
+  active: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/** Inscripción a un taller. */
+export interface McTallerRegistration {
+  fullName: string
+  brandName: string
+  brandType: McTallerBrandType
+  /** Texto libre cuando `brandType === 'other'`. */
+  brandTypeOther?: string
+  email: string
+  whatsapp: string
+  createdAt: number
+  confirmationEmailSentAt?: number
+  lastReminderSentAt?: number
 }
 
 export type McLiveChatMessageType = 'message' | 'purchase' | 'system'

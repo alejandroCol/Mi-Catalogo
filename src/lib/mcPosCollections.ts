@@ -26,9 +26,18 @@ export function mcPosDevolucionesCollection(tenantId: string) {
   return `mc_tenants/${tenantId}/pos_devoluciones` as const
 }
 
-/** ID determinístico: `{sedeId}_{productoId}` o `{sedeId}_{productoId}_{varianteId}`. */
-export function mcPosStockDocId(sedeId: string, productoId: string, varianteId?: string | null) {
-  return varianteId ? `${sedeId}_${productoId}_${varianteId}` : `${sedeId}_${productoId}`
+/** ID determinístico: `{sedeId}_{productoId}` o `{sedeId}_{productoId}_{varianteId}` o con talla. */
+export function mcPosStockDocId(
+  sedeId: string,
+  productoId: string,
+  varianteId?: string | null,
+  tallaId?: string | null,
+) {
+  const v = varianteId?.trim()
+  const t = tallaId?.trim()
+  if (v && t) return `${sedeId}_${productoId}_${v}_${t}`
+  if (v) return `${sedeId}_${productoId}_${v}`
+  return `${sedeId}_${productoId}`
 }
 
 /** ID determinístico: `{sedeId}_{vendedorUid}_{YYYY-MM-DD}`. */

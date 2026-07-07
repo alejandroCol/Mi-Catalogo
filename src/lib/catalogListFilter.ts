@@ -117,7 +117,8 @@ export function applyCatalogListFilters(
     out = out.filter((p) => isProductNovedad(p, now))
   }
   if (f.onlyInStock) {
-    out = out.filter((p) => productoStockEfectivo(p) > 0)
+    const lookup = new Map(rows.map((p) => [p.id, p]))
+    out = out.filter((p) => productoStockEfectivo(p, lookup) > 0)
   }
   out = out.filter((p) => inPriceRange(p, minP, maxP))
   return sortList(out, f.sort)

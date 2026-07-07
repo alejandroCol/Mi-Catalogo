@@ -48,5 +48,11 @@ export function productSaveErrorMessage(err: unknown, fallback: string): string 
     return 'No se pudo subir la imagen. Revisá conexión e intentá otra vez.'
   }
 
+  if (msg.includes('Unsupported field value: undefined')) {
+    return 'Hay un dato incompleto en el formulario. Revisá nombre, precio y productos del combo.'
+  }
+
+  if (msg) return msg
+
   return fallback
 }

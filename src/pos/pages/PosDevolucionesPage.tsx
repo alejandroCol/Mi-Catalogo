@@ -3,7 +3,6 @@ import clsx from 'clsx'
 import {
   collection,
   doc,
-  increment,
   writeBatch,
 } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
@@ -11,16 +10,23 @@ import { formatCop } from '@/lib/formatCop'
 import { getDb } from '@/lib/firebase'
 import {
   mcPosDevolucionesCollection,
-  mcPosStockCollection,
-  mcPosStockDocId,
 } from '@/lib/mcPosCollections'
 import { usePosProductos } from '@/pos/hooks/usePosProductos'
+import { useCatalogProductos } from '@/pos/hooks/useCatalogProductos'
 import { usePosSedes } from '@/pos/hooks/usePosSedes'
 import { usePosStock } from '@/pos/hooks/usePosStock'
 import { usePosVentas } from '@/pos/hooks/usePosVentas'
 import { PosPageHeader } from '@/pos/components/PosPageHeader'
 import { getPosLockedSedeId } from '@/pos/hooks/usePosVendorSedeOverride'
 import { sumStockForProduct, syncCatalogStockFromPos } from '@/pos/lib/posCatalogSync'
+import {
+  applyPosStockDeltasBatch,
+  buildPosStockDeltasForLine,
+} from '@/pos/lib/posComboStock'
+import {
+  buildPosVentasCatalogContext,
+  posProductoStockDisponible,
+} from '@/pos/lib/posVentasCatalog'
 import { lineaVentaKeyFromLinea, ventasActivas } from '@/pos/lib/posVentaUtils'
 import type { McPosDevolucionLinea } from '@/types/mc'
 
@@ -45,6 +51,7 @@ export function PosDevolucionesPage({ sedeIdOverride }: Props) {
   })
   const ventasElegibles = useMemo(() => ventasActivas(ventas), [ventas])
   const { productos } = usePosProductos(tenantId, sedeId || undefined)
+  const { productos: catalogProductos } = useCatalogProductos(tenantId)
   const { stock } = usePosStock(tenantId, sedeId || undefined)
   const { stock: stockGlobal } = usePosStock(tenantId)
 
@@ -61,11 +68,19 @@ export function PosDevolucionesPage({ sedeIdOverride }: Props) {
   const venta = ventasElegibles.find((v) => v.id === ventaId)
   const esUnSoloItem = (venta?.lineas.length ?? 0) === 1
 
+  const ventasCatalog = useMemo(
+    () => buildPosVentasCatalogContext(productos, catalogProductos, stock, sedeId),
+    [productos, catalogProductos, stock, sedeId],
+  )
+  const { catalogLookup, catalogToPos } = ventasCatalog
+
   const stockMap = useMemo(() => {
     const map = new Map<string, number>()
     for (const s of stock) map.set(s.productoId, (map.get(s.productoId) ?? 0) + s.cantidad)
     return map
   }, [stock])
+
+  const productosConStock = productos.filter((p) => posProductoStockDisponible(p, ventasCatalog) > 0)
 
   const ventasFiltradas = ventasElegibles.filter((v) => {
     const q = search.trim().toLowerCase()
@@ -75,8 +90,6 @@ export function PosDevolucionesPage({ sedeIdOverride }: Props) {
       v.lineas.some((l) => l.nombre.toLowerCase().includes(q))
     )
   })
-
-  const productosConStock = productos.filter((p) => p.activo && (stockMap.get(p.id) ?? 0) > 0)
 
   function seleccionarVenta(id: string) {
     setVentaId(id)
@@ -97,7 +110,7 @@ export function PosDevolucionesPage({ sedeIdOverride }: Props) {
     setLineasSeleccionadas(new Set())
   }
 
-  function toggleLinea(key: string, max: number) {
+  function toggleLinea(key: string, max: number, esCombo?: boolean) {
     setLineasSeleccionadas((prev) => {
       const next = new Set(prev)
       if (next.has(key)) {
@@ -109,6 +122,9 @@ export function PosDevolucionesPage({ sedeIdOverride }: Props) {
       }
       return next
     })
+    if (esCombo) {
+      setCantidades((c) => ({ ...c, [key]: max }))
+    }
   }
 
   async function confirmarDevolucion() {
@@ -116,8 +132,13 @@ export function PosDevolucionesPage({ sedeIdOverride }: Props) {
     const lineas: McPosDevolucionLinea[] = []
     for (const l of venta.lineas) {
       const key = lineaVentaKeyFromLinea(l)
-      const qty = cantidades[key] ?? 0
-      if (qty <= 0) continue
+      const qtyRaw = cantidades[key] ?? 0
+      if (qtyRaw <= 0) continue
+      if (l.esCombo && qtyRaw !== l.cantidad) {
+        setMsg('Los combos solo se devuelven completos.')
+        return
+      }
+      const qty = l.esCombo ? l.cantidad : qtyRaw
       const proporcion = qty / l.cantidad
       lineas.push({
         productoId: l.productoId,
@@ -125,6 +146,7 @@ export function PosDevolucionesPage({ sedeIdOverride }: Props) {
         nombre: l.nombre,
         cantidad: qty,
         montoReembolsoCop: Math.round(l.subtotalCop * proporcion),
+        ...(l.esCombo ? { esCombo: true } : {}),
       })
     }
     if (lineas.length === 0) {
@@ -168,36 +190,84 @@ export function PosDevolucionesPage({ sedeIdOverride }: Props) {
         createdAt: now,
       })
 
-      for (const l of lineas) {
-        const stockRef = doc(
-          db,
-          mcPosStockCollection(tenantId),
-          mcPosStockDocId(sedeId, l.productoId, l.varianteId),
+      for (const devLine of lineas) {
+        const ventaLine = venta.lineas.find(
+          (vl) =>
+            vl.productoId === devLine.productoId &&
+            vl.varianteId === devLine.varianteId &&
+            vl.nombre === devLine.nombre,
         )
-        batch.set(stockRef, { cantidad: increment(l.cantidad), updatedAt: now }, { merge: true })
+        if (!ventaLine) continue
+        const posProduct = productos.find((p) => p.id === ventaLine.productoId)
+        if (!posProduct) continue
+        const applyLine = {
+          ...ventaLine,
+          cantidad: devLine.cantidad,
+          ...(ventaLine.componentesExpandidos
+            ? {
+                componentesExpandidos: ventaLine.componentesExpandidos.map((c) => ({
+                  ...c,
+                  cantidad: Math.round(c.cantidad * (devLine.cantidad / ventaLine.cantidad)),
+                })),
+              }
+            : {}),
+        }
+        const deltas = buildPosStockDeltasForLine(applyLine, posProduct, catalogLookup, catalogToPos)
+        applyPosStockDeltasBatch(batch, db, tenantId, sedeId, deltas, 1, now)
       }
 
       if (lineasCambioSalida) {
         for (const l of lineasCambioSalida) {
-          const stockRef = doc(db, mcPosStockCollection(tenantId), mcPosStockDocId(sedeId, l.productoId))
-          batch.set(stockRef, { cantidad: increment(-l.cantidad), updatedAt: now }, { merge: true })
+          const posProduct = productos.find((p) => p.id === l.productoId)
+          if (!posProduct) continue
+          const deltas = buildPosStockDeltasForLine(
+            {
+              productoId: l.productoId,
+              cantidad: l.cantidad,
+              ...(posProduct.tipoProducto === 'combo' ? { esCombo: true } : {}),
+            },
+            posProduct,
+            catalogLookup,
+            catalogToPos,
+          )
+          applyPosStockDeltasBatch(batch, db, tenantId, sedeId, deltas, -1, now)
         }
       }
 
       await batch.commit()
 
-      const restauradoPorProducto = new Map<string, number>()
-      for (const l of lineas) {
-        restauradoPorProducto.set(l.productoId, (restauradoPorProducto.get(l.productoId) ?? 0) + l.cantidad)
+      const posProductoIdsToSync = new Set<string>()
+      for (const devLine of lineas) {
+        const ventaLine = venta.lineas.find(
+          (vl) =>
+            vl.productoId === devLine.productoId &&
+            vl.varianteId === devLine.varianteId &&
+            vl.nombre === devLine.nombre,
+        )
+        if (!ventaLine) continue
+        const posProduct = productos.find((p) => p.id === ventaLine.productoId)
+        if (!posProduct) continue
+        const applyLine = {
+          ...ventaLine,
+          cantidad: devLine.cantidad,
+          ...(ventaLine.componentesExpandidos
+            ? {
+                componentesExpandidos: ventaLine.componentesExpandidos.map((c) => ({
+                  ...c,
+                  cantidad: Math.round(c.cantidad * (devLine.cantidad / ventaLine.cantidad)),
+                })),
+              }
+            : {}),
+        }
+        const deltas = buildPosStockDeltasForLine(applyLine, posProduct, catalogLookup, catalogToPos)
+        for (const d of deltas) posProductoIdsToSync.add(d.productoId)
       }
       if (lineasCambioSalida) {
-        for (const l of lineasCambioSalida) {
-          restauradoPorProducto.set(l.productoId, (restauradoPorProducto.get(l.productoId) ?? 0) - l.cantidad)
-        }
+        for (const l of lineasCambioSalida) posProductoIdsToSync.add(l.productoId)
       }
       await Promise.all(
-        [...restauradoPorProducto.entries()].map(([pid, delta]) =>
-          syncCatalogStockFromPos(tenantId, pid, sumStockForProduct(stockGlobal, pid) + delta, stockGlobal),
+        [...posProductoIdsToSync].map((pid) =>
+          syncCatalogStockFromPos(tenantId, pid, sumStockForProduct(stockGlobal, pid) + 0, stockGlobal),
         ),
       )
 
@@ -299,13 +369,20 @@ export function PosDevolucionesPage({ sedeIdOverride }: Props) {
                   const selected = lineasSeleccionadas.has(key)
                   return (
                     <div key={key} className={clsx('mc-pos-devolucion-pick', selected && 'mc-pos-devolucion-pick--on')}>
-                      <button type="button" className="mc-pos-devolucion-pick__toggle" onClick={() => toggleLinea(key, l.cantidad)}>
-                        <span className="mc-pos-devolucion-pick__name">{l.nombre}</span>
+                      <button
+                        type="button"
+                        className="mc-pos-devolucion-pick__toggle"
+                        onClick={() => toggleLinea(key, l.cantidad, l.esCombo)}
+                      >
+                        <span className="mc-pos-devolucion-pick__name">
+                          {l.nombre}
+                          {l.esCombo ? ' · Combo (devolución completa)' : ''}
+                        </span>
                         <span className="mc-pos-devolucion-pick__meta">
                           Vendidos: {l.cantidad} · {formatCop(l.subtotalCop)}
                         </span>
                       </button>
-                      {selected && l.cantidad > 1 && (
+                      {selected && l.cantidad > 1 && !l.esCombo && (
                         <label className="mc-pos-field mc-pos-devolucion-pick__qty">
                           <span>Cantidad a devolver</span>
                           <input

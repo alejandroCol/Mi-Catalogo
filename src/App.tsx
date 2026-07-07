@@ -124,6 +124,12 @@ const AdminCatalogPreviewLayout = lazy(() =>
 const EstadisticasPage = lazy(() =>
   import('@/app/EstadisticasPage').then((m) => ({ default: m.EstadisticasPage })),
 )
+const CatalogReportesHubPage = lazy(() =>
+  import('@/app/reportes/CatalogReportesHubPage').then((m) => ({ default: m.CatalogReportesHubPage })),
+)
+const CatalogReporteDetailPage = lazy(() =>
+  import('@/app/reportes/CatalogReporteDetailPage').then((m) => ({ default: m.CatalogReporteDetailPage })),
+)
 const LiveSessionsPage = lazy(() =>
   import('@/live/admin/LiveSessionsPage').then((m) => ({ default: m.LiveSessionsPage })),
 )
@@ -168,6 +174,26 @@ const SuperAdminTerminosPage = lazy(() =>
 const SuperAdminTutorialesPage = lazy(() =>
   import('@/superadmin/SuperAdminTutorialesPage').then((m) => ({
     default: m.SuperAdminTutorialesPage,
+  })),
+)
+const SuperAdminTalleresPage = lazy(() =>
+  import('@/superadmin/SuperAdminTalleresPage').then((m) => ({
+    default: m.SuperAdminTalleresPage,
+  })),
+)
+const TallerEventPage = lazy(() =>
+  import('@/taller/TallerEventPage').then((m) => ({
+    default: m.TallerEventPage,
+  })),
+)
+const TallerRegistrationPage = lazy(() =>
+  import('@/taller/TallerRegistrationPage').then((m) => ({
+    default: m.TallerRegistrationPage,
+  })),
+)
+const TallerPitchPage = lazy(() =>
+  import('@/taller/TallerPitchPage').then((m) => ({
+    default: m.TallerPitchPage,
   })),
 )
 const SuperAdminTenantOnepayPage = lazy(() =>
@@ -232,6 +258,16 @@ const DemoAdminCuentaPage = lazy(() =>
 const DemoAdminEstadisticasPage = lazy(() =>
   import('@/vendedor/demo-admin/pages/DemoAdminEstadisticasPage').then((m) => ({
     default: m.DemoAdminEstadisticasPage,
+  })),
+)
+const DemoAdminReportesHubPage = lazy(() =>
+  import('@/vendedor/demo-admin/pages/DemoAdminReportesHubPage').then((m) => ({
+    default: m.DemoAdminReportesHubPage,
+  })),
+)
+const DemoAdminReporteDetailPage = lazy(() =>
+  import('@/vendedor/demo-admin/pages/DemoAdminReporteDetailPage').then((m) => ({
+    default: m.DemoAdminReporteDetailPage,
   })),
 )
 const DemoPosAdminLayout = lazy(() =>
@@ -331,14 +367,14 @@ const PosSedesPage = lazy(() =>
 const PosVendedoresPage = lazy(() =>
   import('@/pos/admin/PosVendedoresPage').then((m) => ({ default: m.PosVendedoresPage })),
 )
-const PosReportesPage = lazy(() =>
-  import('@/pos/admin/PosReportesPage').then((m) => ({ default: m.PosReportesPage })),
+const PosReportesHubPage = lazy(() =>
+  import('@/pos/admin/PosReportesHubPage').then((m) => ({ default: m.PosReportesHubPage })),
 )
-const PosVentasPage = lazy(() =>
+const PosReporteDetailPage = lazy(() =>
+  import('@/pos/admin/PosReporteDetailPage').then((m) => ({ default: m.PosReporteDetailPage })),
+)
+const PosVentasDelDiaAdminPage = lazy(() =>
   import('@/pos/PosRoutePages').then((m) => ({ default: m.PosAdminVentasPage })),
-)
-const PosCobrarPage = lazy(() =>
-  import('@/pos/PosRoutePages').then((m) => ({ default: m.PosAdminCobrarPage })),
 )
 const PosCajaPage = lazy(() =>
   import('@/pos/PosRoutePages').then((m) => ({ default: m.PosAdminCajaPage })),
@@ -427,6 +463,8 @@ function PlatformRoutes() {
         <Route index element={<DemoAdminDashboardPage />} />
         <Route path="inventario" element={<DemoAdminInventarioPage />} />
         <Route path="pedidos" element={<DemoAdminPedidosPage />} />
+        <Route path="reportes" element={<DemoAdminReportesHubPage />} />
+        <Route path="reportes/:reportId" element={<DemoAdminReporteDetailPage />} />
         <Route path="cuenta" element={<DemoAdminCuentaPage />} />
         <Route path="estadisticas" element={<DemoAdminEstadisticasPage />} />
       </Route>
@@ -472,6 +510,8 @@ function PlatformRoutes() {
         <Route path="inventario" element={<InventarioPage />} />
         <Route path="inventario/categorias" element={<CategoriasPage />} />
         <Route path="pedidos" element={<PedidosPage />} />
+        <Route path="reportes" element={<CatalogReportesHubPage />} />
+        <Route path="reportes/:reportId" element={<CatalogReporteDetailPage />} />
         <Route path="plan" element={<PlanUpgradePage />} />
         <Route path="estadisticas" element={<EstadisticasPage />} />
         <Route path="cuenta" element={<CuentaPage />} />
@@ -586,6 +626,22 @@ function PlatformRoutes() {
         }
       />
       <Route
+        path="/superadmin/talleres"
+        element={
+          <RequireMcAuth>
+            <SuperAdminTalleresPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/talleres/:slug/pitch"
+        element={
+          <RequireMcAuth>
+            <TallerPitchPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
         path="/superadmin/tienda/:tenantId/onepay"
         element={
           <RequireMcAuth>
@@ -615,8 +671,9 @@ function PlatformRoutes() {
         }
       >
         <Route index element={<PosAdminDashboardPage />} />
-        <Route path="ventas" element={<PosVentasPage />} />
-        <Route path="cobrar" element={<PosCobrarPage />} />
+        <Route path="ventas" element={<PosVentasDelDiaAdminPage />} />
+        <Route path="ventas/hoy" element={<Navigate to="/pos/admin/ventas" replace />} />
+        <Route path="cobrar" element={<Navigate to="/pos/ventas" replace />} />
         <Route path="caja" element={<PosCajaPage />} />
         <Route path="movimientos" element={<PosAdminMovimientosPage />} />
         <Route path="inventario" element={<PosInventarioPage />} />
@@ -624,7 +681,8 @@ function PlatformRoutes() {
         <Route path="cajas" element={<PosAdminCajasPage />} />
         <Route path="sedes" element={<PosSedesPage />} />
         <Route path="vendedores" element={<PosVendedoresPage />} />
-        <Route path="reportes" element={<PosReportesPage />} />
+        <Route path="reportes" element={<PosReportesHubPage />} />
+        <Route path="reportes/:reportId" element={<PosReporteDetailPage />} />
       </Route>
       <Route
         path="/pos/ventas"
@@ -656,6 +714,8 @@ function PlatformRoutes() {
       <Route path="/c/:slug" element={<LegacyCatalogGateway />}>
         <Route element={<PublicCatalogLayout />}>{publicCatalogRouteElements}</Route>
       </Route>
+      <Route path="/taller/:slug" element={<TallerEventPage />} />
+      <Route path="/taller/:slug/inscribirse" element={<TallerRegistrationPage />} />
       <Route path="/" element={<LandingPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

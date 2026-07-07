@@ -5,6 +5,9 @@ import { firebaseConfigured, getFirebaseFunctions } from '@/lib/firebase'
 import { usePosSedes } from '@/pos/hooks/usePosSedes'
 import { usePosVendors } from '@/pos/hooks/usePosVendors'
 import { PosPageHeader } from '@/pos/components/PosPageHeader'
+import { PosExpertSaleModal } from '@/pos/components/PosExpertSaleModal'
+import { PosExpertSaleBanner } from '@/pos/components/PosExpertSaleBanner'
+import { hasPosExpertAccess, posExpertBlockReason } from '@/pos/lib/posExpertGate'
 
 export function PosVendedoresPage() {
   const { tenant, profile } = useMcAuth()
@@ -23,6 +26,17 @@ export function PosVendedoresPage() {
   const [editNombre, setEditNombre] = useState('')
   const [resetUid, setResetUid] = useState<string | null>(null)
   const [resetPassword, setResetPassword] = useState('')
+  const [expertModal, setExpertModal] = useState(false)
+
+  const needsExpertForVendor = posExpertBlockReason(tenant) === 'needs_expert'
+
+  function abrirNuevo() {
+    if (!hasPosExpertAccess(tenant)) {
+      setExpertModal(true)
+      return
+    }
+    setNuevoAbierto(true)
+  }
 
   function cerrarNuevo() {
     setNuevoAbierto(false)
@@ -35,6 +49,10 @@ export function PosVendedoresPage() {
   async function crearVendedor(e: React.FormEvent) {
     e.preventDefault()
     if (!tenantId || !firebaseConfigured) return
+    if (!hasPosExpertAccess(tenant)) {
+      setExpertModal(true)
+      return
+    }
     setSaving(true)
     setMsg(null)
     try {
@@ -47,7 +65,14 @@ export function PosVendedoresPage() {
         err && typeof err === 'object' && 'message' in err
           ? String((err as { message: string }).message)
           : 'No se pudo crear el vendedor.'
-      setMsg(message)
+      const code =
+        err && typeof err === 'object' && 'code' in err ? String((err as { code: string }).code) : ''
+      if (code === 'failed-precondition' && message.toLowerCase().includes('expert')) {
+        setExpertModal(true)
+        setMsg(null)
+      } else {
+        setMsg(message)
+      }
     } finally {
       setSaving(false)
     }
@@ -116,12 +141,14 @@ export function PosVendedoresPage() {
             type="button"
             className="mc-landing-btn-primary text-sm"
             disabled={sedes.filter((s) => s.activa).length === 0}
-            onClick={() => setNuevoAbierto(true)}
+            onClick={abrirNuevo}
           >
             + Nuevo
           </button>
         }
       />
+
+      {needsExpertForVendor && <PosExpertSaleBanner className="mb-4" />}
 
       {msg && (
         <p className="mc-pos-status" role="status">
@@ -290,6 +317,8 @@ export function PosVendedoresPage() {
           </div>
         </div>
       )}
+
+      <PosExpertSaleModal open={expertModal} onClose={() => setExpertModal(false)} />
     </div>
   )
 }

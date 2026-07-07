@@ -1,1 +1,0 @@
-import{t as e}from"./PublicCatalogLayout-ClwliDTB.js";export{e as PublicCatalogLayout};

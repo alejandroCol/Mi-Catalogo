@@ -3,6 +3,8 @@ import { signOut } from 'firebase/auth'
 import { Link, Outlet } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { StoreImpersonationBanner } from '@/auth/StoreImpersonationBanner'
+import { McOutletBoundary } from '@/components/McOutletBoundary'
+import { McSaveSuccessProvider } from '@/components/McSaveSuccessModal'
 import { getAuthApp } from '@/lib/firebase'
 import { usePosSedes } from '@/pos/hooks/usePosSedes'
 import { usePosHardware } from '@/pos/hooks/usePosHardware'
@@ -22,7 +24,8 @@ export function PosAdminShell() {
   }, [])
 
   return (
-    <div className="mc-landing mc-pos mc-pos-admin">
+    <McSaveSuccessProvider>
+      <div className="mc-landing mc-pos mc-pos-admin">
       <StoreImpersonationBanner />
       <div className="mc-pos-shell-pattern" aria-hidden />
       <header className="mc-pos-header">
@@ -32,7 +35,7 @@ export function PosAdminShell() {
             <span className="mc-pos-header__badge">Admin</span>
           </div>
           <div className="mc-pos-header__actions">
-            <PosBridgeDownloadButton compact />
+            <PosBridgeDownloadButton compact config={sedes[0]?.pos} />
             <Link to="/app" className="mc-landing-btn-ghost text-sm no-underline">
               Volver a tienda
             </Link>
@@ -48,8 +51,11 @@ export function PosAdminShell() {
         <PosNavPills items={POS_ADMIN_NAV} ariaLabel="Módulos POS admin" />
       </header>
       <main className="mc-pos-main mc-landing-container">
-        <Outlet />
+        <McOutletBoundary>
+          <Outlet />
+        </McOutletBoundary>
       </main>
-    </div>
+      </div>
+    </McSaveSuccessProvider>
   )
 }

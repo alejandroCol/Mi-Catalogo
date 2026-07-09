@@ -1,1 +1,0 @@
-import{t as e}from"./PublicCatalogLayout-DC_GApN4.js";export{e as PublicCatalogLayout};

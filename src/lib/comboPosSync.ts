@@ -1,6 +1,7 @@
 import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
 import { mcPosProductosCollection, mcPosSedesCollection } from '@/lib/mcPosCollections'
+import { mcDeleteProductoDoc } from '@/lib/mcWrites'
 import { esProductoCombo, comboComponentesForFirestore } from '@/lib/comboProducto'
 import type { McPosProducto, McPosSede, McProducto } from '@/types/mc'
 
@@ -119,4 +120,29 @@ export async function ensureComboPosMirrorsForSede(
   }
 
   if (writes > 0) await batch.commit()
+}
+
+/** Elimina espejos POS vinculados a un combo de catálogo. */
+export async function deleteComboPosMirrors(tenantId: string, catalogComboId: string) {
+  const db = getDb()
+  const snap = await getDocs(
+    query(
+      collection(db, mcPosProductosCollection(tenantId)),
+      where('catalogProductoId', '==', catalogComboId),
+    ),
+  )
+  if (snap.empty) return
+
+  const batch = writeBatch(db)
+  for (const d of snap.docs) {
+    batch.delete(d.ref)
+  }
+  await batch.commit()
+}
+
+/** Elimina combo del catálogo y sus espejos POS. */
+export async function deleteComboProduct(tenantId: string, catalogCombo: McProducto & { id: string }) {
+  if (!esProductoCombo(catalogCombo)) return
+  await deleteComboPosMirrors(tenantId, catalogCombo.id)
+  await mcDeleteProductoDoc(tenantId, catalogCombo.id)
 }

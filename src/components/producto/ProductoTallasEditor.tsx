@@ -145,7 +145,7 @@ export function ProductoTallasEditor({ tallas, onChange, disabled = false, hideS
             onClick={restoreCurva}
             className="rounded-full border border-neutral-300/90 bg-white px-3 py-1.5 text-[12px] font-medium text-mc-700 transition hover:border-mc-900/30 active:scale-[0.98]"
           >
-            Curva XS–XL
+            Curva XS–Única
           </button>
         )}
       </div>

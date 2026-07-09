@@ -27,6 +27,7 @@ export type PosIconName =
   | 'download'
   | 'cash-drawer'
   | 'multi-sede'
+  | 'clientes'
 
 type PosIconProps = {
   name: PosIconName
@@ -191,6 +192,12 @@ const ICONS: Record<PosIconName, ReactNode> = {
       <circle cx="18" cy="8" r="2.5" />
       <circle cx="12" cy="17" r="2.5" />
       <path d="M8 9.5 10.5 15M16 9.5 13.5 15M8.5 8h7" />
+    </>
+  ),
+  clientes: (
+    <>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6" />
     </>
   ),
   'chevron-down': <path d="M6 9l6 6 6-6" />,

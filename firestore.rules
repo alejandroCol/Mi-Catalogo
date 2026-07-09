@@ -981,6 +981,28 @@ service cloud.firestore {
       allow delete: if (mcBelongsToTenant(tid) && mcIsTenantOwner(tid)) || mcSuperAdminPosDemoSeedDelete();
     }
 
+    match /mc_tenants/{tid}/pos_clientes/{clienteId} {
+      allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
+      allow create: if (
+          mcPosOwnerOrVendor(tid)
+          && request.resource.data.nombre is string
+          && request.resource.data.nombre.size() > 0
+          && request.resource.data.cedula is string
+          && request.resource.data.cedula.size() > 0
+          && request.resource.data.ciudad is string
+          && request.resource.data.ciudad.size() > 0
+          && request.resource.data.createdAt is int
+        )
+        || mcSuperAdminPosDemoSeedWrite();
+      allow update: if (
+          mcPosOwnerOrVendor(tid)
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['totalComprasCop', 'ventasCount', 'ultimaCompraAt', 'updatedAt'])
+        )
+        || mcSuperAdminPosDemoSeedWrite();
+      allow delete: if (mcBelongsToTenant(tid) && mcIsTenantOwner(tid)) || mcSuperAdminPosDemoSeedDelete();
+    }
+
     match /mc_tenants/{tid}/pos_ventas/{ventaId} {
       allow read: if mcPosOwnerOrVendor(tid) || mcIsSuperAdmin();
       allow create: if (

@@ -623,6 +623,21 @@ export interface McPosLineaVenta {
   comboColorSeleccion?: McComboColorSeleccion[]
 }
 
+/** Cliente POS (`mc_tenants/{tid}/pos_clientes`). */
+export interface McPosCliente {
+  id: string
+  nombre: string
+  cedula: string
+  ciudad: string
+  direccion?: string
+  /** Total acumulado de ventas activas asociadas. */
+  totalComprasCop?: number
+  ventasCount?: number
+  ultimaCompraAt?: number
+  createdAt: number
+  updatedAt?: number
+}
+
 /** Venta registrada en caja (`mc_tenants/{tid}/pos_ventas`). */
 export interface McPosVenta {
   id: string
@@ -642,6 +657,12 @@ export interface McPosVenta {
   pagadoAt?: number
   cobradoPorUid?: string
   cobradoPorNombre?: string
+  /** Cliente asociado opcionalmente a la venta. */
+  clienteId?: string
+  /** Snapshot del nombre al momento de la venta. */
+  clienteNombre?: string
+  /** Snapshot de la cédula al momento de la venta. */
+  clienteCedula?: string
   estado?: 'activa' | 'anulada'
   anuladaAt?: number
   anuladaPorUid?: string

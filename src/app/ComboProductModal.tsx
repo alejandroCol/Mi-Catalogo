@@ -9,6 +9,7 @@ import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 import { useTenantProductos } from '@/hooks/useTenantProductos'
 import { formatCop, formatIntegerEsCo } from '@/lib/formatCop'
 import { getDb, getStorageApp, firebaseStorageConfigured } from '@/lib/firebase'
+import { deleteObject, ref } from 'firebase/storage'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { mcCreateProducto, ProductLimitError } from '@/lib/mcWrites'
 import { productSaveErrorMessage } from '@/lib/mcSaveError'
@@ -21,7 +22,7 @@ import {
   normalizeComboComponentesForSave,
   type ProductoLookup,
 } from '@/lib/comboProducto'
-import { syncComboToPosProductos } from '@/lib/comboPosSync'
+import { syncComboToPosProductos, deleteComboProduct } from '@/lib/comboPosSync'
 import {
   imagenDraftFromProducto,
   uploadProductoImagenes,
@@ -361,6 +362,41 @@ export function ComboProductModal({
     ],
   )
 
+  async function eliminarCombo() {
+    if (!product) return
+    if (
+      !window.confirm(
+        `¿Eliminar el combo «${product.nombre}»? Se quitará del inventario POS y del catálogo. Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return
+    }
+
+    setBusy(true)
+    setErr(null)
+    try {
+      if (firebaseStorageConfigured && product.imageUrl?.includes('firebasestorage')) {
+        try {
+          const storage = getStorageApp()
+          const pathRef = ref(storage, `mc_tenants/${tenantId}/productos/${product.id}.jpg`)
+          await deleteObject(pathRef)
+        } catch {
+          /* sin archivo */
+        }
+      }
+      await deleteComboProduct(tenantId, product)
+      showSaveSuccess({
+        title: 'Combo eliminado',
+        message: 'El combo ya no aparece en inventario ni en la tienda.',
+      })
+      onClose()
+    } catch (e) {
+      setErr(productSaveErrorMessage(e, 'No se pudo eliminar el combo.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" role="dialog">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Cerrar" onClick={onClose} />
@@ -490,13 +526,27 @@ export function ComboProductModal({
               </p>
             ) : null}
 
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" className="mc-btn-secondary px-5 py-3" onClick={onClose} disabled={busy}>
-                Cancelar
-              </button>
-              <button type="submit" className="mc-btn-primary px-5 py-3" disabled={busy}>
-                {busy ? 'Guardando…' : isEdit ? 'Guardar combo' : 'Crear combo'}
-              </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              {isEdit ? (
+                <button
+                  type="button"
+                  className="mc-landing-btn-ghost text-sm text-red-700"
+                  onClick={() => void eliminarCombo()}
+                  disabled={busy}
+                >
+                  Eliminar combo
+                </button>
+              ) : (
+                <span className="hidden sm:block" />
+              )}
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                <button type="button" className="mc-btn-secondary px-5 py-3" onClick={onClose} disabled={busy}>
+                  Cancelar
+                </button>
+                <button type="submit" className="mc-btn-primary px-5 py-3" disabled={busy}>
+                  {busy ? 'Guardando…' : isEdit ? 'Guardar combo' : 'Crear combo'}
+                </button>
+              </div>
             </div>
           </div>
         </form>

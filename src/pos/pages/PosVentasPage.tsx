@@ -34,6 +34,14 @@ import {
 } from '@/pos/lib/posComboStock'
 import { PosComboColorModal } from '@/pos/components/PosComboColorModal'
 import { PosRopaSkuPickerModal } from '@/pos/components/PosRopaSkuPickerModal'
+import { PosAsociarClienteModal } from '@/pos/components/PosAsociarClienteModal'
+import { usePosClientes } from '@/pos/hooks/usePosClientes'
+import {
+  applyClienteVentaStatsBatch,
+  clienteIniciales,
+  clienteVentaFields,
+  crearPosCliente,
+} from '@/pos/lib/posClientes'
 import {
   posStockDisponibleSku,
   resolvePosProductoSkuView,
@@ -55,7 +63,7 @@ import {
   comboColorSeleccionKey,
   comboColorSeleccionResumen,
 } from '@/lib/comboProducto'
-import type { McComboColorSeleccion, McPosLineaPago, McPosLineaVenta, McPosMetodoPago, McPosProducto } from '@/types/mc'
+import type { McComboColorSeleccion, McPosCliente, McPosLineaPago, McPosLineaVenta, McPosMetodoPago, McPosProducto } from '@/types/mc'
 
 const COMBO_OPCIONES_MSG = 'Completá color y talla de cada prenda del combo.'
 
@@ -117,6 +125,7 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
   const { stock } = usePosStock(tenantId, sedeId ?? undefined)
   const { stock: stockGlobal } = usePosStock(tenantId)
   const { turno, loading: loadingTurno } = usePosTurnoAbierto(tenantId, vendedorUid, sedeId)
+  const { clientes, loading: loadingClientes } = usePosClientes(tenantId)
 
   const [lineas, setLineas] = useState<McPosLineaVenta[]>([])
   const [modoPago, setModoPago] = useState<ModoPagoUi>('efectivo')
@@ -138,6 +147,8 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
   const [variantPicker, setVariantPicker] = useState<(McPosProducto & { id: string }) | null>(null)
   const [skuPicker, setSkuPicker] = useState<(McPosProducto & { id: string }) | null>(null)
   const [comboColorPicker, setComboColorPicker] = useState<(McPosProducto & { id: string }) | null>(null)
+  const [clienteModalAbierto, setClienteModalAbierto] = useState(false)
+  const [clienteAsociado, setClienteAsociado] = useState<(McPosCliente & { id: string }) | null>(null)
   const comboSyncRef = useRef('')
 
   const dismissCelebration = useCallback(() => setVentaOk(false), [])
@@ -502,8 +513,13 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
         ...(motivoDescuento.trim() ? { motivoDescuentoGlobal: motivoDescuento.trim() } : {}),
         ...(credito ? { esCredito: true } : {}),
         ...(contraEntrega ? { esContraEntrega: true, estadoPago: 'pendiente' as const } : {}),
+        ...(clienteAsociado ? clienteVentaFields(clienteAsociado) : {}),
         createdAt: now,
       })
+
+      if (clienteAsociado) {
+        applyClienteVentaStatsBatch(batch, db, tenantId, clienteAsociado.id, total, now)
+      }
 
       for (const l of lineas) {
         const posProduct = productos.find((p) => p.id === l.productoId)
@@ -562,6 +578,7 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
       setContraEntrega(false)
       setCredito(false)
       setModoPago('efectivo')
+      setClienteAsociado(null)
     } catch (err) {
       console.error('[POS] Error al registrar venta:', err)
       const code = typeof err === 'object' && err && 'code' in err ? String((err as { code: string }).code) : ''
@@ -740,6 +757,38 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
             </div>
 
             <div className="mc-pos-cart-checkout">
+              <div className="mc-pos-cart-cliente">
+                {clienteAsociado ? (
+                  <div className="mc-pos-cart-cliente__selected">
+                    <span className="mc-pos-cliente-avatar" aria-hidden>
+                      {clienteIniciales(clienteAsociado.nombre)}
+                    </span>
+                    <div className="mc-pos-cart-cliente__info">
+                      <p className="mc-pos-cart-cliente__name">{clienteAsociado.nombre}</p>
+                      <p className="mc-pos-cart-cliente__meta">
+                        CC {clienteAsociado.cedula} · {clienteAsociado.ciudad}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="mc-pos-qty-btn"
+                      onClick={() => setClienteAsociado(null)}
+                      aria-label="Quitar cliente"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="mc-landing-btn-ghost mc-pos-cart-cliente__btn"
+                    onClick={() => setClienteModalAbierto(true)}
+                  >
+                    Asociar cliente
+                  </button>
+                )}
+              </div>
+
               <p className="mc-pos-cart-checkout__label">Forma de pago</p>
               <div className="mc-pos-payment-modes">
                 {(['efectivo', 'transferencia', 'mixto'] as ModoPagoUi[]).map((m) => (
@@ -982,6 +1031,19 @@ export function PosVentasPage({ cajaPath, sedeIdOverride }: Props) {
           catalogProductos={catalogProductos}
           onClose={() => setComboColorPicker(null)}
           onConfirm={(seleccion) => agregarLinea(comboColorPicker.id, undefined, undefined, seleccion)}
+        />
+      )}
+
+      {clienteModalAbierto && tenantId && (
+        <PosAsociarClienteModal
+          clientes={clientes}
+          loading={loadingClientes}
+          onClose={() => setClienteModalAbierto(false)}
+          onSelect={(cliente) => {
+            setClienteAsociado(cliente)
+            setClienteModalAbierto(false)
+          }}
+          onCrear={(input) => crearPosCliente(tenantId, input)}
         />
       )}
 

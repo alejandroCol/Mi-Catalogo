@@ -8,6 +8,7 @@ import {
   catalogProductLookup,
 } from '@/pos/lib/posComboStock'
 import { isVentaActiva } from '@/pos/lib/posVentaUtils'
+import { revertClienteVentaStatsBatch } from '@/pos/lib/posClientes'
 import { buildCatalogToPosMap } from '@/lib/comboProducto'
 import type { McPosProducto, McPosStock, McPosVenta, McProducto } from '@/types/mc'
 
@@ -76,6 +77,11 @@ export async function anularPosVenta(
   })
 
   const posProductoIdsToSync = appendRestaurarStockVenta(batch, tenantId, venta, sedeId, now, opts)
+
+  if (isVentaActiva(venta) && venta.clienteId) {
+    revertClienteVentaStatsBatch(batch, db, tenantId, venta.clienteId, venta.totalCop, now)
+  }
+
   await batch.commit()
   await syncCatalogStockAfterRestore(tenantId, posProductoIdsToSync, stockGlobal)
 }
@@ -94,6 +100,9 @@ export async function eliminarPosVenta(
 
   if (isVentaActiva(venta)) {
     posProductoIdsToSync = appendRestaurarStockVenta(batch, tenantId, venta, venta.sedeId, now, opts)
+    if (venta.clienteId) {
+      revertClienteVentaStatsBatch(batch, db, tenantId, venta.clienteId, venta.totalCop, now)
+    }
   }
 
   batch.delete(doc(db, mcPosVentasCollection(tenantId), venta.id))

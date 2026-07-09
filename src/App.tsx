@@ -391,6 +391,12 @@ const PosAdminMovimientosPage = lazy(() =>
 const PosAdminCajasPage = lazy(() =>
   import('@/pos/admin/PosAdminCajasPage').then((m) => ({ default: m.PosAdminCajasPage })),
 )
+const PosClientesPage = lazy(() =>
+  import('@/pos/admin/PosClientesPage').then((m) => ({ default: m.PosClientesPage })),
+)
+const PosClienteComprasPage = lazy(() =>
+  import('@/pos/admin/PosClienteComprasPage').then((m) => ({ default: m.PosClienteComprasPage })),
+)
 const PosVentasDelDiaPage = lazy(() =>
   import('@/pos/PosRoutePages').then((m) => ({ default: m.PosVendorVentasDelDiaPage })),
 )
@@ -673,6 +679,8 @@ function PlatformRoutes() {
         <Route index element={<PosAdminDashboardPage />} />
         <Route path="ventas" element={<PosVentasDelDiaAdminPage />} />
         <Route path="ventas/hoy" element={<Navigate to="/pos/admin/ventas" replace />} />
+        <Route path="clientes" element={<PosClientesPage />} />
+        <Route path="clientes/:clienteId" element={<PosClienteComprasPage />} />
         <Route path="cobrar" element={<Navigate to="/pos/ventas" replace />} />
         <Route path="caja" element={<PosCajaPage />} />
         <Route path="movimientos" element={<PosAdminMovimientosPage />} />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
+import { Link } from 'react-router-dom'
 import { formatCop } from '@/lib/formatCop'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { usePosSedes } from '@/pos/hooks/usePosSedes'
@@ -192,6 +193,13 @@ export function PosVentasDelDiaPage({ sedeIdOverride, adminView }: Props) {
         eyebrow="Ventas"
         title="Listado de ventas"
         subtitle={`${label} · ${ventasActivasCount} activas · ${formatCop(totalCobrado)} cobrado`}
+        action={
+          adminView ? (
+            <Link to="/pos/admin/clientes" className="mc-landing-btn-primary text-sm">
+              Ver clientes
+            </Link>
+          ) : undefined
+        }
       />
 
       <section className="mc-pos-ventas-list-toolbar">
@@ -271,6 +279,11 @@ export function PosVentasDelDiaPage({ sedeIdOverride, adminView }: Props) {
                       </span>
                       <span className="mc-pos-venta-card__chip">{v.vendedorNombre}</span>
                       <span className="mc-pos-venta-card__chip mc-pos-venta-card__chip--muted">{itemsLabel}</span>
+                      {v.clienteNombre && (
+                        <span className="mc-pos-venta-card__chip mc-pos-venta-card__chip--cliente">
+                          {v.clienteNombre}
+                        </span>
+                      )}
                     </div>
                     <div className="mc-pos-venta-card__pagos">
                       {pendiente ? (

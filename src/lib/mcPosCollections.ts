@@ -26,6 +26,10 @@ export function mcPosDevolucionesCollection(tenantId: string) {
   return `mc_tenants/${tenantId}/pos_devoluciones` as const
 }
 
+export function mcPosClientesCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/pos_clientes` as const
+}
+
 /** ID determinístico: `{sedeId}_{productoId}` o `{sedeId}_{productoId}_{varianteId}` o con talla. */
 export function mcPosStockDocId(
   sedeId: string,

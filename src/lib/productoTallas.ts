@@ -4,7 +4,7 @@ import { parseStockInput } from '@/lib/productoVariantes'
 import { productoUsaMatrizSku, stockDisponibleRopa } from '@/lib/productoSkus'
 
 /** Curva estándar mostrada al crear ropa. */
-export const CURVA_TALLAS_DEFAULT = ['XS', 'S', 'M', 'L', 'XL'] as const
+export const CURVA_TALLAS_DEFAULT = ['XS', 'S', 'M', 'L', 'XL', 'Única'] as const
 
 /** Curva estándar para calzado (tallas numéricas). */
 export const CURVA_TALLAS_ZAPATOS = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45'] as const

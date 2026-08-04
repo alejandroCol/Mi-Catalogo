@@ -38,6 +38,7 @@ import { NewStoreSetupChecklist } from '@/components/onboarding/NewStoreSetupChe
 import { OnboardingExpertRewardCard } from '@/components/onboarding/OnboardingExpertRewardCard'
 import { CompartirMiTiendaButton } from '@/components/dashboard/CompartirMiTiendaButton'
 import { MobilePullToRefresh } from '@/components/MobilePullToRefresh'
+import { mcSupportWhatsappUrl } from '@/lib/mcSupportContact'
 import { useOnboardingRewardWindow } from '@/hooks/useOnboardingRewardWindow'
 import { DASHBOARD_RETURN_NAV, type ConfigSubpageNavState } from '@/app/configuraciones/configSubpageNav'
 import {
@@ -505,7 +506,7 @@ export function DashboardPage() {
           </p>
         )}
         <a
-          href="https://wa.me/573054411568"
+          href={mcSupportWhatsappUrl('Hola, tengo una duda sobre mi tienda en Mi Catálogo')}
           target="_blank"
           rel="noreferrer"
           className="inline-block text-[12px] text-[var(--cat-muted)] underline decoration-neutral-300/80 underline-offset-[3px] transition hover:text-[var(--cat-text)] hover:decoration-neutral-400"

@@ -27,6 +27,7 @@ import { MunicipioCombobox } from '@/public/MunicipioCombobox'
 import { COLOMBIA_DEPARTAMENTOS, formatoDepartamentoEtiqueta, MC_CHECKOUT_DOCUMENTO_TIPOS } from '@/lib/colombiaGeo'
 import { buildCheckoutWhatsappText, whatsappUrlFromNumber } from '@/catalog-local/buildWhatsappUrl'
 import { buildNumeroReferencia, publicCatalogSuccessPath } from '@/lib/catalogOrderTracking'
+import { IconWhatsApp } from '@/icons/McIcons'
 import { enrichCatalogLineasWithCost } from '@/lib/catalogLineCost'
 import { fulfillCatalogOrder } from '@/lib/catalogFulfillClient'
 import { markCarritoIniciadoOnOrderComplete } from '@/lib/markCarritoIniciadoOnOrder'
@@ -738,7 +739,7 @@ export function PublicCheckoutPage() {
   )
 
   const resumenCtaAccentClass =
-    'w-full rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40'
+    'inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40'
 
   const navSecondaryClass =
     'rounded-full border mc-pc-border bg-transparent px-4 py-3.5 text-sm font-semibold mc-pc-text transition duration-200 ease-in-out hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40'
@@ -766,7 +767,8 @@ export function PublicCheckoutPage() {
       disabled={finalPayDisabled}
       className={resumenCtaAccentClass}
     >
-      Pedir por Whatsapp
+      <IconWhatsApp monochrome size={18} />
+      Pedir por WhatsApp
     </button>
   ) : (
     <button

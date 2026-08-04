@@ -1,31 +1,9 @@
 import type { LineaCarritoSimple } from '@/catalog-local/simpleCartTypes'
-
-function formatCopPlain(n: number) {
-  try {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0,
-    }).format(n)
-  } catch {
-    return `${n}`
-  }
-}
-
-function lineasWhatsappBody(lines: LineaCarritoSimple[]): string {
-  return lines
-    .map((l) => {
-      const price =
-        l.precioUnitarioCop != null && l.precioUnitarioCop > 0 ? ` · ${formatCopPlain(l.precioUnitarioCop)} c/u` : ''
-      const sub = l.subtitulo ? ` (${l.subtitulo})` : ''
-      return `• ${l.titulo}${sub} — ${l.cantidad} u${price}`
-    })
-    .join('\n')
-}
+import { formatCopPlain, formatLineasCarritoWhatsapp } from '@/catalog-local/formatWhatsappCartLine'
 
 export function buildPedidoWhatsappTextSimple(lines: LineaCarritoSimple[], intro?: string): string {
   const head = intro?.trim() || 'Hola 👋 Quiero pedir desde el catálogo:'
-  const body = lineasWhatsappBody(lines)
+  const body = formatLineasCarritoWhatsapp(lines)
   const total = lines.reduce((s, l) => s + l.cantidad, 0)
   return `${head}\n\n${body}\n\nTotal unidades: ${total}\n\n¿Me confirman disponibilidad?`
 }
@@ -55,7 +33,7 @@ export function buildCheckoutWhatsappText(
   ctx: CheckoutWhatsappContext,
 ): string {
   const head = intro?.trim() || 'Hola 👋 Quiero hacer este pedido:'
-  const body = lineasWhatsappBody(lines)
+  const body = formatLineasCarritoWhatsapp(lines)
   const partes: string[] = [
     head,
     '',
@@ -83,7 +61,9 @@ export function buildCheckoutWhatsappText(
     `${ctx.envioDepartamento} · ${ctx.envioCiudad}`,
     ctx.envioDireccion,
   )
-  if (ctx.envioReferencia?.trim()) partes.push(`Ref.: ${ctx.envioReferencia.trim()}`)
+  if (ctx.envioReferencia?.trim()) {
+    partes.push(`Referencia de entrega: ${ctx.envioReferencia.trim()}`)
+  }
   if (ctx.nota?.trim()) partes.push('', `Nota: ${ctx.nota.trim()}`)
   partes.push('', '¿Me confirman disponibilidad y forma de pago?')
   return partes.join('\n')

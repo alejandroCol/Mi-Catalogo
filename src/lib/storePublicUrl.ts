@@ -24,6 +24,8 @@ export const MC_RESERVED_STORE_SLUGS = new Set([
   'status',
   'blog',
   'docs',
+  'faq',
+  'preguntas-frecuentes',
   'superadmin',
   'vendedor',
   'login',

@@ -13,10 +13,23 @@ import {
   variantesConStockDefinido,
   type VarianteDraftConArchivo,
 } from '@/lib/productoVariantes'
-import type { McProducto, McProductoVariante } from '@/types/mc'
+import { resolveImagenesFromDrafts } from '@/lib/productoImagenes'
+import {
+  buildZapatosStockPayload,
+  coloresZapatosTienenStock,
+  colorZapatoToVariante,
+  productImageFromZapatosVariantes,
+  resolveImagenPrincipalColorId,
+  sumarStockColoresZapatos,
+} from '@/lib/productoZapatos'
+import type { McProducto, McProductoTallaModo, McProductoVariante } from '@/types/mc'
+import type { ProductoFormTipo } from '@/components/producto/ProductoEsRopaStep'
 
 export type QuickAddFormSnapshot = {
+  tipoProducto?: ProductoFormTipo
+  /** @deprecated Usar tipoProducto; se mantiene por compatibilidad con borradores. */
   esRopa: boolean
+  tallaModo?: McProductoTallaModo
   nombre: string
   descripcion: string
   precio: string
@@ -29,21 +42,67 @@ export type QuickAddFormSnapshot = {
   descuento: ProductoDescuentoDraft
   variantes: VarianteDraftConArchivo[]
   skuMatrix: SkuDraft[]
+  coloresZapatos: import('@/lib/productoZapatos').ColorZapatoDraft[]
+  imagenPrincipalColorId?: string | null
   categoriaIds: string[]
+}
+
+function formEsConTallas(form: QuickAddFormSnapshot): boolean {
+  if (form.tipoProducto === 'ropa' || form.tipoProducto === 'zapatos') return true
+  return form.esRopa
+}
+
+function formEsZapatos(form: QuickAddFormSnapshot): boolean {
+  return form.tipoProducto === 'zapatos' || form.tallaModo === 'zapatos'
+}
+
+function formTallaModo(form: QuickAddFormSnapshot): McProductoTallaModo {
+  if (form.tallaModo === 'zapatos' || form.tipoProducto === 'zapatos') return 'zapatos'
+  return 'ropa'
 }
 
 function buildVariantesForSave(
   rows: VarianteDraftConArchivo[],
-  esRopa: boolean,
+  esConTallas: boolean,
 ): McProductoVariante[] {
   const built: McProductoVariante[] = []
   for (const v of rows) {
     const item = buildVarianteFromDraft(v)
     if (!item) continue
-    if (esRopa) delete item.stock
+    if (esConTallas) delete item.stock
     built.push(item)
   }
   return built
+}
+
+function resolveStockPayload(form: QuickAddFormSnapshot): {
+  builtVar: McProductoVariante[]
+  stockPayload: ReturnType<typeof buildRopaStockPayload> | null
+} {
+  if (formEsZapatos(form)) {
+    const coloresConNombre = form.coloresZapatos.filter((c) => c.nombre.trim())
+    const builtVar = coloresConNombre
+      .map((c) => {
+        const imgs = c.imagenes.length > 0 ? resolveImagenesFromDrafts(c.imagenes, c.coverId) : {}
+        return colorZapatoToVariante(c, imgs)
+      })
+      .filter((v): v is McProductoVariante => v != null)
+    const stockPayload =
+      coloresConNombre.length > 0 ? buildZapatosStockPayload(coloresConNombre) : null
+    return { builtVar, stockPayload }
+  }
+
+  const varianteRows = form.variantes.filter((v) => v.nombre.trim())
+  const builtTallas = formEsConTallas(form) ? buildTallasFromDrafts(form.tallas) : []
+  const builtVar = buildVariantesForSave(varianteRows, formEsConTallas(form))
+  const stockPayload = formEsConTallas(form)
+    ? buildRopaStockPayload({
+        tallas: builtTallas,
+        variantes: builtVar,
+        skuDrafts: form.skuMatrix,
+      })
+    : null
+  return { builtVar, stockPayload }
 }
 
 /** True si el formulario tiene datos que vale la pena persistir como borrador. */
@@ -54,10 +113,13 @@ export function quickAddFormHasDraftContent(form: QuickAddFormSnapshot): boolean
   if (form.stock.replace(/\D/g, '')) return true
   if (form.categoriaIds.length > 0) return true
   if (form.variantes.length > 0) return true
+  if (form.coloresZapatos.length > 0) return true
   if (form.marcarNovedad || form.mostrarDescargaImagen || form.mostrarBotonDocena) return true
   if (form.descuento.activo) return true
-  if (form.esRopa && form.tallas.some((t) => Number(t.stock.replace(/\D/g, '')) > 0)) return true
-  if (form.esRopa && sumarStockSkuDrafts(form.skuMatrix) > 0) return true
+  if (formEsZapatos(form) && sumarStockColoresZapatos(form.coloresZapatos) > 0) return true
+  if (formEsConTallas(form) && !formEsZapatos(form) && form.tallas.some((t) => Number(t.stock.replace(/\D/g, '')) > 0))
+    return true
+  if (formEsConTallas(form) && !formEsZapatos(form) && sumarStockSkuDrafts(form.skuMatrix) > 0) return true
   return false
 }
 
@@ -69,22 +131,17 @@ export function buildProductoPayloadFromQuickAddForm(
   const precioNum = Number(form.precio.replace(/\D/g, ''))
   const precioCostoNum = form.precioCosto.replace(/\D/g, '') ? Number(form.precioCosto.replace(/\D/g, '')) : undefined
   const stockNum = Number(form.stock.replace(/\D/g, ''))
-  const varianteRows = form.variantes.filter((v) => v.nombre.trim())
-  const builtTallas = form.esRopa ? buildTallasFromDrafts(form.tallas) : []
-  const builtVar = buildVariantesForSave(varianteRows, form.esRopa)
-  const ropaStock = form.esRopa
-    ? buildRopaStockPayload({
-        tallas: builtTallas,
-        variantes: builtVar,
-        skuDrafts: form.skuMatrix,
-      })
-    : null
+  const esConTallas = formEsConTallas(form)
+  const tallaModo = formTallaModo(form)
+  const { builtVar, stockPayload } = resolveStockPayload(form)
 
   let stockFinal = Number.isFinite(stockNum) ? stockNum : 0
-  if (form.esRopa && ropaStock) {
-    stockFinal = ropaStock.stockFinal
+  if (stockPayload) {
+    stockFinal = stockPayload.stockFinal
   } else if (builtVar.length > 0 && variantesConStockDefinido(builtVar)) {
     stockFinal = sumarStockVariantes(builtVar)
+  } else if (formEsZapatos(form) && coloresZapatosTienenStock(form.coloresZapatos)) {
+    stockFinal = sumarStockColoresZapatos(form.coloresZapatos)
   }
 
   const descParsed =
@@ -93,6 +150,11 @@ export function buildProductoPayloadFromQuickAddForm(
       : ({ ok: true, fields: { descuentoActivo: false } } as const)
 
   const now = Date.now()
+  const esZapatos = formEsZapatos(form)
+  const principalColorId = esZapatos
+    ? resolveImagenPrincipalColorId(form.coloresZapatos, form.imagenPrincipalColorId ?? null)
+    : null
+  const prodImg = esZapatos ? productImageFromZapatosVariantes(builtVar, principalColorId) : {}
 
   return {
     nombre: form.nombre.trim(),
@@ -106,11 +168,14 @@ export function buildProductoPayloadFromQuickAddForm(
     orden: nextOrden,
     createdAt: now,
     updatedAt: now,
-    ...(form.esRopa && ropaStock
+    ...(prodImg.imageUrl ? { imageUrl: prodImg.imageUrl } : {}),
+    ...(esConTallas && stockPayload
       ? {
           esRopa: true,
-          tallas: ropaStock.tallas,
-          ...(ropaStock.skus?.length ? { skus: ropaStock.skus } : {}),
+          tallaModo,
+          tallas: stockPayload.tallas,
+          ...(stockPayload.skus?.length ? { skus: stockPayload.skus } : {}),
+          ...(principalColorId ? { imagenPrincipalColorId: principalColorId } : {}),
         }
       : {}),
     ...(form.marcarNovedad ? { marcarNovedad: true } : {}),

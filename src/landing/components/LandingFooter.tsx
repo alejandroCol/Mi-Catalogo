@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { LandingBrandLogo } from '@/landing/components/LandingBrandLogo'
+import { LANDING_FAQ_PATH } from '@/landing/faqContent'
 import { footerContent, landingNavLinks } from '@/landing/landingContent'
 import { LandingRegisterButton } from '@/landing/components/LandingRegisterButton'
 
@@ -18,6 +19,9 @@ export function LandingFooter() {
               {link.label}
             </a>
           ))}
+          <Link to={LANDING_FAQ_PATH} className="mc-landing-footer__link">
+            Preguntas frecuentes
+          </Link>
           <Link to="/login" className="mc-landing-footer__link">
             Ingresar
           </Link>

@@ -23,6 +23,9 @@ const LoginPage = lazy(() =>
 const RegisterPage = lazy(() =>
   import('@/auth/RegisterPage').then((m) => ({ default: m.RegisterPage })),
 )
+const FaqPage = lazy(() =>
+  import('@/landing/FaqPage').then((m) => ({ default: m.FaqPage })),
+)
 const VerifyEmailPage = lazy(() =>
   import('@/auth/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })),
 )
@@ -67,6 +70,9 @@ const CuentaLogoPage = lazy(() =>
 )
 const CuentaBannerTemporadaPage = lazy(() =>
   import('@/app/CuentaBannerTemporadaPage').then((m) => ({ default: m.CuentaBannerTemporadaPage })),
+)
+const CuentaSobreMarcaPage = lazy(() =>
+  import('@/app/CuentaSobreMarcaPage').then((m) => ({ default: m.CuentaSobreMarcaPage })),
 )
 const PersonalizarMiTiendaPage = lazy(() =>
   import('@/app/PersonalizarMiTiendaPage').then((m) => ({ default: m.PersonalizarMiTiendaPage })),
@@ -438,6 +444,8 @@ function PlatformRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/registro" element={<RegisterPage />} />
+      <Route path="/preguntas-frecuentes" element={<FaqPage />} />
+      <Route path="/faq" element={<Navigate to="/preguntas-frecuentes" replace />} />
       <Route path="/verificar-email" element={<VerifyEmailPage />} />
       <Route
         path="/vendedor"
@@ -538,6 +546,7 @@ function PlatformRoutes() {
         <Route path="cuenta/fuentes" element={<CuentaFuentesPage />} />
         <Route path="cuenta/logo" element={<CuentaLogoPage />} />
         <Route path="cuenta/banner-temporada" element={<CuentaBannerTemporadaPage />} />
+        <Route path="cuenta/sobre-marca" element={<CuentaSobreMarcaPage />} />
         <Route path="cuenta/carritos-abandonados" element={<CarritosAbandonadosPage />} />
         <Route path="cuenta/tutoriales" element={<CuentaTutorialesPage />} />
         <Route path="pagos-pasarela" element={<PagosPasarelaPage />} />

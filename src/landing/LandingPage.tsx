@@ -12,6 +12,7 @@ import { LandingPosSection } from '@/landing/components/LandingPosSection'
 import { LandingFinalCta } from '@/landing/components/LandingFinalCta'
 import { LandingFooter } from '@/landing/components/LandingFooter'
 import { LandingMobileDock } from '@/landing/components/LandingMobileDock'
+import { LandingWhatsAppButton } from '@/landing/components/LandingWhatsAppButton'
 
 export function LandingPage() {
   const { firebaseUser, profile, profileReady, loading, isImpersonating } = useMcAuth()
@@ -50,6 +51,7 @@ export function LandingPage() {
       </main>
       <LandingFooter />
       <LandingMobileDock />
+      <LandingWhatsAppButton />
     </div>
   )
 }

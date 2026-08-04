@@ -1,1 +1,0 @@
-import{t as e}from"./PublicCatalogLayout-BEw3F-VF.js";export{e as PublicCatalogLayout};

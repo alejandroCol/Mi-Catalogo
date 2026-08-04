@@ -17,7 +17,10 @@ import {
   resolvePublicCatalogTheme,
 } from '@/lib/catalogTheme'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
+import { storeAboutVisible, storeSocialFooterVisible } from '@/lib/storeBrandFooter'
 import { CatalogPreviewBanner } from '@/public/CatalogPreviewBanner'
+import { StoreBrandAboutSection } from '@/public/StoreBrandAboutSection'
+import { StoreBrandSocialLinks } from '@/public/StoreBrandSocialLinks'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicCatalogVisitTracking } from '@/public/usePublicCatalogAnalytics'
 import { usePublicStore } from '@/public/PublicStoreContext'
@@ -190,8 +193,14 @@ function CartChrome() {
         </McOutletBoundary>
       </main>
 
+      {tenant && storeAboutVisible(tenant) ? <StoreBrandAboutSection tenant={tenant} /> : null}
+
       <footer className="mt-auto border-t mc-pc-border py-6 sm:py-8">
-        <div className="mc-public-catalog-inset flex flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
+        <div className="mc-public-catalog-inset flex flex-col items-center gap-5">
+          {tenant && storeSocialFooterVisible(tenant) ? (
+            <StoreBrandSocialLinks tenant={tenant} />
+          ) : null}
+          <div className="flex w-full flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
           <p className="max-w-md text-[11px] leading-relaxed sm:text-xs mc-pc-muted">
             {tenant?.nombreTienda ? (
               <>
@@ -219,6 +228,7 @@ function CartChrome() {
                 Envíos, pagos y cambios
               </Link>
             )}
+          </div>
           </div>
         </div>
       </footer>

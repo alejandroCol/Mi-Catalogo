@@ -339,6 +339,8 @@ service cloud.firestore {
         'catalogTheme',
         'storeLogoUrl',
         'seasonBanner',
+        'storeAbout',
+        'storeSocialFooter',
         'posSedeBodegaId',
         'posBridgeInstallerUrl',
       ];

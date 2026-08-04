@@ -62,6 +62,25 @@ const TILES: PersonalizarTile[] = [
     ),
     size: 'normal',
   },
+  {
+    id: 'sobre-marca',
+    title: 'Sobre mi marca',
+    description: 'Historia de tu marca y redes en el pie de página',
+    to: '/app/cuenta/sobre-marca',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+        <circle cx="12" cy="8" r="3.25" stroke="currentColor" strokeWidth="1.5" />
+        <path
+          d="M6 19.5c0-3.31 2.69-6 6-6s6 2.69 6 6"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <path d="M4 20h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+    size: 'normal',
+  },
 ]
 
 export function PersonalizarMiTiendaPage() {

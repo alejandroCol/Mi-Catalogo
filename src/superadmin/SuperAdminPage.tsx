@@ -19,6 +19,7 @@ import { isMcSuperAdminUser } from '@/lib/mcUserFromFirestore'
 import { fetchTenantsOverview, type TenantOverviewRow } from './fetchTenantsOverview'
 import { LandingDemoSettings } from './LandingDemoSettings'
 import { NewStoreNotifyEmailSettings } from './NewStoreNotifyEmailSettings'
+import { MuxLiveTestSettings } from './MuxLiveTestSettings'
 import { NewStoreExpertPromoSettings } from './NewStoreExpertPromoSettings'
 import { TenantOverviewListItem } from './TenantOverviewListItem'
 import {
@@ -231,6 +232,7 @@ export function SuperAdminPage() {
 
       <NewStoreNotifyEmailSettings />
       <NewStoreExpertPromoSettings />
+      <MuxLiveTestSettings />
       <LandingDemoSettings />
 
       <Link

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { deleteField, doc, updateDoc } from 'firebase/firestore'
 import { ProductoDescuentoEditor, parseProductoDescuentoDraft, type ProductoDescuentoDraft } from '@/components/producto/ProductoDescuentoEditor'
-import { ProductoEsRopaStep } from '@/components/producto/ProductoEsRopaStep'
+import { ProductoEsRopaStep, type ProductoFormTipo } from '@/components/producto/ProductoEsRopaStep'
 import { ProductoFormSection } from '@/components/producto/ProductoFormSection'
 import { ProductoImagenesEditor } from '@/components/producto/ProductoImagenesEditor'
 import { ProductoOpcionToggle } from '@/components/producto/ProductoOpcionToggle'
 import { ProductoTallasEditor } from '@/components/producto/ProductoTallasEditor'
 import { ProductoRopaSkuMatrixEditor } from '@/components/producto/ProductoRopaSkuMatrixEditor'
+import { ProductoZapatosColoresEditor } from '@/components/producto/ProductoZapatosColoresEditor'
 import { ProductoVariantesEditor } from '@/components/producto/ProductoVariantesEditor'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import type { VarianteDraftConArchivo } from '@/lib/productoVariantes'
@@ -30,6 +31,7 @@ import {
 import {
   buildTallasFromDrafts,
   createCurvaTallasDraft,
+  createCurvaZapatosDraft,
   sumarStockTallas,
   type TallaDraft,
 } from '@/lib/productoTallas'
@@ -39,7 +41,17 @@ import {
   sumarStockVariantes,
   variantesConStockDefinido,
 } from '@/lib/productoVariantes'
-import type { McPlatformSettings, McProducto, McProductoVariante, McTenant } from '@/types/mc'
+import {
+  buildZapatosStockPayload,
+  coloresZapatosTienenStock,
+  colorZapatoToVariante,
+  productImageFromZapatosVariantes,
+  resolveImagenPrincipalColorId,
+  serializeColoresZapatosForDraft,
+  uploadColoresZapatosVariantes,
+  type ColorZapatoDraft,
+} from '@/lib/productoZapatos'
+import type { McPlatformSettings, McProducto, McProductoTallaModo, McProductoVariante, McTenant } from '@/types/mc'
 import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
 import { McErrorDialog } from '@/components/McErrorDialog'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
@@ -53,6 +65,17 @@ import {
 type DraftSaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 const DRAFT_AUTOSAVE_MS = 1200
+
+function initialTipoProducto(draft?: QuickAddProductDraft | null): ProductoFormTipo {
+  if (draft?.tipoProducto) return draft.tipoProducto
+  if (draft?.tallaModo === 'zapatos') return 'zapatos'
+  if (draft?.esRopa) return 'ropa'
+  return 'general'
+}
+
+function tipoProductoEsConTallas(tipo: ProductoFormTipo): boolean {
+  return tipo === 'ropa' || tipo === 'zapatos'
+}
 
 export function QuickAddProductModal({
   tenantId,
@@ -70,15 +93,22 @@ export function QuickAddProductModal({
   initialDraft?: QuickAddProductDraft | null
 }) {
   const [step, setStep] = useState<'ropa' | 'form'>(initialDraft?.step ?? 'ropa')
-  const [esRopa, setEsRopa] = useState(initialDraft?.esRopa ?? false)
+  const [tipoProducto, setTipoProducto] = useState<ProductoFormTipo>(() => initialTipoProducto(initialDraft))
+  const esConTallas = tipoProductoEsConTallas(tipoProducto)
+  const esRopaForm = tipoProducto === 'ropa'
+  const esZapatosForm = tipoProducto === 'zapatos'
+  const tallaModo: McProductoTallaModo = esZapatosForm ? 'zapatos' : 'ropa'
   const [nombre, setNombre] = useState(initialDraft?.nombre ?? '')
   const [descripcion, setDescripcion] = useState(initialDraft?.descripcion ?? '')
   const [precio, setPrecio] = useState(initialDraft?.precio ?? '')
   const [precioCosto, setPrecioCosto] = useState(initialDraft?.precioCosto ?? '')
   const [stock, setStock] = useState(initialDraft?.stock ?? '')
-  const [tallas, setTallas] = useState<TallaDraft[]>(
-    () => initialDraft?.tallas ?? createCurvaTallasDraft(),
-  )
+  const [tallas, setTallas] = useState<TallaDraft[]>(() => {
+    if (initialDraft?.tallas?.length) return initialDraft.tallas
+    const tipo = initialTipoProducto(initialDraft)
+    if (tipo === 'zapatos') return createCurvaZapatosDraft()
+    return createCurvaTallasDraft()
+  })
   const [imagenes, setImagenes] = useState<ProductoImagenDraft[]>([])
   const [coverId, setCoverId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -101,6 +131,12 @@ export function QuickAddProductModal({
   const [variantes, setVariantes] = useState<VarianteDraftConArchivo[]>(
     () => initialDraft?.variantes ?? [],
   )
+  const [coloresZapatos, setColoresZapatos] = useState<ColorZapatoDraft[]>(
+    () => initialDraft?.coloresZapatos ?? [],
+  )
+  const [imagenPrincipalColorId, setImagenPrincipalColorId] = useState<string | null>(
+    () => initialDraft?.imagenPrincipalColorId ?? resolveImagenPrincipalColorId(initialDraft?.coloresZapatos ?? [], null),
+  )
   const [skuMatrix, setSkuMatrix] = useState<SkuDraft[]>(() => initialDraft?.skuMatrix ?? [])
   const [categoriaIds, setCategoriaIds] = useState<string[]>(initialDraft?.categoriaIds ?? [])
   const [draftProductId, setDraftProductId] = useState<string | null>(
@@ -122,7 +158,7 @@ export function QuickAddProductModal({
   const { showSaveSuccess } = useSaveSuccess()
   const tieneVariantes = variantes.length > 0
   const colorRows = variantes.filter((v) => v.nombre.trim())
-  const usaMatrizRopa = ropaUsaMatrizEnForm(esRopa, colorRows.length)
+  const usaMatrizRopa = ropaUsaMatrizEnForm(esRopaForm, colorRows.length)
   const colorMatrixKey = colorRows.map((v) => `${v.id}:${v.nombre.trim()}`).join('|')
   const tallaMatrixKey = tallas.map((t) => `${t.id}:${t.nombre}`).join('|')
 
@@ -139,7 +175,9 @@ export function QuickAddProductModal({
 
   const getFormSnapshot = useCallback((): QuickAddFormSnapshot => {
     return {
-      esRopa,
+      tipoProducto,
+      esRopa: esConTallas,
+      tallaModo: esConTallas ? tallaModo : undefined,
       nombre,
       descripcion,
       precio,
@@ -152,10 +190,16 @@ export function QuickAddProductModal({
       descuento,
       variantes,
       skuMatrix,
+      coloresZapatos,
+      imagenPrincipalColorId,
       categoriaIds,
     }
   }, [
-    esRopa,
+    tipoProducto,
+    esConTallas,
+    tallaModo,
+    coloresZapatos,
+    imagenPrincipalColorId,
     nombre,
     descripcion,
     precio,
@@ -173,7 +217,9 @@ export function QuickAddProductModal({
   const persistSessionDraft = useCallback(() => {
     saveQuickAddDraft({
       step,
-      esRopa,
+      tipoProducto,
+      esRopa: esConTallas,
+      tallaModo: esConTallas ? tallaModo : undefined,
       nombre,
       descripcion,
       precio,
@@ -186,12 +232,18 @@ export function QuickAddProductModal({
       descuento,
       variantes: variantes.map(({ file: _file, ...rest }) => rest),
       skuMatrix,
+      coloresZapatos: serializeColoresZapatosForDraft(coloresZapatos),
+      imagenPrincipalColorId,
       categoriaIds,
       ...(draftProductIdRef.current ? { draftProductId: draftProductIdRef.current } : {}),
     })
   }, [
     step,
-    esRopa,
+    tipoProducto,
+    esConTallas,
+    tallaModo,
+    coloresZapatos,
+    imagenPrincipalColorId,
     nombre,
     descripcion,
     precio,
@@ -307,7 +359,7 @@ export function QuickAddProductModal({
     for (const v of rows) {
       const item = buildVarianteFromDraft(v)
       if (!item) continue
-      if (esRopa) delete item.stock
+      if (esConTallas) delete item.stock
       built.push(item)
     }
     return built
@@ -343,33 +395,67 @@ export function QuickAddProductModal({
     }
 
     const varianteRows = variantes.filter((v) => v.nombre.trim())
-    const builtTallas = esRopa ? buildTallasFromDrafts(tallas) : []
-    const builtVar = buildVariantesForSave(varianteRows)
-    const ropaStock = esRopa
-      ? buildRopaStockPayload({ tallas: builtTallas, variantes: builtVar, skuDrafts: skuMatrix })
-      : null
+    let builtVar: McProductoVariante[] = []
+    let stockPayload: ReturnType<typeof buildRopaStockPayload> | null = null
 
-    if (esRopa) {
-      if (ropaStock!.usaMatriz && ropaStock!.stockFinal <= 0) {
+    if (esZapatosForm) {
+      const coloresConNombre = coloresZapatos.filter((c) => c.nombre.trim())
+      if (coloresConNombre.length === 0) {
+        showCreateError('Agregá al menos un color con su curva de tallas.')
+        return
+      }
+      for (const c of coloresConNombre) {
+        if (c.tallas.some((t) => !t.nombre.trim())) {
+          showCreateError(`Completá el número de todas las tallas del color «${c.nombre.trim()}».`)
+          return
+        }
+      }
+      builtVar = coloresConNombre
+        .map((c) => colorZapatoToVariante(c))
+        .filter((v): v is McProductoVariante => v != null)
+      stockPayload = buildZapatosStockPayload(coloresConNombre)
+      if (!coloresZapatosTienenStock(coloresConNombre)) {
+        showCreateError('Indicá stock en al menos una talla de algún color.')
+        return
+      }
+    } else if (esRopaForm) {
+      const builtTallas = buildTallasFromDrafts(tallas)
+      builtVar = buildVariantesForSave(varianteRows)
+      stockPayload = buildRopaStockPayload({ tallas: builtTallas, variantes: builtVar, skuDrafts: skuMatrix })
+      const tallasSinNombre = tallas.filter((t) => !t.nombre.trim())
+      if (tallasSinNombre.length > 0) {
+        showCreateError('Completá el nombre de todas las tallas antes de guardar.')
+        return
+      }
+      if (stockPayload.usaMatriz && stockPayload.stockFinal <= 0) {
         showCreateError('Indicá stock en al menos una combinación color × talla.')
         return
       }
-      if (!ropaStock!.usaMatriz && sumarStockTallas(builtTallas) <= 0) {
+      if (!stockPayload.usaMatriz && sumarStockTallas(builtTallas) <= 0) {
         showCreateError('Indicá stock en al menos una talla.')
         return
       }
+    } else {
+      builtVar = buildVariantesForSave(varianteRows)
     }
 
+    const coloresConNombreZapatos = esZapatosForm ? coloresZapatos.filter((c) => c.nombre.trim()) : []
+    const principalColorId = esZapatosForm
+      ? resolveImagenPrincipalColorId(coloresConNombreZapatos, imagenPrincipalColorId)
+      : null
+
     const needsStorage =
-      imagenes.length > 0 || varianteRows.some((v) => v.file)
+      (!esZapatosForm && imagenes.length > 0) ||
+      varianteRows.some((v) => v.file) ||
+      (esZapatosForm && coloresZapatos.some((c) => c.imagenes.some((i) => i.kind === 'new')))
     if (needsStorage && !firebaseStorageConfigured) {
       showCreateError('Firebase Storage no está configurado; no se pueden subir imágenes.')
       return
     }
 
     let stockFinal = Number.isFinite(stockNum) ? stockNum : 0
-    if (esRopa && ropaStock) {
-      stockFinal = ropaStock.stockFinal
+    if (stockPayload) {
+      stockFinal = stockPayload.stockFinal
     } else if (builtVar.length > 0 && variantesConStockDefinido(builtVar)) {
       stockFinal = sumarStockVariantes(builtVar)
     }
@@ -388,11 +474,13 @@ export function QuickAddProductModal({
         enCatalogo: true,
         esBorrador: deleteField(),
         updatedAt: Date.now(),
-        ...(esRopa && ropaStock
+        ...(esConTallas && stockPayload
           ? {
               esRopa: true,
-              tallas: ropaStock.tallas,
-              ...(ropaStock.skus?.length ? { skus: ropaStock.skus } : {}),
+              tallaModo,
+              tallas: stockPayload.tallas,
+              ...(stockPayload.skus?.length ? { skus: stockPayload.skus } : {}),
+              ...(esZapatosForm && principalColorId ? { imagenPrincipalColorId: principalColorId } : {}),
             }
           : {}),
         ...(marcarNovedad ? { marcarNovedad: true } : {}),
@@ -419,11 +507,13 @@ export function QuickAddProductModal({
             orden: nextOrden,
             createdAt: Date.now(),
             updatedAt: Date.now(),
-            ...(esRopa && ropaStock
+            ...(esConTallas && stockPayload
           ? {
               esRopa: true,
-              tallas: ropaStock.tallas,
-              ...(ropaStock.skus?.length ? { skus: ropaStock.skus } : {}),
+              tallaModo,
+              tallas: stockPayload.tallas,
+              ...(stockPayload.skus?.length ? { skus: stockPayload.skus } : {}),
+              ...(esZapatosForm && principalColorId ? { imagenPrincipalColorId: principalColorId } : {}),
             }
           : {}),
             ...(marcarNovedad ? { marcarNovedad: true } : {}),
@@ -440,25 +530,45 @@ export function QuickAddProductModal({
 
       const patch: Record<string, unknown> = {}
 
-      if (imagenes.length > 0 && firebaseStorageConfigured) {
+      if (!esZapatosForm && imagenes.length > 0 && firebaseStorageConfigured) {
         const storage = getStorageApp()
         const uploaded = await uploadProductoImagenes(storage, tenantId, productId, imagenes, coverId)
         if (uploaded.imageUrl) patch.imageUrl = uploaded.imageUrl
         if (uploaded.galeriaImagenes) patch.galeriaImagenes = uploaded.galeriaImagenes
       }
 
-      const variantesConFoto = varianteRows.filter((v) => v.file)
-      if (variantesConFoto.length > 0 && firebaseStorageConfigured) {
+      if (esZapatosForm && firebaseStorageConfigured) {
         const storage = getStorageApp()
-        const nextVariantes = [...builtVar]
-        for (const row of varianteRows) {
-          if (!row.file) continue
-          const idx = nextVariantes.findIndex((v) => v.id === row.id)
-          if (idx < 0) continue
-          const url = await uploadVarianteImagen(storage, tenantId, productId, row.id, row.file)
-          nextVariantes[idx] = { ...nextVariantes[idx]!, imageUrl: url }
+        const coloresConNombre = coloresZapatos.filter((c) => c.nombre.trim())
+        const tieneImagenes = coloresConNombre.some((c) => c.imagenes.length > 0)
+        if (tieneImagenes) {
+          const nextVariantes = await uploadColoresZapatosVariantes(
+            storage,
+            tenantId,
+            productId,
+            coloresConNombre,
+          )
+          patch.variantes = nextVariantes
+          const principalId = resolveImagenPrincipalColorId(coloresConNombre, imagenPrincipalColorId)
+          const prodImg = productImageFromZapatosVariantes(nextVariantes, principalId)
+          if (prodImg.imageUrl) patch.imageUrl = prodImg.imageUrl
+          if (prodImg.imagenPrincipalColorId) patch.imagenPrincipalColorId = prodImg.imagenPrincipalColorId
+          patch.galeriaImagenes = deleteField()
         }
-        patch.variantes = nextVariantes
+      } else {
+        const variantesConFoto = varianteRows.filter((v) => v.file)
+        if (variantesConFoto.length > 0 && firebaseStorageConfigured) {
+          const storage = getStorageApp()
+          const nextVariantes = [...builtVar]
+          for (const row of varianteRows) {
+            if (!row.file) continue
+            const idx = nextVariantes.findIndex((v) => v.id === row.id)
+            if (idx < 0) continue
+            const url = await uploadVarianteImagen(storage, tenantId, productId, row.id, row.file)
+            nextVariantes[idx] = { ...nextVariantes[idx]!, imageUrl: url }
+          }
+          patch.variantes = nextVariantes
+        }
       }
 
       if (Object.keys(patch).length > 0) {
@@ -490,9 +600,13 @@ export function QuickAddProductModal({
     return (
       <ProductoEsRopaStep
         onClose={handleClose}
-        onSelect={(ropa) => {
-          setEsRopa(ropa)
-          if (ropa) setTallas(createCurvaTallasDraft())
+        onSelect={(tipo) => {
+          setTipoProducto(tipo)
+          if (tipo === 'ropa') setTallas(createCurvaTallasDraft())
+          else if (tipo === 'zapatos') {
+            setTallas(createCurvaZapatosDraft())
+            setColoresZapatos([])
+          }
           setStep('form')
         }}
       />
@@ -520,15 +634,21 @@ export function QuickAddProductModal({
             <div className="min-w-0">
               <h2 className="ios-headline text-[22px] sm:text-2xl">Agregar producto</h2>
               <p className="ios-footnote mt-1.5 max-w-2xl text-mc-600">
-                {esRopa
-                  ? 'Prenda de vestir: stock por talla y variantes de color o tela.'
-                  : 'Subí fotos, completá los datos y guardá. Si cerrás el formulario, tu progreso queda como borrador.'}
+                {tipoProducto === 'zapatos'
+                  ? 'Calzado: stock por talla numérica y variantes de color.'
+                  : tipoProducto === 'ropa'
+                    ? 'Prenda de vestir: stock por talla y variantes de color o tela.'
+                    : 'Subí fotos, completá los datos y guardá. Si cerrás el formulario, tu progreso queda como borrador.'}
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">
-              {esRopa ? (
+              {tipoProducto === 'ropa' ? (
                 <span className="rounded-full bg-mc-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
                   Ropa
+                </span>
+              ) : tipoProducto === 'zapatos' ? (
+                <span className="rounded-full bg-mc-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                  Zapatos
                 </span>
               ) : null}
               {draftStatusLabel ? (
@@ -551,17 +671,19 @@ export function QuickAddProductModal({
         <form onSubmit={onSubmit} className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">
           <div className="grid gap-5 xl:grid-cols-2 xl:gap-6">
             <div className="space-y-5">
-              <ProductoFormSection>
-                <ProductoImagenesEditor
-                  items={imagenes}
-                  coverId={coverId}
-                  onChange={(next, nextCover) => {
-                    setImagenes(next)
-                    setCoverId(nextCover)
-                  }}
-                  disabled={busy}
-                />
-              </ProductoFormSection>
+              {!esZapatosForm ? (
+                <ProductoFormSection>
+                  <ProductoImagenesEditor
+                    items={imagenes}
+                    coverId={coverId}
+                    onChange={(next, nextCover) => {
+                      setImagenes(next)
+                      setCoverId(nextCover)
+                    }}
+                    disabled={busy}
+                  />
+                </ProductoFormSection>
+              ) : null}
 
               <ProductoFormSection title="Información básica">
                 <div className="space-y-3">
@@ -583,7 +705,39 @@ export function QuickAddProductModal({
               </ProductoFormSection>
 
               <ProductoFormSection title="Precio y stock">
-                {esRopa ? (
+                {esZapatosForm ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="ios-footnote font-medium text-mc-700">Precio base (COP)</label>
+                      <input
+                        className="mc-input mt-1.5 bg-white"
+                        inputMode="numeric"
+                        value={precio}
+                        onChange={(e) => onPrecioChange(e.target.value)}
+                        placeholder="25.000"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div>
+                      <label className="ios-footnote font-medium text-mc-700">Precio de costo (opcional)</label>
+                      <input
+                        className="mc-input mt-1.5 bg-white"
+                        inputMode="numeric"
+                        value={precioCosto}
+                        onChange={(e) => onPrecioCostoChange(e.target.value)}
+                        placeholder="12.000"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <ProductoZapatosColoresEditor
+                      colores={coloresZapatos}
+                      onChange={setColoresZapatos}
+                      imagenPrincipalColorId={imagenPrincipalColorId}
+                      onImagenPrincipalColorIdChange={setImagenPrincipalColorId}
+                      disabled={busy}
+                    />
+                  </div>
+                ) : esRopaForm ? (
                   <div className="space-y-4">
                     <div>
                       <label className="ios-footnote font-medium text-mc-700">Precio base (COP)</label>
@@ -613,6 +767,7 @@ export function QuickAddProductModal({
                     <ProductoTallasEditor
                       tallas={tallas}
                       onChange={setTallas}
+                      modo="ropa"
                       disabled={busy}
                       hideStock={usaMatrizRopa}
                     />
@@ -695,13 +850,16 @@ export function QuickAddProductModal({
                 disabled={busy}
               />
 
-              <ProductoVariantesEditor
-                variantes={variantes}
-                onChange={setVariantes}
-                allowImage
-                esRopa={esRopa}
-                disabled={busy}
-              />
+              {!esZapatosForm ? (
+                <ProductoVariantesEditor
+                  variantes={variantes}
+                  onChange={setVariantes}
+                  allowImage
+                  esRopa={esRopaForm}
+                  tallaModo={esRopaForm ? 'ropa' : undefined}
+                  disabled={busy}
+                />
+              ) : null}
 
               <ProductoFormSection>
                 <div className="space-y-2.5">

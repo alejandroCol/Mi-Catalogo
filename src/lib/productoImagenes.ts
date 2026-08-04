@@ -111,3 +111,78 @@ export async function uploadVarianteImagen(
   await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
   return getDownloadURL(pathRef)
 }
+
+/** Resuelve borradores existentes sin subir (solo URLs ya guardadas). */
+export function resolveImagenesFromDrafts(
+  items: ProductoImagenDraft[],
+  coverId: string | null,
+): { imageUrl?: string; galeriaImagenes?: string[] } {
+  if (items.length === 0) return {}
+  const effectiveCoverId = coverId && items.some((i) => i.id === coverId) ? coverId : items[0]!.id
+  const resolved: { id: string; url: string }[] = []
+  for (const item of items) {
+    if (item.kind === 'existing') resolved.push({ id: item.id, url: item.url })
+  }
+  if (resolved.length === 0) return {}
+  const cover = resolved.find((r) => r.id === effectiveCoverId) ?? resolved[0]!
+  const galeria = resolved.filter((r) => r.id !== cover.id).map((r) => r.url)
+  return {
+    imageUrl: cover.url,
+    ...(galeria.length > 0 ? { galeriaImagenes: galeria } : {}),
+  }
+}
+
+/** Portada + galería de una variante (color). */
+export async function uploadVarianteImagenes(
+  storage: FirebaseStorage,
+  tenantId: string,
+  productId: string,
+  varianteId: string,
+  items: ProductoImagenDraft[],
+  coverId: string | null,
+): Promise<{ imageUrl?: string; galeriaImagenes?: string[] }> {
+  if (items.length === 0) return {}
+
+  const effectiveCoverId = coverId && items.some((i) => i.id === coverId) ? coverId : items[0]!.id
+  const resolved: { id: string; url: string }[] = []
+
+  for (const item of items) {
+    if (item.kind === 'existing') {
+      resolved.push({ id: item.id, url: item.url })
+      continue
+    }
+    const asCover = item.id === effectiveCoverId
+    const url = await uploadVarianteImagenFile(
+      storage,
+      tenantId,
+      productId,
+      varianteId,
+      item.file,
+      asCover,
+    )
+    resolved.push({ id: item.id, url })
+  }
+
+  const cover = resolved.find((r) => r.id === effectiveCoverId) ?? resolved[0]!
+  const galeria = resolved.filter((r) => r.id !== cover.id).map((r) => r.url)
+  return {
+    imageUrl: cover.url,
+    ...(galeria.length > 0 ? { galeriaImagenes: galeria } : {}),
+  }
+}
+
+async function uploadVarianteImagenFile(
+  storage: FirebaseStorage,
+  tenantId: string,
+  productId: string,
+  varianteId: string,
+  file: File,
+  asCover: boolean,
+): Promise<string> {
+  const optimized = await compressImageForUpload(file)
+  const pathRef = asCover
+    ? ref(storage, `mc_tenants/${tenantId}/productos/${productId}_v_${varianteId}.jpg`)
+    : ref(storage, `mc_tenants/${tenantId}/productos/${productId}_v_${varianteId}_g_${crypto.randomUUID()}.jpg`)
+  await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
+  return getDownloadURL(pathRef)
+}

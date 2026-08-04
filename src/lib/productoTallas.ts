@@ -1,5 +1,5 @@
 import type { LineaCarritoSimple } from '@/catalog-local/simpleCartTypes'
-import type { McProducto, McProductoTalla } from '@/types/mc'
+import type { McProducto, McProductoTalla, McProductoTallaModo } from '@/types/mc'
 import { parseStockInput } from '@/lib/productoVariantes'
 import { productoUsaMatrizSku, stockDisponibleRopa } from '@/lib/productoSkus'
 
@@ -9,12 +9,15 @@ export const CURVA_TALLAS_DEFAULT = ['XS', 'S', 'M', 'L', 'XL', 'Única'] as con
 /** Curva estándar para calzado (tallas numéricas). */
 export const CURVA_TALLAS_ZAPATOS = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45'] as const
 
-export type TallaModo = 'simple' | 'ropa' | 'zapatos'
+export type TallaModo = 'simple' | McProductoTallaModo
 
 export const TALLA_UNICA_NOMBRE = 'Talla única'
 
 /** Tipos de variante permitidos cuando el producto es ropa. */
 export const VARIANTE_TIPOS_ROPA = ['Color', 'Tela'] as const
+
+/** Tipos de variante permitidos cuando el producto es calzado. */
+export const VARIANTE_TIPOS_ZAPATOS = ['Color'] as const
 
 export type TallaDraft = {
   id: string
@@ -32,6 +35,24 @@ export function createCurvaTallasDraft(): TallaDraft[] {
 
 export function createCurvaZapatosDraft(): TallaDraft[] {
   return CURVA_TALLAS_ZAPATOS.map((nombre) => createTallaDraft(nombre))
+}
+
+/** Infiere modo de talla a partir de los nombres (ej. «36», «37» → zapatos). */
+export function inferTallaModoFromNombres(nombres: string[]): McProductoTallaModo {
+  const trimmed = nombres.map((n) => n.trim()).filter(Boolean)
+  if (trimmed.length > 0 && trimmed.every((n) => /^\d{1,2}(\.\d)?$/.test(n))) return 'zapatos'
+  return 'ropa'
+}
+
+/** Resuelve el modo de talla de un producto (persistido o inferido). */
+export function getTallaModoFromProducto(prod: McProducto): McProductoTallaModo {
+  if (prod.tallaModo === 'zapatos' || prod.tallaModo === 'ropa') return prod.tallaModo
+  const nombres = (prod.tallas ?? []).map((t) => t.nombre)
+  return inferTallaModoFromNombres(nombres)
+}
+
+export function productoEsConTallas(prod: McProducto): boolean {
+  return !!prod.esRopa && (prod.tallas?.length ?? 0) > 0
 }
 
 export function createTallaUnicaDraft(stock = ''): TallaDraft[] {

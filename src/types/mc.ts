@@ -216,6 +216,10 @@ export interface McTenant {
   cuponesCatalogo?: McCuponTienda[]
   /** Tab de ofertas en el listado público del catálogo. */
   catalogDescuentosTab?: McCatalogDescuentosTab
+  /** Sección «Sobre mi marca» opcional al pie del catálogo. */
+  storeAbout?: McStoreAbout
+  /** Redes sociales opcionales en el pie del catálogo. */
+  storeSocialFooter?: McStoreSocialFooter
   /** Textos del catálogo público: página Políticas (envíos, pagos, cambios). */
   politicasEnvios?: string
   politicasPagos?: string
@@ -306,6 +310,28 @@ export interface McCatalogDescuentosTab {
   enabled: boolean
   /** Etiqueta visible en el tab; si vacía → «Descuento». */
   label?: string
+}
+
+/** Sección «Sobre mi marca» al pie del catálogo público. */
+export interface McStoreAbout {
+  enabled: boolean
+  /** Título principal; si vacío → «Sobre nosotros». */
+  title?: string
+  /** Texto principal (historia, materiales, durabilidad, etc.). */
+  body?: string
+  /** Título del bloque secundario opcional (ej. cuidados del producto). */
+  extraTitle?: string
+  /** Texto del bloque secundario opcional. */
+  extraBody?: string
+}
+
+/** Redes sociales en el pie del catálogo público. */
+export interface McStoreSocialFooter {
+  enabled: boolean
+  /** Mostrar WhatsApp usando `whatsappNumero` de la tienda. */
+  whatsapp?: boolean
+  instagramUrl?: string
+  facebookUrl?: string
 }
 
 /** Cupón configurable desde Cuenta · checkout catálogo. */
@@ -403,6 +429,9 @@ export interface McComboComponenteExpandido {
 }
 
 /** Talla de prenda con stock propio (independiente de variantes de color/tela). */
+export type McProductoTallaModo = 'ropa' | 'zapatos'
+
+/** Talla de prenda con stock propio (independiente de variantes de color/tela). */
 export interface McProductoTalla {
   id: string
   /** Etiqueta visible: «XS», «M», «Talla única», etc. */
@@ -441,6 +470,8 @@ export interface McProductoVariante {
   precioCostoCop?: number
   /** Foto propia de la variante (opcional). */
   imageUrl?: string
+  /** Fotos extra de la variante (p. ej. más ángulos del mismo color). */
+  galeriaImagenes?: string[]
 }
 
 /** Categoría de productos visible en el sidebar del catálogo público. */
@@ -480,8 +511,12 @@ export interface McProducto {
   galeriaImagenes?: string[]
   /** Variantes (colores, telas, etc.). Si hay al menos una, el cliente elige antes de comprar. */
   variantes?: McProductoVariante[]
-  /** Prenda de vestir: stock por talla y variantes limitadas a color/tela. */
+  /** Prenda de vestir o calzado: stock por talla y variantes limitadas a color/tela. */
   esRopa?: boolean
+  /** Curva de tallas: letras (ropa) o numérica (zapatos). Default `ropa` si `esRopa`. */
+  tallaModo?: McProductoTallaModo
+  /** Color cuya portada se usa como imagen principal del producto (calzado). */
+  imagenPrincipalColorId?: string
   /** Curva de tallas con stock individual (solo si `esRopa`). */
   tallas?: McProductoTalla[]
   /** Stock por combinación color × talla (solo si `esRopa` y hay variantes de color). */
@@ -868,6 +903,11 @@ export interface McPlatformSettings {
   landingDemoSlug?: string
   /** Nombre de la tienda para mostrar en el selector de súper admin (cache UI). */
   landingDemoDisplayName?: string
+  /**
+   * Streams Mux de prueba para live shopping (`test: true` — watermark TEST, ~5 min).
+   * Default: true si no está definido. Prioridad sobre `MC_MUX_LIVE_TEST` en Functions.
+   */
+  muxLiveTestEnabled?: boolean
 }
 
 /** Métricas diarias del catálogo público (`mc_tenants/{tid}/analytics_daily/{YYYY-MM-DD}`). */

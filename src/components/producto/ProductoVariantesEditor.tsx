@@ -13,7 +13,8 @@ import {
   type VarianteDraftConArchivo,
   createVarianteDraft,
 } from '@/lib/productoVariantes'
-import { VARIANTE_TIPOS_ROPA } from '@/lib/productoTallas'
+import { VARIANTE_TIPOS_ROPA, VARIANTE_TIPOS_ZAPATOS } from '@/lib/productoTallas'
+import type { McProductoTallaModo } from '@/types/mc'
 
 type Props = {
   variantes: VarianteDraftConArchivo[]
@@ -21,8 +22,10 @@ type Props = {
   /** Permite subir foto por variante. */
   allowImage?: boolean
   disabled?: boolean
-  /** Modo prenda: solo color/tela/otro y sin stock por variante. */
+  /** Modo prenda/calzado: sin stock por variante (va en tallas o matriz). */
   esRopa?: boolean
+  /** Distingue ropa vs zapatos para tipos de variante sugeridos. */
+  tallaModo?: McProductoTallaModo
 }
 
 function patchAt(
@@ -48,12 +51,19 @@ function VarianteTipoField({
   tipo,
   onTipoChange,
   esRopa = false,
+  tallaModo,
 }: {
   tipo: string
   onTipoChange: (next: Partial<VarianteDraftConArchivo>) => void
   esRopa?: boolean
+  tallaModo?: McProductoTallaModo
 }) {
-  const tiposSugeridos = esRopa ? VARIANTE_TIPOS_ROPA : VARIANTE_TIPOS_SUGERIDOS
+  const tiposSugeridos =
+    esRopa && tallaModo === 'zapatos'
+      ? VARIANTE_TIPOS_ZAPATOS
+      : esRopa
+        ? VARIANTE_TIPOS_ROPA
+        : VARIANTE_TIPOS_SUGERIDOS
   const { selectValue, customTipo } = resolveVarianteTipoSelect(tipo)
   const esOtro = selectValue === VARIANTE_SELECT_OTRO
 
@@ -199,7 +209,14 @@ function VarianteNombreField({
   )
 }
 
-export function ProductoVariantesEditor({ variantes, onChange, allowImage = false, disabled = false, esRopa = false }: Props) {
+export function ProductoVariantesEditor({
+  variantes,
+  onChange,
+  allowImage = false,
+  disabled = false,
+  esRopa = false,
+  tallaModo,
+}: Props) {
   const pendingScrollIdRef = useRef<string | null>(null)
   const rowRefs = useRef<Map<string, HTMLLIElement>>(new Map())
 
@@ -242,7 +259,9 @@ export function ProductoVariantesEditor({ variantes, onChange, allowImage = fals
           <p className="ios-footnote font-semibold text-mc-900">Variantes del producto</p>
           <p className="mt-1 text-[12px] leading-relaxed text-mc-600">
             {esRopa
-              ? 'Color, tela u otra opción. Con colores, el stock se define en la matriz color × talla.'
+              ? tallaModo === 'zapatos'
+                ? 'Agregá colores. Con al menos un color, el stock se define en la matriz color × talla.'
+                : 'Color, tela u otra opción. Con colores, el stock se define en la matriz color × talla.'
               : 'Color, olor, capacidad… Cada variante tiene nombre, stock y, si querés, color y precio propios.'}
           </p>
         </div>
@@ -282,7 +301,12 @@ export function ProductoVariantesEditor({ variantes, onChange, allowImage = fals
 
                 <div className="space-y-3 p-3">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <VarianteTipoField tipo={v.tipo} esRopa={esRopa} onTipoChange={(partial) => patch(i, partial)} />
+                    <VarianteTipoField
+                      tipo={v.tipo}
+                      esRopa={esRopa}
+                      tallaModo={tallaModo}
+                      onTipoChange={(partial) => patch(i, partial)}
+                    />
                     <VarianteNombreField
                       tipo={v.tipo}
                       nombre={v.nombre}
@@ -405,7 +429,9 @@ export function ProductoVariantesEditor({ variantes, onChange, allowImage = fals
             )}
           >
             {esRopa
-              ? 'El stock de cada talla se configura en la sección de tallas.'
+              ? tallaModo === 'zapatos'
+                ? 'El stock de cada talla se configura arriba o en la matriz color × talla.'
+                : 'El stock de cada talla se configura en la sección de tallas.'
               : stockTotal > 0
                 ? `Stock total en variantes: ${stockTotal} unidades (se guardará como stock del producto).`
                 : 'Indicá el stock de cada variante para que el cliente vea disponibilidad real.'}

@@ -254,6 +254,7 @@ export function PosNuevoProductoModal({ open, tenantId, sedeId, sede, onClose, o
           ...(usaTallas && ropaStock!.catalogPayload
             ? {
                 esRopa: true,
+                ...(stockModo === 'zapatos' ? { tallaModo: 'zapatos' as const } : { tallaModo: 'ropa' as const }),
                 tallas: ropaStock!.catalogPayload.tallas,
                 ...(ropaStock!.catalogPayload.variantes.length
                   ? { variantes: ropaStock!.catalogPayload.variantes }

@@ -2615,6 +2615,224 @@
     @apply shadow-[0_8px_24px_-8px_rgba(110,86,53,0.45)];
   }
 
+  /* —— WhatsApp FAB + sheet de contacto —— */
+  .mc-landing-wa-fab {
+    @apply fixed z-50 flex h-14 w-14 items-center justify-center rounded-full text-white;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1.25rem, env(safe-area-inset-bottom));
+    background: linear-gradient(160deg, #2fe06b 0%, #1fad4e 55%, #128c3d 100%);
+    box-shadow:
+      0 10px 28px -10px rgba(18, 140, 61, 0.65),
+      0 0 0 1px rgba(255, 255, 255, 0.18) inset;
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease,
+      bottom 0.25s ease;
+  }
+  .mc-landing-wa-fab:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow:
+      0 14px 32px -10px rgba(18, 140, 61, 0.7),
+      0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+  }
+  .mc-landing-wa-fab:active {
+    transform: translateY(0) scale(0.98);
+  }
+  .mc-landing-wa-fab--open {
+    transform: scale(0.96);
+  }
+  .mc-landing-wa-fab__icon {
+    @apply relative z-[1] h-7 w-7;
+  }
+  .mc-landing-wa-fab__pulse {
+    @apply pointer-events-none absolute inset-0 rounded-full;
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.45);
+    animation: mc-landing-wa-pulse 2.4s ease-out infinite;
+  }
+  @keyframes mc-landing-wa-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.45);
+      opacity: 1;
+    }
+    70% {
+      box-shadow: 0 0 0 14px rgba(37, 211, 102, 0);
+      opacity: 0;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  @media (max-width: 767px) {
+    .mc-landing:not(.mc-landing--faq) .mc-landing-wa-fab {
+      bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mc-landing-wa-fab__pulse {
+      animation: none;
+    }
+  }
+
+  .mc-landing-wa-sheet {
+    @apply fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6;
+  }
+  .mc-landing-wa-sheet__backdrop {
+    @apply absolute inset-0 border-0 bg-[rgba(28,27,31,0.48)] backdrop-blur-[2px];
+    animation: mc-landing-wa-fade-in 0.22s ease-out;
+  }
+  .mc-landing-wa-sheet__panel {
+    @apply relative z-[1] w-full max-w-md rounded-t-[1.75rem] border border-[color-mix(in_srgb,var(--mc-landing-gold)_28%,white)] bg-[#faf9f7] px-5 pb-5 pt-3 shadow-[0_-18px_50px_-20px_rgba(28,27,31,0.35)] sm:rounded-[1.75rem] sm:px-6 sm:pb-6 sm:pt-5;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    animation: mc-landing-wa-sheet-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .mc-landing-wa-sheet__handle {
+    @apply mx-auto mb-4 h-1 w-10 rounded-full bg-neutral-300/90 sm:hidden;
+  }
+  .mc-landing-wa-sheet__title {
+    @apply text-[1.35rem] font-semibold tracking-tight text-mc-brand-gray sm:text-[1.5rem];
+  }
+  .mc-landing-wa-sheet__lead {
+    @apply mt-2 text-sm leading-relaxed text-mc-600;
+  }
+  .mc-landing-wa-sheet__options {
+    @apply mt-5 flex flex-col gap-3;
+  }
+  .mc-landing-wa-option {
+    @apply flex items-center gap-3 rounded-2xl border border-neutral-200/90 bg-white px-3.5 py-3.5 text-left transition duration-200;
+    box-shadow: 0 8px 24px -18px rgba(28, 27, 31, 0.35);
+  }
+  .mc-landing-wa-option:hover {
+    @apply border-[color-mix(in_srgb,var(--mc-landing-gold)_45%,neutral-300)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_6%,white)];
+    transform: translateY(-1px);
+  }
+  .mc-landing-wa-option--whatsapp:hover {
+    border-color: color-mix(in srgb, #25d366 40%, #d4d4d8);
+    background: color-mix(in srgb, #25d366 7%, white);
+  }
+  .mc-landing-wa-option__icon {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-semibold;
+  }
+  .mc-landing-wa-option__icon--faq {
+    @apply bg-[color-mix(in_srgb,var(--mc-landing-gold)_18%,white)] text-[var(--mc-landing-gold-deep)];
+  }
+  .mc-landing-wa-option__icon--wa {
+    @apply bg-[#25d366] text-white;
+  }
+  .mc-landing-wa-option__copy {
+    @apply flex min-w-0 flex-1 flex-col gap-0.5;
+  }
+  .mc-landing-wa-option__label {
+    @apply text-[15px] font-semibold tracking-tight text-mc-brand-gray;
+  }
+  .mc-landing-wa-option__hint {
+    @apply text-[12.5px] leading-snug text-mc-600;
+  }
+  .mc-landing-wa-option__chevron {
+    @apply shrink-0 text-mc-500;
+  }
+  .mc-landing-wa-sheet__close {
+    @apply mt-4 w-full rounded-full px-4 py-2.5 text-sm font-medium text-mc-600 transition hover:bg-neutral-100/90 hover:text-mc-brand-gray;
+  }
+  @keyframes mc-landing-wa-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes mc-landing-wa-sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mc-landing-wa-sheet__backdrop,
+    .mc-landing-wa-sheet__panel {
+      animation: none;
+    }
+  }
+
+  /* —— FAQ page —— */
+  .mc-landing--faq {
+    @apply pb-8;
+  }
+  @media (max-width: 767px) {
+    .mc-landing--faq {
+      padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px));
+    }
+  }
+  .mc-landing-nav__actions--faq {
+    @apply !flex;
+  }
+  .mc-landing-faq-hero {
+    @apply pt-28 pb-10 sm:pt-32 sm:pb-12;
+    background:
+      radial-gradient(ellipse 80% 50% at 15% 0%, color-mix(in srgb, var(--mc-landing-gold) 18%, transparent) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 90% 20%, color-mix(in srgb, var(--mc-landing-gold-dark) 10%, transparent) 0%, transparent 50%),
+      linear-gradient(180deg, #faf9f7 0%, #f3efe8 100%);
+  }
+  .mc-landing-faq-list-section {
+    @apply pb-16 sm:pb-20;
+  }
+  .mc-landing-faq__list {
+    @apply mx-auto flex max-w-3xl flex-col gap-3;
+  }
+  .mc-landing-faq__item {
+    @apply overflow-hidden rounded-2xl border border-neutral-200/80 bg-white/90;
+    box-shadow: 0 10px 28px -22px rgba(28, 27, 31, 0.35);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .mc-landing-faq__item--open {
+    @apply border-[color-mix(in_srgb,var(--mc-landing-gold)_40%,neutral-200)];
+    box-shadow: 0 14px 32px -20px color-mix(in srgb, var(--mc-landing-gold-deep) 28%, transparent);
+  }
+  .mc-landing-faq__trigger {
+    @apply flex w-full items-start gap-3 px-4 py-4 text-left sm:px-5 sm:py-5;
+  }
+  .mc-landing-faq__question {
+    @apply flex-1 text-[15px] font-semibold leading-snug tracking-tight text-mc-brand-gray sm:text-base;
+  }
+  .mc-landing-faq__chevron {
+    @apply mt-0.5 shrink-0 text-mc-500 transition-transform duration-200;
+  }
+  .mc-landing-faq__chevron--open {
+    transform: rotate(90deg);
+    @apply text-[var(--mc-landing-gold-dark)];
+  }
+  .mc-landing-faq__answer {
+    @apply border-t border-neutral-100 px-4 pb-4 pt-0 sm:px-5 sm:pb-5;
+  }
+  .mc-landing-faq__answer p {
+    @apply pt-3 text-sm leading-relaxed text-mc-600 sm:text-[15px];
+  }
+  .mc-landing-faq-cta {
+    @apply border-t border-[color-mix(in_srgb,var(--mc-landing-gold)_22%,transparent)] bg-[var(--mc-landing-dark)] py-14 text-[#e8e6eb] sm:py-16;
+  }
+  .mc-landing-faq-cta__inner {
+    @apply flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between;
+  }
+  .mc-landing-faq-cta__title {
+    @apply text-[clamp(1.35rem,3vw,1.85rem)] font-semibold tracking-tight text-white;
+  }
+  .mc-landing-faq-cta__lead {
+    @apply mt-2 max-w-md text-sm leading-relaxed text-white/75 sm:text-[15px];
+  }
+  .mc-landing-faq-cta__actions {
+    @apply flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center;
+  }
+  .mc-landing-faq-cta__wa {
+    @apply w-full sm:w-auto;
+  }
+  .mc-landing-faq-cta__actions .mc-landing-btn-primary {
+    @apply w-full sm:w-auto;
+  }
+
   /** OnePay FTCaptures — contenedor iframe tarjeta (suscripción V2) */
   .op-sdk-field {
     @apply overflow-hidden rounded-lg border border-neutral-200 bg-white;

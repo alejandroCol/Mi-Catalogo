@@ -22,9 +22,15 @@ export type InventarioResumeState = {
   newCategoriaId?: string
 }
 
+import type { ProductoFormTipo } from '@/components/producto/ProductoEsRopaStep'
+import type { McProductoTallaModo } from '@/types/mc'
+
 export type QuickAddProductDraft = {
   step: 'ropa' | 'form'
+  tipoProducto?: ProductoFormTipo
+  /** @deprecated Usar tipoProducto */
   esRopa: boolean
+  tallaModo?: McProductoTallaModo
   nombre: string
   descripcion: string
   precio: string
@@ -37,6 +43,8 @@ export type QuickAddProductDraft = {
   descuento: ProductoDescuentoDraft
   variantes: Omit<VarianteDraftConArchivo, 'file'>[]
   skuMatrix?: import('@/lib/productoSkus').SkuDraft[]
+  coloresZapatos?: import('@/lib/productoZapatos').ColorZapatoDraft[]
+  imagenPrincipalColorId?: string | null
   categoriaIds: string[]
   /** ID del producto borrador en Firestore, si ya se creó. */
   draftProductId?: string

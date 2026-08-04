@@ -46,9 +46,9 @@ export type LandingStep = {
 }
 
 export const landingNavLinks: LandingNavLink[] = [
-  { id: 'tiendas', label: 'Tiendas', href: '#tiendas' },
-  { id: 'como-funciona', label: 'Cómo funciona', href: '#como-funciona' },
-  { id: 'beneficios', label: 'Beneficios', href: '#beneficios' },
+  { id: 'tiendas', label: 'Tiendas', href: '/#tiendas' },
+  { id: 'como-funciona', label: 'Cómo funciona', href: '/#como-funciona' },
+  { id: 'beneficios', label: 'Beneficios', href: '/#beneficios' },
 ]
 
 export const heroContent = {

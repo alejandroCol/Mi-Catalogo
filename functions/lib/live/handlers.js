@@ -6,6 +6,7 @@ import { db } from '../firebaseAdmin.js';
 import { assertMasterLiveAccess, resolveLiveTenantForOwner, resolvePublicTenantBySlug, } from './liveAuth.js';
 import { createLiveSession, endLiveSession, incrementLivePurchaseCount, incrementLiveViewerCount, pinLiveProduct, startLiveSession, syncSessionProducts, updateLiveStreamActive, parseLivePassthrough, setBrowserBroadcastMeta, } from './liveSessionService.js';
 import { getStreamProvider, liveStreamSecrets, muxTokenId, muxTokenSecret } from './getStreamProvider.js';
+import { fetchMuxLiveTestMode } from './platformLiveSettings.js';
 import { throwLiveServiceError } from './liveErrors.js';
 import { getBrowserIngest, liveBrowserSecrets, livekitApiKey, livekitApiSecret, livekitUrl, } from './getBrowserIngest.js';
 const mcPublicOrigin = defineString('MC_PUBLIC_ORIGIN', { default: 'https://micatalogo.io' });
@@ -25,7 +26,7 @@ function sanitizeProductIds(raw) {
 function sanitizeSessionId(raw) {
     const s = typeof raw === 'string' ? raw.trim() : '';
     if (!s || s.length > 128)
-        throw new HttpsError('invalid-argument', 'Sesión inválida.');
+        throw new HttpsError('invalid-argument', 'Sesi?n inv?lida.');
     return s;
 }
 function sanitizeDisplayName(raw) {
@@ -35,15 +36,15 @@ function sanitizeDisplayName(raw) {
 function sanitizeChatText(raw) {
     const s = typeof raw === 'string' ? raw.trim() : '';
     if (!s)
-        throw new HttpsError('invalid-argument', 'Escribí un mensaje.');
+        throw new HttpsError('invalid-argument', 'Escrib? un mensaje.');
     if (s.length > 280)
-        throw new HttpsError('invalid-argument', 'Máximo 280 caracteres.');
+        throw new HttpsError('invalid-argument', 'M?ximo 280 caracteres.');
     return s;
 }
 function sanitizeSlug(raw) {
     const s = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
     if (!s)
-        throw new HttpsError('invalid-argument', 'Tienda inválida.');
+        throw new HttpsError('invalid-argument', 'Tienda inv?lida.');
     return s;
 }
 function browserIngestFromSecrets() {
@@ -53,10 +54,12 @@ function browserIngestFromSecrets() {
         livekitApiSecret: livekitApiSecret.value(),
     });
 }
-function providerFromSecrets() {
+async function providerFromPlatform() {
+    const muxTestMode = await fetchMuxLiveTestMode();
     return getStreamProvider({
         muxTokenId: muxTokenId.value(),
         muxTokenSecret: muxTokenSecret.value(),
+        muxTestMode,
     });
 }
 async function getSessionForOwner(tenantId, sessionId) {
@@ -70,11 +73,11 @@ async function performOwnerEndLiveSession(tenantId, sessionId) {
     await getSessionForOwner(tenantId, sessionId);
     const ingest = browserIngestFromSecrets();
     await endLiveSession(tenantId, sessionId, {
-        streamProvider: providerFromSecrets(),
+        streamProvider: await providerFromPlatform(),
         stopBrowserEgress: ingest ? (id) => ingest.stopBrowserBroadcast(id) : undefined,
     });
 }
-/** Solo lives browser en curso (cierre automático al irse el host). */
+/** Solo lives browser en curso (cierre autom?tico al irse el host). */
 async function performBrowserHostAutoEnd(tenantId, sessionId) {
     const { data } = await getSessionForOwner(tenantId, sessionId);
     if (data.status !== 'live')
@@ -90,7 +93,7 @@ export const mcLiveCreateSession = onCall({ invoker: 'public', secrets: [...live
     const data = (request.data && typeof request.data === 'object' ? request.data : {});
     const slug = tenant.slug?.trim().toLowerCase();
     if (!slug)
-        throw new HttpsError('failed-precondition', 'Configurá el slug de tu tienda.');
+        throw new HttpsError('failed-precondition', 'Configur? el slug de tu tienda.');
     const result = await createLiveSession({
         tenantId,
         hostUid: uid,
@@ -98,7 +101,7 @@ export const mcLiveCreateSession = onCall({ invoker: 'public', secrets: [...live
         title: sanitizeTitle(data.title),
         productIds: sanitizeProductIds(data.productIds),
         platformOrigin: mcPublicOrigin.value(),
-        streamProvider: providerFromSecrets(),
+        streamProvider: await providerFromPlatform(),
     }).catch((err) => {
         throwLiveServiceError(err);
     });
@@ -140,13 +143,13 @@ export const mcLiveStartBrowserBroadcast = onCall({ invoker: 'public', secrets: 
     assertMasterLiveAccess(tenant);
     const ingest = browserIngestFromSecrets();
     if (!ingest?.isConfigured()) {
-        throw new HttpsError('failed-precondition', 'Transmisión desde navegador no configurada. Usá OBS o contactá soporte.');
+        throw new HttpsError('failed-precondition', 'Transmisi?n desde navegador no configurada. Us? OBS o contact? soporte.');
     }
     const data = (request.data && typeof request.data === 'object' ? request.data : {});
     const sessionId = sanitizeSessionId(data.sessionId);
     const { data: sessionData } = await getSessionForOwner(tenantId, sessionId);
     if (sessionData.status === 'ended') {
-        throw new HttpsError('failed-precondition', 'Este live ya terminó.');
+        throw new HttpsError('failed-precondition', 'Este live ya termin?.');
     }
     const hostName = typeof request.auth?.token?.name === 'string'
         ? request.auth.token.name
@@ -165,8 +168,8 @@ export const mcLiveStartBrowserBroadcast = onCall({ invoker: 'public', secrets: 
         console.error('[mcLiveStartBrowserBroadcast]', err);
         const msg = err instanceof Error ? err.message : String(err);
         throw new HttpsError('failed-precondition', msg.includes('Not Found') || msg.includes('room')
-            ? 'No se pudo preparar la sala LiveKit. Revisá LIVEKIT_URL y credenciales.'
-            : `No se pudo preparar la transmisión: ${msg.slice(0, 120)}`);
+            ? 'No se pudo preparar la sala LiveKit. Revis? LIVEKIT_URL y credenciales.'
+            : `No se pudo preparar la transmisi?n: ${msg.slice(0, 120)}`);
     }
 });
 export const mcLiveStartBrowserBroadcastEgress = onCall({ invoker: 'public', secrets: [...liveBrowserSecrets] }, async (request) => {
@@ -180,7 +183,7 @@ export const mcLiveStartBrowserBroadcastEgress = onCall({ invoker: 'public', sec
     const sessionId = sanitizeSessionId(data.sessionId);
     const { data: sessionData } = await getSessionForOwner(tenantId, sessionId);
     if (sessionData.status === 'ended') {
-        throw new HttpsError('failed-precondition', 'Este live ya terminó.');
+        throw new HttpsError('failed-precondition', 'Este live ya termin?.');
     }
     const ingestUrl = String(sessionData.ingestUrl ?? '');
     const streamKey = String(sessionData.streamKey ?? '');
@@ -204,8 +207,8 @@ export const mcLiveStartBrowserBroadcastEgress = onCall({ invoker: 'public', sec
         console.error('[mcLiveStartBrowserBroadcastEgress]', err);
         const msg = err instanceof Error ? err.message : String(err);
         throw new HttpsError('failed-precondition', msg.includes('does not exist')
-            ? 'La sala aún no está lista. Esperá un segundo e intentá de nuevo.'
-            : `No se pudo enviar la señal a Mux: ${msg.slice(0, 120)}`);
+            ? 'La sala a?n no est? lista. Esper? un segundo e intent? de nuevo.'
+            : `No se pudo enviar la se?al a Mux: ${msg.slice(0, 120)}`);
     }
 });
 export const mcLiveEndSession = onCall({ invoker: 'public', secrets: [...liveStreamSecrets, ...liveBrowserSecrets] }, async (request) => {
@@ -262,7 +265,7 @@ hostDisconnectApp.post('/', async (req, res) => {
         res.status(500).json({ ok: false, error: 'internal' });
     }
 });
-/** Cierre automático del live browser (keepalive al cerrar pestaña / timeout cliente). */
+/** Cierre autom?tico del live browser (keepalive al cerrar pesta?a / timeout cliente). */
 export const mcLiveHostDisconnect = onRequest({ cors: false, invoker: 'public', secrets: [...liveStreamSecrets, ...liveBrowserSecrets] }, hostDisconnectApp);
 export const mcLivePinProduct = onCall({ invoker: 'public' }, async (request) => {
     const { tenantId, tenant } = await resolveLiveTenantForOwner(request.auth);
@@ -292,7 +295,7 @@ export const mcLiveSendChat = onCall({ invoker: 'public' }, async (request) => {
         throw new HttpsError('not-found', 'Live no encontrado.');
     const session = sessionSnap.data();
     if (session.status !== 'live')
-        throw new HttpsError('failed-precondition', 'El live no está activo.');
+        throw new HttpsError('failed-precondition', 'El live no est? activo.');
     if (session.chatEnabled === false)
         throw new HttpsError('failed-precondition', 'Chat desactivado.');
     const uid = request.auth?.uid ?? null;
@@ -300,7 +303,7 @@ export const mcLiveSendChat = onCall({ invoker: 'public' }, async (request) => {
     const now = Date.now();
     const last = chatRateMap.get(rateKey) ?? 0;
     if (now - last < CHAT_RATE_MS) {
-        throw new HttpsError('resource-exhausted', 'Esperá un momento antes de enviar otro mensaje.');
+        throw new HttpsError('resource-exhausted', 'Esper? un momento antes de enviar otro mensaje.');
     }
     chatRateMap.set(rateKey, now);
     const msgRef = db.collection(`mc_tenants/${tenantId}/live_sessions/${sessionId}/chat`).doc();
@@ -326,7 +329,7 @@ export const mcLiveJoinViewer = onCall({ invoker: 'public' }, async (request) =>
         throw new HttpsError('not-found', 'Live no encontrado.');
     const session = sessionSnap.data();
     if (session.status !== 'live' && session.status !== 'ended') {
-        throw new HttpsError('failed-precondition', 'Este live aún no comenzó.');
+        throw new HttpsError('failed-precondition', 'Este live a?n no comenz?.');
     }
     if (viewerSessionId && session.status === 'live') {
         const dedupRef = db.doc(`mc_tenants/${tenantId}/live_sessions/${sessionId}/viewers/${viewerSessionId}`);
@@ -351,7 +354,7 @@ export const mcLiveRecordPurchase = onCall({ invoker: 'public' }, async (request
         id: msgRef.id,
         uid: request.auth?.uid ?? null,
         displayName,
-        text: `compró ${productTitle}`,
+        text: `compr? ${productTitle}`,
         type: 'purchase',
         createdAt: Date.now(),
     });

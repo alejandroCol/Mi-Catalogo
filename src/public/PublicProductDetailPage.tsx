@@ -27,6 +27,7 @@ import {
   productoUsaMatrizSku,
   stockDisponibleRopa,
 } from '@/lib/productoSkus'
+import { tallasParaVarianteZapatos } from '@/lib/productoZapatos'
 import {
   stockDisponibleTalla,
   stockTallaUi,
@@ -95,6 +96,7 @@ function buildGalleryUrls(
   opts: {
     hasVariants: boolean
     selected?: McProductoVariante
+    esZapatos?: boolean
   },
 ): string[] {
   const seen = new Set<string>()
@@ -105,15 +107,24 @@ function buildGalleryUrls(
     out.push(url)
   }
 
-  const { hasVariants, selected } = opts
+  const { hasVariants, selected, esZapatos } = opts
 
   if (hasVariants && selected) {
-    if (selected.imageUrl) {
-      add(selected.imageUrl)
-      return out
-    }
-    // Variante sin foto propia: mostrar solo las del producto base (no otras variantes).
+    if (selected.imageUrl) add(selected.imageUrl)
+    for (const url of selected.galeriaImagenes ?? []) add(url)
+    if (out.length > 0) return out
   }
+
+  if (esZapatos && prod.imagenPrincipalColorId) {
+    const principal = prod.variantes?.find((v) => v.id === prod.imagenPrincipalColorId)
+    if (principal) {
+      if (principal.imageUrl) add(principal.imageUrl)
+      for (const url of principal.galeriaImagenes ?? []) add(url)
+      if (out.length > 0) return out
+    }
+  }
+
+  if (esZapatos) return out
 
   add(prod.imageUrl)
   for (const url of prod.galeriaImagenes ?? []) add(url)
@@ -207,14 +218,20 @@ export function PublicProductDetailPage() {
     prod?.nombre,
     prod?.imageUrl ?? prod?.galeriaImagenes?.[0],
   )
-  const tallas = prod ? tallasValidas(prod) : []
+  const esZapatos = prod?.tallaModo === 'zapatos'
+  const allTallas = prod ? tallasValidas(prod) : []
   const hasVariants = !isCombo && vars.length > 0
-  const hasTallas = !isCombo && !!(prod?.esRopa && tallas.length > 0)
   const hasMatrizSku = !isCombo && !!prod && productoUsaMatrizSku(prod)
   const selected =
     hasVariants && typeof selectedOption === 'string' && selectedOption !== 'original' && selectedOption !== 'none'
       ? vars.find((v) => v.id === selectedOption)
       : undefined
+  const tallas = useMemo(() => {
+    if (!prod || prod.tallaModo !== 'zapatos' || !hasMatrizSku) return allTallas
+    if (!selected) return []
+    return tallasParaVarianteZapatos(prod, selected.id)
+  }, [prod, allTallas, hasMatrizSku, selected?.id])
+  const hasTallas = !isCombo && !!(prod?.esRopa && allTallas.length > 0)
   const selectedTalla = hasTallas && selectedTid ? tallas.find((t) => t.id === selectedTid) : undefined
   const isOriginalSelection = hasVariants && selectedOption === 'original'
   const actsAsOriginal = hasVariants && (selectedOption === 'none' || selectedOption === 'original')
@@ -224,6 +241,16 @@ export function PublicProductDetailPage() {
     const vs = variantesPublicas(prod)
     if (vs.length === 0) {
       setSelectedOption('none')
+    } else if (prod.tallaModo === 'zapatos') {
+      setSelectedOption((prev) => {
+        if (prev !== 'none' && prev !== 'original' && vs.some((v) => v.id === prev)) return prev
+        const principal = prod.imagenPrincipalColorId
+          ? vs.find((v) => v.id === prod.imagenPrincipalColorId)
+          : undefined
+        if (principal) return principal.id
+        if (vs.length === 1) return vs[0]!.id
+        return vs[0]!.id
+      })
     } else {
       setSelectedOption((prev) => {
         if (prev === 'none' || prev === 'original') return prev
@@ -236,7 +263,12 @@ export function PublicProductDetailPage() {
     } else {
       setSelectedTid(null)
     }
-  }, [prod?.id, prod?.updatedAt, prod?.esRopa])
+  }, [prod?.id, prod?.updatedAt, prod?.esRopa, prod?.tallaModo, prod?.imagenPrincipalColorId])
+
+  useEffect(() => {
+    if (prod?.tallaModo !== 'zapatos') return
+    setSelectedTid((prev) => (prev && tallas.some((t) => t.id === prev) ? prev : null))
+  }, [prod?.tallaModo, selected?.id, tallas])
 
   const galeriaUrls = useMemo(
     () =>
@@ -244,9 +276,10 @@ export function PublicProductDetailPage() {
         ? buildGalleryUrls(prod, {
             hasVariants,
             selected,
+            esZapatos,
           })
         : [],
-    [prod, hasVariants, selected],
+    [prod, hasVariants, selected, esZapatos],
   )
 
   const listaPrice =
@@ -533,7 +566,7 @@ export function PublicProductDetailPage() {
               Elegí {gruposVariantes[0]!.tipo.toLowerCase()}
             </p>
             <div className="flex flex-wrap gap-2">
-              <OriginalChip />
+              {!esZapatos ? <OriginalChip /> : null}
               {gruposVariantes[0]!.items.map((v) => (
                 <VariantChip key={v.id} v={v} />
               ))}
@@ -546,7 +579,7 @@ export function PublicProductDetailPage() {
                 Versión
               </p>
               <div className="flex flex-wrap gap-2">
-                <OriginalChip />
+                {!esZapatos ? <OriginalChip /> : null}
               </div>
             </div>
             {gruposVariantes.map((g) => (
@@ -593,7 +626,11 @@ export function PublicProductDetailPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
           Elegí tu talla
         </p>
-        <div className="flex flex-wrap gap-2">{tallas.map((t) => <TallaChip key={t.id} t={t} />)}</div>
+        {prod?.tallaModo === 'zapatos' && hasMatrizSku && !selected ? (
+          <p className="text-[12px] text-[var(--cat-muted)]">Primero elegí un color para ver las tallas disponibles.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">{tallas.map((t) => <TallaChip key={t.id} t={t} />)}</div>
+        )}
       </div>
     ) : null
 

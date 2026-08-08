@@ -11,6 +11,8 @@ type Props = {
   selectedId: string | null
   onSelect: (categoriaId: string | null) => void
   counts: { todos: number; byId: Record<string, number> }
+  /** Círculo + nombre debajo (moderno). */
+  showWithImages?: boolean
 }
 
 function IconGridSmall({ className }: { className?: string }) {
@@ -29,6 +31,83 @@ function IconGridSmall({ className }: { className?: string }) {
       <rect x="1.5" y="9.5" width="5" height="5" rx="1.25" stroke="currentColor" strokeWidth="1.25" />
       <rect x="9.5" y="9.5" width="5" height="5" rx="1.25" stroke="currentColor" strokeWidth="1.25" />
     </svg>
+  )
+}
+
+function CategoryAvatar({
+  imageUrl,
+  letter,
+  active,
+  size = 'md',
+}: {
+  imageUrl?: string | null
+  letter: string
+  active: boolean
+  size?: 'md' | 'sm'
+}) {
+  const dim = size === 'sm' ? 'h-12 w-12 sm:h-14 sm:w-14' : 'h-[4.25rem] w-[4.25rem] sm:h-[4.75rem] sm:w-[4.75rem]'
+  return (
+    <span
+      className={clsx(
+        'relative block overflow-hidden rounded-full transition duration-300',
+        dim,
+        active
+          ? 'ring-[2.5px] ring-[var(--cat-text)] ring-offset-2 ring-offset-[var(--cat-bg)] shadow-[0_8px_24px_-10px_rgba(0,0,0,0.35)] scale-[1.03]'
+          : 'ring-1 ring-[color-mix(in_srgb,var(--cat-muted)_22%,transparent)] shadow-[0_4px_14px_-8px_rgba(0,0,0,0.28)] group-hover:ring-[color-mix(in_srgb,var(--cat-text)_28%,transparent)] group-hover:shadow-[0_8px_20px_-10px_rgba(0,0,0,0.28)]',
+      )}
+    >
+      {imageUrl ? (
+        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <span
+          className={clsx(
+            'flex h-full w-full items-center justify-center font-semibold',
+            size === 'sm' ? 'text-[13px]' : 'text-[15px]',
+            active
+              ? 'bg-[var(--cat-text)] text-[var(--cat-bg)]'
+              : 'bg-[color-mix(in_srgb,var(--cat-muted)_10%,var(--cat-surface)_90%)] text-[var(--cat-text)]',
+          )}
+        >
+          {letter}
+        </span>
+      )}
+    </span>
+  )
+}
+
+function CategoryImageItem({
+  active,
+  label,
+  imageUrl,
+  size = 'md',
+  onClick,
+}: {
+  active: boolean
+  label: string
+  imageUrl?: string | null
+  size?: 'md' | 'sm'
+  onClick: () => void
+}) {
+  const letter = label.trim().charAt(0).toUpperCase() || '·'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'mc-cat-image-item group flex w-[4.75rem] shrink-0 flex-col items-center gap-2 text-center transition sm:w-[5.25rem]',
+        size === 'sm' && 'w-[3.75rem] sm:w-[4.25rem]',
+      )}
+    >
+      <CategoryAvatar imageUrl={imageUrl} letter={letter} active={active} size={size} />
+      <span
+        className={clsx(
+          'line-clamp-2 w-full px-0.5 text-[11px] font-medium leading-snug tracking-tight transition sm:text-[12px]',
+          active ? 'text-[var(--cat-text)]' : 'text-[var(--cat-muted)] group-hover:text-[var(--cat-text)]',
+        )}
+      >
+        {label}
+      </span>
+    </button>
   )
 }
 
@@ -129,13 +208,71 @@ function SidebarTreeNode({
   )
 }
 
-export function CatalogCategorySidebar({ categorias, selectedId, onSelect, counts }: Props) {
+export function CatalogCategorySidebar({
+  categorias,
+  selectedId,
+  onSelect,
+  counts,
+  showWithImages = false,
+}: Props) {
   const tree = buildCategoriaTree(categorias)
   if (tree.length === 0) return null
 
+  if (showWithImages) {
+    return (
+      <aside className="mc-cat-sidebar hidden w-[132px] shrink-0 md:block xl:w-[148px]">
+        <nav
+          aria-label="Categorías del catálogo"
+          className="sticky top-[calc(var(--mc-pc-announcement-h,0px)+var(--mc-pc-header-h,3.75rem)+1.5rem)]"
+        >
+          <p className="mb-4 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
+            Explorar
+          </p>
+          <ul className="flex flex-col items-center gap-5">
+            <li>
+              <CategoryImageItem
+                active={selectedId == null}
+                label="Todos"
+                onClick={() => onSelect(null)}
+              />
+            </li>
+            {tree.map((node) => (
+              <li key={node.id} className="flex flex-col items-center gap-3">
+                <CategoryImageItem
+                  active={selectedId === node.id}
+                  label={node.nombre}
+                  imageUrl={node.imageUrl}
+                  onClick={() => onSelect(node.id)}
+                />
+                {node.children.length > 0 ? (
+                  <ul className="flex flex-col items-center gap-3 border-t border-[color-mix(in_srgb,var(--cat-muted)_14%,transparent)] pt-3">
+                    {node.children.map((sub) => (
+                      <li key={sub.id}>
+                        <CategoryImageItem
+                          active={selectedId === sub.id}
+                          label={sub.nombre}
+                          imageUrl={sub.imageUrl}
+                          size="sm"
+                          onClick={() => onSelect(sub.id)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </aside>
+    )
+  }
+
   return (
     <aside className="mc-cat-sidebar hidden w-[220px] shrink-0 md:block xl:w-[248px]">
-      <nav aria-label="Categorías del catálogo" className="sticky top-[calc(3.75rem+1.5rem)] space-y-6">
+      <nav
+        aria-label="Categorías del catálogo"
+        className="sticky top-[calc(var(--mc-pc-announcement-h,0px)+var(--mc-pc-header-h,3.75rem)+1.5rem)] space-y-6"
+      >
         <div>
           <p className="mb-3 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
             Explorar
@@ -209,9 +346,54 @@ function MobileChip({
   )
 }
 
-export function CatalogCategoryMobileBar({ categorias, selectedId, onSelect, counts }: Props) {
+export function CatalogCategoryMobileBar({
+  categorias,
+  selectedId,
+  onSelect,
+  counts,
+  showWithImages = false,
+}: Props) {
   const tree = buildCategoriaTree(categorias)
   if (tree.length === 0) return null
+
+  if (showWithImages) {
+    return (
+      <div className="mc-cat-mobile-bar -mx-1 mb-5 md:hidden">
+        <div className="flex gap-3.5 overflow-x-auto px-1 pb-1 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <CategoryImageItem
+            active={selectedId == null}
+            label="Todos"
+            onClick={() => onSelect(null)}
+          />
+          {tree.map((node) => (
+            <CategoryImageItem
+              key={node.id}
+              active={selectedId === node.id}
+              label={node.nombre}
+              imageUrl={node.imageUrl}
+              onClick={() => onSelect(node.id)}
+            />
+          ))}
+        </div>
+        {tree.some((n) => n.children.length > 0) ? (
+          <div className="mt-3 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {tree.flatMap((node) =>
+              node.children.map((sub) => (
+                <CategoryImageItem
+                  key={sub.id}
+                  active={selectedId === sub.id}
+                  label={sub.nombre}
+                  imageUrl={sub.imageUrl}
+                  size="sm"
+                  onClick={() => onSelect(sub.id)}
+                />
+              )),
+            )}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div className="mc-cat-mobile-bar -mx-1 mb-5 md:hidden">

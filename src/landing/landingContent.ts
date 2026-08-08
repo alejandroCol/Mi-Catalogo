@@ -52,12 +52,12 @@ export const landingNavLinks: LandingNavLink[] = [
 ]
 
 export const heroContent = {
-  eyebrow: 'Catálogos que venden',
+  eyebrow: 'Mi Catálogo',
   headline: 'Tu tienda online,',
   headlineAccent: 'espectacular.',
   subheadline:
-    'Creá una tienda virtual hermosa, compartila y empezá a vender hoy. Sin diseñador, sin complicaciones.',
-  trustLine: 'Más de 500 emprendedores ya venden con mi catálogo',
+    'Creá tu catálogo WhatsApp y tienda virtual hermosa. Compartila y empezá a vender hoy — gratis, sin tarjeta ni diseñador.',
+  trustLine: 'Más de 500 emprendedores ya venden con Mi Catálogo',
 }
 
 export const storeExamples: LandingStoreExample[] = [

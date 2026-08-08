@@ -3,6 +3,7 @@ import {
   doc,
   runTransaction,
   updateDoc,
+  type FieldValue,
 } from 'firebase/firestore'
 import type { McCategoria, McPlatformSettings, McProducto, McTenant } from '@/types/mc'
 import { getDb } from '@/lib/firebase'
@@ -12,6 +13,7 @@ import {
   resolvePlanConfig,
 } from '@/lib/billingPlans'
 import { MC, mcCategoriasCollection, mcProductosCollection } from '@/lib/mcCollections'
+import { buildProductoReferencia, nextProductoReferenciaNumero } from '@/lib/productoReferencia'
 import { markPosProductPublished } from '@/pos/lib/posCatalogSync'
 
 export class ProductLimitError extends Error {
@@ -32,11 +34,12 @@ export async function mcCreateProducto(
   tenantId: string,
   data: Omit<McProducto, 'id'>,
   platformSettings?: McPlatformSettings | null,
-): Promise<{ id: string }> {
+): Promise<{ id: string; referencia: string }> {
   const db = getDb()
   const config = resolvePlanConfig(platformSettings)
   const col = collection(db, mcProductosCollection(tenantId))
   const productRef = doc(col)
+  let referencia = (typeof data.referencia === 'string' ? data.referencia.trim() : '') || ''
 
   await runTransaction(db, async (tx) => {
     const tenantRef = doc(db, MC.tenants, tenantId)
@@ -49,11 +52,15 @@ export async function mcCreateProducto(
         productLimitMessage(tenant, config, count) ?? 'Límite de productos alcanzado.',
       )
     }
-    tx.set(productRef, data)
+    const numero = nextProductoReferenciaNumero(count)
+    referencia =
+      (typeof data.referencia === 'string' && data.referencia.trim()) ||
+      buildProductoReferencia(data.nombre, numero)
+    tx.set(productRef, { ...data, ...(referencia ? { referencia } : {}) })
     tx.update(tenantRef, { productCount: Math.max(0, Math.trunc(count + 1)) })
   })
 
-  return { id: productRef.id }
+  return { id: productRef.id, referencia }
 }
 
 const BORRADOR_NOMBRE_DEFAULT = 'Borrador sin título'
@@ -156,7 +163,9 @@ export async function mcCreateCategoria(
 export async function mcUpdateCategoria(
   tenantId: string,
   categoriaId: string,
-  patch: Partial<Pick<McCategoria, 'nombre' | 'orden' | 'activa' | 'parentId'>>,
+  patch: Partial<Pick<McCategoria, 'nombre' | 'orden' | 'activa' | 'parentId' | 'imageUrl'>> & {
+    imageUrl?: string | FieldValue
+  },
 ) {
   const db = getDb()
   await updateDoc(doc(db, mcCategoriasCollection(tenantId), categoriaId), {

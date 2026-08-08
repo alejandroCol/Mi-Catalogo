@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 
 type Props = {
@@ -6,6 +6,8 @@ type Props = {
   alt: string
   isBold?: boolean
   onOpenFullscreen: (index: number) => void
+  /** Acciones encima de la foto (ej. favorito + compartir), arriba a la derecha. */
+  overlayActions?: ReactNode
 }
 
 function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
@@ -29,7 +31,92 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
   )
 }
 
-export function ProductImageGallery({ urls, alt, isBold, onOpenFullscreen }: Props) {
+function ExpandIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 16v5h-5" />
+    </svg>
+  )
+}
+
+function GalleryChrome({
+  overlayActions,
+  hasMultiple,
+  safeIndex,
+  urlsLength,
+}: {
+  overlayActions?: ReactNode
+  hasMultiple: boolean
+  safeIndex: number
+  urlsLength: number
+}) {
+  return (
+    <>
+      {overlayActions ? (
+        <div className="pointer-events-none absolute right-2.5 top-2.5 z-20 flex items-center gap-1.5 sm:right-3 sm:top-3">
+          <div className="pointer-events-auto flex items-center gap-1.5">{overlayActions}</div>
+        </div>
+      ) : null}
+
+      {hasMultiple ? (
+        <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+          {Array.from({ length: urlsLength }, (_, i) => (
+            <span
+              key={i}
+              className={clsx(
+                'h-1.5 rounded-full transition-all duration-300',
+                i === safeIndex ? 'w-5 bg-white shadow-sm' : 'w-1.5 bg-white/50',
+              )}
+              aria-hidden
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <span
+        className="pointer-events-none absolute bottom-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-white shadow-sm backdrop-blur-[2px] sm:bottom-4 sm:right-4"
+        aria-hidden
+      >
+        <ExpandIcon className="h-3.5 w-3.5" />
+      </span>
+    </>
+  )
+}
+
+function OverlayActionShell({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[var(--cat-text)] shadow-[0_4px_14px_-6px_rgba(0,0,0,0.35)] ring-1 ring-black/5 backdrop-blur-md transition hover:bg-white active:scale-95">
+      {children}
+    </span>
+  )
+}
+
+export function ProductGalleryActionButton({
+  onClick,
+  label,
+  children,
+}: {
+  onClick: () => void
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onClick()
+      }}
+      aria-label={label}
+      className="inline-flex"
+    >
+      <OverlayActionShell>{children}</OverlayActionShell>
+    </button>
+  )
+}
+
+export function ProductImageGallery({ urls, alt, isBold, onOpenFullscreen, overlayActions }: Props) {
   const [index, setIndex] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -72,6 +159,9 @@ export function ProductImageGallery({ urls, alt, isBold, onOpenFullscreen }: Pro
         )}
       >
         <div className="flex h-full items-center justify-center mc-pc-muted">Sin imagen</div>
+        {overlayActions ? (
+          <div className="absolute right-2.5 top-2.5 z-20 flex items-center gap-1.5">{overlayActions}</div>
+        ) : null}
       </div>
     )
   }
@@ -114,29 +204,12 @@ export function ProductImageGallery({ urls, alt, isBold, onOpenFullscreen }: Pro
           ))}
         </div>
 
-        {hasMultiple ? (
-          <>
-            <div className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
-              {urls.map((url, i) => (
-                <span
-                  key={url}
-                  className={clsx(
-                    'h-1.5 rounded-full transition-all duration-300',
-                    i === safeIndex ? 'w-5 bg-white shadow-sm' : 'w-1.5 bg-white/50',
-                  )}
-                  aria-hidden
-                />
-              ))}
-            </div>
-            <span className="pointer-events-none absolute bottom-3 right-3 rounded-full border border-white/30 bg-[color-mix(in_srgb,var(--cat-text)_40%,transparent)] px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
-              {safeIndex + 1}/{urls.length}
-            </span>
-          </>
-        ) : (
-          <span className="pointer-events-none absolute bottom-3 right-3 rounded-full border border-white/30 bg-[color-mix(in_srgb,var(--cat-text)_40%,transparent)] px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
-            Ampliar
-          </span>
-        )}
+        <GalleryChrome
+          overlayActions={overlayActions}
+          hasMultiple={hasMultiple}
+          safeIndex={safeIndex}
+          urlsLength={urls.length}
+        />
       </div>
 
       {/* Desktop: imagen principal con flechas */}
@@ -160,10 +233,14 @@ export function ProductImageGallery({ urls, alt, isBold, onOpenFullscreen }: Pro
             className="h-full w-full object-cover transition duration-500 group-hover/img:brightness-[0.98]"
             draggable={false}
           />
-          <span className="pointer-events-none absolute bottom-3 right-3 rounded-full border border-white/30 bg-[color-mix(in_srgb,var(--cat-text)_40%,transparent)] px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm sm:bottom-4 sm:right-4 sm:text-[11px]">
-            {hasMultiple ? `${safeIndex + 1}/${urls.length}` : 'Ampliar'}
-          </span>
         </button>
+
+        <GalleryChrome
+          overlayActions={overlayActions}
+          hasMultiple={hasMultiple}
+          safeIndex={safeIndex}
+          urlsLength={urls.length}
+        />
 
         {hasMultiple ? (
           <>

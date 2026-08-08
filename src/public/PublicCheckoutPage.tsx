@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import clsx from 'clsx'
@@ -26,12 +26,15 @@ import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 import { MunicipioCombobox } from '@/public/MunicipioCombobox'
 import { COLOMBIA_DEPARTAMENTOS, formatoDepartamentoEtiqueta, MC_CHECKOUT_DOCUMENTO_TIPOS } from '@/lib/colombiaGeo'
 import { buildCheckoutWhatsappText, whatsappUrlFromNumber } from '@/catalog-local/buildWhatsappUrl'
+import { rememberLocalOrderId } from '@/lib/catalogLocalOrders'
 import { buildNumeroReferencia, publicCatalogSuccessPath } from '@/lib/catalogOrderTracking'
 import { IconWhatsApp } from '@/icons/McIcons'
 import { enrichCatalogLineasWithCost } from '@/lib/catalogLineCost'
 import { fulfillCatalogOrder } from '@/lib/catalogFulfillClient'
 import { markCarritoIniciadoOnOrderComplete } from '@/lib/markCarritoIniciadoOnOrder'
 import { useCarritoIniciadoCheckoutSync } from '@/hooks/useCarritoIniciadoCheckoutSync'
+import { useWishlistCheckoutHydration } from '@/hooks/useWishlistCheckoutHydration'
+import { recordWishlistPurchase, type WishlistPublicView } from '@/lib/wishlist'
 import {
   CHECKOUT_STEP_META,
   CHECKOUT_STEPS,
@@ -47,6 +50,12 @@ import {
   MC_ONEPAY_POPUP_NAME,
   publicCatalogOnePayReturnPath,
 } from '@/public/onepayCheckoutPaths'
+import {
+  MC_ADDI_DONE_MSG,
+  MC_ADDI_POPUP_NAME,
+  publicCatalogAddiReturnPath,
+} from '@/public/addiCheckoutPaths'
+import { ADDI_CHECKOUT_MIN_COP, isAddiReadyForCheckout } from '@/lib/addiAccess'
 
 function callableErrorMessage(e: unknown): string {
   if (
@@ -84,8 +93,33 @@ export function PublicCheckoutPage() {
   const [cuponError, setCuponError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [onepayBusy, setOnepayBusy] = useState(false)
+  const [addiBusy, setAddiBusy] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStepId>('revisar')
+  /** Método de cobro en el último paso. */
+  const [pagoMetodoCheckout, setPagoMetodoCheckout] = useState<
+    'default' | 'addi' | 'contraentrega'
+  >('default')
+  const [giftWishlist, setGiftWishlist] = useState<WishlistPublicView | null>(null)
+
+  const onGiftLoaded = useCallback((wishlist: WishlistPublicView) => {
+    setGiftWishlist(wishlist)
+    setEnvioDepartamento(wishlist.envioDepartamento || '')
+    setEnvioCiudad(wishlist.envioCiudad || '')
+    setEnvioDireccion(wishlist.envioDireccion || '')
+    setEnvioReferencia(wishlist.envioReferencia || '')
+    setCiudadManual(true)
+  }, [])
+
+  const { wishlistId: giftWishlistId, loading: giftLoading, error: giftError } = useWishlistCheckoutHydration({
+    slug,
+    tenantId,
+    searchParams,
+    restoreLines,
+    onGiftLoaded,
+  })
+
+  const esRegalo = Boolean(giftWishlistId && giftWishlist)
 
   useEffect(() => {
     setErrMsg(null)
@@ -101,12 +135,17 @@ export function PublicCheckoutPage() {
     navigate(publicCatalogOnePayReturnPath(slug, o, ov), { replace: true })
   }, [slug, searchParams, navigate])
 
-  /** Popup OnePay: la pestaña principal recibe la URL de validación y navega ahí. */
+  /** Popup OnePay / Addi: la pestaña principal recibe la URL de validación y navega ahí. */
   useEffect(() => {
     function onWinMessage(e: MessageEvent) {
       if (e.origin !== window.location.origin) return
       const d = e.data as { type?: string; pathname?: string; search?: string }
-      if (d?.type !== MC_ONEPAY_DONE_MSG || typeof d.pathname !== 'string') return
+      if (
+        (d?.type !== MC_ONEPAY_DONE_MSG && d?.type !== MC_ADDI_DONE_MSG) ||
+        typeof d.pathname !== 'string'
+      ) {
+        return
+      }
       const expectedPath = slug ? buildStorePublicPath(slug, '/checkout/pago-validando') : null
       if (!expectedPath || d.pathname !== expectedPath) return
       let q = ''
@@ -119,10 +158,21 @@ export function PublicCheckoutPage() {
     return () => window.removeEventListener('message', onWinMessage)
   }, [slug, navigate])
 
+  /** Links antiguos / retorno Addi con query en checkout. */
+  useEffect(() => {
+    if (!slug) return
+    if (searchParams.get('addi') !== '1') return
+    const o = searchParams.get('o')
+    const ov = searchParams.get('ov')
+    if (!o || !ov) return
+    navigate(publicCatalogAddiReturnPath(slug, o, ov), { replace: true })
+  }, [slug, searchParams, navigate])
+
   const { lineasOrden, subtotalCop, preciosOk } = useMemo(() => {
     const lineas: McOrdenCatalogoLinea[] = lines.map((l) => ({
       productId: l.productId,
       nombre: l.titulo,
+      ...(l.referencia?.trim() ? { referencia: l.referencia.trim() } : {}),
       cantidad: l.cantidad,
       precioUnitarioCop: Math.max(0, Math.round(l.precioUnitarioCop ?? 0)),
       ...(l.varianteId ? { varianteId: l.varianteId } : {}),
@@ -150,8 +200,10 @@ export function PublicCheckoutPage() {
     envioDepartamento,
     envioCiudad,
     envioDireccion,
-    destinoNombre: nombre,
-    destinoTelefono: telefono,
+    destinoNombre: esRegalo
+      ? giftWishlist?.destinatarioNombre || giftWishlist?.creadorNombre || nombre
+      : nombre,
+    destinoTelefono: esRegalo ? giftWishlist?.destinatarioTelefono || telefono : telefono,
     subtotalCop,
     totalPiezas,
   })
@@ -204,6 +256,21 @@ export function PublicCheckoutPage() {
       (modo === 'pasarela_micatalogo' && pasarelaMicatalogoOk)
     )
   }, [checkoutVentasModoExplicit, tenant?.onepayPaymentsEnabled, pasarelaMicatalogoOk])
+
+  const mostrarAddiEnCheckout = useMemo(() => {
+    if (!isAddiReadyForCheckout(tenant)) return false
+    return totalCop >= ADDI_CHECKOUT_MIN_COP
+  }, [tenant, totalCop])
+
+  const contraentregaDisponible = tenant?.contraentregaCatalogoEnabled === true
+  const mostrarSelectorMetodoPago =
+    contraentregaDisponible || (mostrarOnepayEnCheckout && mostrarAddiEnCheckout)
+
+  useEffect(() => {
+    if (pagoMetodoCheckout === 'addi' && !mostrarAddiEnCheckout) {
+      setPagoMetodoCheckout('default')
+    }
+  }, [pagoMetodoCheckout, mostrarAddiEnCheckout])
 
   function checkoutFields(): CheckoutFields {
     return {
@@ -263,6 +330,26 @@ export function PublicCheckoutPage() {
     return validateCheckoutAll(checkoutFields(), validateStepOpts())
   }
 
+  function giftOrderFields(): Record<string, unknown> {
+    if (!esRegalo || !giftWishlistId || !giftWishlist) return {}
+    return {
+      esRegalo: true,
+      wishlistId: giftWishlistId,
+      destinatarioNombre: giftWishlist.destinatarioNombre,
+    }
+  }
+
+  async function afterOrderCreated(orderId: string) {
+    if (!slug) return
+    rememberLocalOrderId(slug, orderId)
+    if (!esRegalo) return
+    try {
+      await recordWishlistPurchase(slug, orderId)
+    } catch (e) {
+      console.warn('[checkout] wishlist purchase record:', e)
+    }
+  }
+
   function aplicarCupon() {
     setCuponError(null)
     const key = normalizeCuponCodigo(cuponInput)
@@ -286,8 +373,124 @@ export function PublicCheckoutPage() {
     setCuponError(null)
   }
 
+  async function pagarContraEntrega() {
+    setErrMsg(null)
+    if (!slug || !tenantId || !firebaseConfigured) {
+      setErrMsg('No se puede completar la compra ahora.')
+      return
+    }
+    if (!tenant?.contraentregaCatalogoEnabled) {
+      setErrMsg('Esta tienda no tiene contraentrega activa.')
+      return
+    }
+    if (lines.length === 0 || totalPiezas === 0) {
+      setErrMsg('Tu carrito está vacío.')
+      return
+    }
+    if (!preciosOk || subtotalCop <= 0) {
+      setErrMsg('Todos los productos deben tener precio para comprar en línea.')
+      return
+    }
+    const submitErr = validateBeforeSubmit()
+    if (submitErr) {
+      setErrMsg(submitErr)
+      return
+    }
+    const cuponVigente = cuponAplicado
+      ? buscarCuponActivo(cuponAplicado.codigo, tenant?.cuponesCatalogo)
+      : null
+    if (cuponAplicado && !cuponVigente) {
+      setErrMsg('El cupón ya no está disponible. Quitá el cupón o probá otro código.')
+      return
+    }
+    const descFinal = cuponVigente ? descuentoDesdeCupon(subtotalCop, cuponVigente) : 0
+    const totalFinal = totalCheckoutCop(subtotalCop, envioCop, descFinal)
+    if (totalFinal <= 0) {
+      setErrMsg('El total no es válido para contraentrega.')
+      return
+    }
+    const now = Date.now()
+    const viewToken = crypto.randomUUID().replace(/-/g, '')
+    setBusy(true)
+    try {
+      const db = getDb()
+      const orderRef = doc(collection(db, mcOrdenesCatalogoCollection(tenantId)))
+      const numeroReferencia = buildNumeroReferencia(orderRef.id)
+      const lineasConCosto = await enrichCatalogLineasWithCost(tenantId, lineasOrden)
+      const base: Record<string, unknown> = {
+        createdAt: now,
+        updatedAt: now,
+        estado: 'en_preparacion',
+        lineas: lineasConCosto,
+        subtotalCop,
+        envioCop,
+        descuentoCop: descFinal,
+        totalCop: totalFinal,
+        pagoSimulado: false,
+        pagoContraEntrega: true,
+        estadoPagoCod: 'pendiente',
+        montoRecaudarCop: totalFinal,
+        onepayViewToken: viewToken,
+        numeroReferencia,
+        seguimientoPreparacionAt: now,
+      }
+      if (nombre.trim()) base.clienteNombre = nombre.trim()
+      if (telefono.trim()) base.clienteTelefono = telefono.trim()
+      base.clienteEmail = email.trim().toLowerCase()
+      base.clienteTipoDocumento = clienteTipoDocumento.trim().toUpperCase()
+      base.clienteDocumentoNumero = clienteDocumentoNumero.trim()
+      if (nota.trim()) base.notaCliente = nota.trim()
+      if (envioCiudad.trim()) base.envioCiudad = envioCiudad.trim()
+      if (envioDepartamento.trim()) base.envioDepartamento = envioDepartamento.trim()
+      if (envioDireccion.trim()) base.envioDireccion = envioDireccion.trim()
+      if (envioReferencia.trim()) base.envioReferencia = envioReferencia.trim()
+      if (envioSeleccionada) {
+        base.envioCotizacionCarrier = envioSeleccionada.carrier
+        base.envioCotizacionServicio = envioSeleccionada.service
+        if (envioSeleccionada.deliveryEstimate) {
+          base.envioCotizacionEntrega = envioSeleccionada.deliveryEstimate
+        }
+        base.envioCotizacionFuente = envioFuente
+      } else if (envioFuente === 'estatico') {
+        base.envioCotizacionFuente = 'estatico'
+      }
+      if (cuponVigente) base.cuponCodigo = normalizeCuponCodigo(cuponVigente.codigo)
+      if (carritoIniciadoId) base.carritoIniciadoId = carritoIniciadoId
+      Object.assign(base, giftOrderFields())
+      if (esRegalo && giftWishlist) {
+        const giftNote = `Regalo para ${giftWishlist.destinatarioNombre}`
+        base.notaCliente = nota.trim() ? `${giftNote}. ${nota.trim()}` : giftNote
+      }
+
+      await setDoc(orderRef, base)
+      try {
+        await fulfillCatalogOrder(tenantId, orderRef.id)
+      } catch (fulfillErr) {
+        console.warn('[checkout] fulfill inventario COD:', fulfillErr)
+      }
+      await markCarritoIniciadoOnOrderComplete({
+        tenantId,
+        slug,
+        carritoIniciadoId,
+        orderId: orderRef.id,
+        cuponCodigo: cuponVigente ? cuponVigente.codigo : undefined,
+      })
+      await afterOrderCreated(orderRef.id)
+      clear()
+      navigate(publicCatalogSuccessPath(slug, orderRef.id), { replace: true })
+    } catch {
+      setErrMsg('No se pudo registrar el pedido contraentrega. Intentá de nuevo.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function pagarSimulado(e: React.FormEvent) {
     e.preventDefault()
+    if (pagoMetodoCheckout === 'contraentrega') {
+      await pagarContraEntrega()
+      return
+    }
     setErrMsg(null)
     if (!slug || !tenantId || !firebaseConfigured) {
       setErrMsg('No se puede completar la compra ahora.')
@@ -347,7 +550,7 @@ export function PublicCheckoutPage() {
       }
       if (nombre.trim()) base.clienteNombre = nombre.trim()
       if (telefono.trim()) base.clienteTelefono = telefono.trim()
-      base.clienteEmail = email.trim()
+      base.clienteEmail = email.trim().toLowerCase()
       base.clienteTipoDocumento = clienteTipoDocumento.trim().toUpperCase()
       base.clienteDocumentoNumero = clienteDocumentoNumero.trim()
       if (nota.trim()) base.notaCliente = nota.trim()
@@ -367,6 +570,11 @@ export function PublicCheckoutPage() {
       }
       if (cuponVigente) base.cuponCodigo = normalizeCuponCodigo(cuponVigente.codigo)
       if (carritoIniciadoId) base.carritoIniciadoId = carritoIniciadoId
+      Object.assign(base, giftOrderFields())
+      if (esRegalo && giftWishlist) {
+        const giftNote = `Regalo para ${giftWishlist.destinatarioNombre}`
+        base.notaCliente = nota.trim() ? `${giftNote}. ${nota.trim()}` : giftNote
+      }
 
       await setDoc(orderRef, base)
       try {
@@ -381,6 +589,7 @@ export function PublicCheckoutPage() {
         orderId: orderRef.id,
         cuponCodigo: cuponVigente ? cuponVigente.codigo : undefined,
       })
+      await afterOrderCreated(orderRef.id)
       clear()
       navigate(publicCatalogSuccessPath(slug, orderRef.id), { replace: true })
     } catch {
@@ -550,6 +759,13 @@ export function PublicCheckoutPage() {
             ? crypto.randomUUID()
             : `mc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         carritoIniciadoId: carritoIniciadoId ?? undefined,
+        ...(esRegalo && giftWishlistId && giftWishlist
+          ? {
+              esRegalo: true,
+              wishlistId: giftWishlistId,
+              destinatarioNombre: giftWishlist.destinatarioNombre,
+            }
+          : {}),
       })
       const data = res.data as { paymentLink?: string }
       if (!data.paymentLink) {
@@ -567,6 +783,122 @@ export function PublicCheckoutPage() {
       setErrMsg(callableErrorMessage(e))
     } finally {
       setOnepayBusy(false)
+    }
+  }
+
+  async function pagarConAddi() {
+    setErrMsg(null)
+    if (!slug || !tenantId || !firebaseConfigured) {
+      setErrMsg('No se puede pagar ahora.')
+      return
+    }
+    if (lines.length === 0 || totalPiezas === 0) {
+      setErrMsg('Tu carrito está vacío.')
+      return
+    }
+    if (!preciosOk || subtotalCop <= 0) {
+      setErrMsg('Todos los productos deben tener precio.')
+      return
+    }
+    const submitErr = validateBeforeSubmit()
+    if (submitErr) {
+      setErrMsg(submitErr)
+      return
+    }
+    const cuponVigente = cuponAplicado
+      ? buscarCuponActivo(cuponAplicado.codigo, tenant?.cuponesCatalogo)
+      : null
+    if (cuponAplicado && !cuponVigente) {
+      setErrMsg('El cupón ya no está disponible.')
+      return
+    }
+    const descFinal = cuponVigente ? descuentoDesdeCupon(subtotalCop, cuponVigente) : 0
+    const totalFinal = totalCheckoutCop(subtotalCop, envioCop, descFinal)
+    if (totalFinal < ADDI_CHECKOUT_MIN_COP) {
+      setErrMsg(`Addi aplica desde ${ADDI_CHECKOUT_MIN_COP.toLocaleString('es-CO')} COP.`)
+      return
+    }
+    if (!mostrarAddiEnCheckout) {
+      setErrMsg('Esta tienda no tiene Addi activado para el checkout.')
+      return
+    }
+
+    let popup: Window | null = null
+    try {
+      popup = window.open('about:blank', MC_ADDI_POPUP_NAME, 'popup=yes,width=520,height=800')
+      if (popup) {
+        try {
+          popup.document.title = 'Addi · Mi Catálogo'
+          const el = popup.document.body
+          el.style.margin = '0'
+          el.style.fontFamily =
+            'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif'
+          el.style.padding = '2rem'
+          el.style.textAlign = 'center'
+          el.style.color = '#334155'
+          el.innerHTML =
+            '<p style="margin:0 0 .5rem;font-size:.95rem">Conectando con Addi…</p><p style="margin:0;font-size:.8rem;opacity:.75">Si no se abre el cobro, permití ventanas emergentes para esta tienda.</p>'
+        } catch {
+          /* */
+        }
+      }
+    } catch {
+      popup = null
+    }
+
+    setAddiBusy(true)
+    try {
+      const fn = httpsCallable(getFirebaseFunctions(), 'mcAddiStartCatalogCheckout')
+      const res = await fn({
+        slug,
+        lineas: lines.map((l) => ({
+          productId: l.productId,
+          cantidad: l.cantidad,
+          ...(l.varianteId ? { varianteId: l.varianteId } : {}),
+          ...(l.tallaId ? { tallaId: l.tallaId } : {}),
+          ...(l.comboColorSeleccion?.length ? { comboColorSeleccion: l.comboColorSeleccion } : {}),
+        })),
+        cuponCodigo: cuponVigente ? cuponVigente.codigo : undefined,
+        nombre: nombre.trim(),
+        telefono: telefono.trim(),
+        email: email.trim(),
+        nota: nota.trim() || undefined,
+        clienteTipoDocumento: clienteTipoDocumento.trim().toUpperCase(),
+        clienteDocumentoNumero: clienteDocumentoNumero.trim(),
+        envioCiudad: envioCiudad.trim(),
+        envioDepartamento: envioDepartamento.trim() || undefined,
+        envioDireccion: envioDireccion.trim(),
+        envioReferencia: envioReferencia.trim() || undefined,
+        redirectOrigin: window.location.origin,
+        idempotencyKey:
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `mc-addi-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        carritoIniciadoId: carritoIniciadoId ?? undefined,
+        ...(esRegalo && giftWishlistId && giftWishlist
+          ? {
+              esRegalo: true,
+              wishlistId: giftWishlistId,
+              destinatarioNombre: giftWishlist.destinatarioNombre,
+            }
+          : {}),
+      })
+      const data = res.data as { paymentLink?: string }
+      if (!data.paymentLink) {
+        if (popup && !popup.closed) popup.close()
+        setErrMsg('No se recibió el link de Addi.')
+        return
+      }
+      if (popup && !popup.closed) {
+        popup.location.href = data.paymentLink
+      } else {
+        window.location.assign(data.paymentLink)
+      }
+    } catch (e) {
+      if (popup && !popup.closed) popup.close()
+      setErrMsg(callableErrorMessage(e))
+    } finally {
+      setAddiBusy(false)
     }
   }
 
@@ -603,15 +935,37 @@ export function PublicCheckoutPage() {
     )
   }
 
+  if (giftLoading) {
+    return (
+      <div className="mc-public-catalog-inset py-16 text-center text-sm leading-relaxed mc-pc-muted">
+        Cargando lista de regalos…
+      </div>
+    )
+  }
+
+  if (giftWishlistId && giftError) {
+    return (
+      <div className="mc-public-catalog-inset max-w-lg space-y-4 py-12">
+        <p className="text-sm leading-relaxed mc-pc-text">{giftError}</p>
+        <Link
+          to={to(`/lista/${giftWishlistId}`)}
+          className="inline-block text-sm font-medium mc-pc-text underline decoration-neutral-300 underline-offset-4"
+        >
+          Volver a la lista
+        </Link>
+      </div>
+    )
+  }
+
   if (lines.length === 0) {
     return (
       <div className="mc-public-catalog-inset max-w-lg space-y-6 py-12">
         <p className="text-sm leading-relaxed mc-pc-text">No hay productos en el carrito.</p>
         <Link
-          to={to('/')}
+          to={giftWishlistId ? to(`/lista/${giftWishlistId}`) : to('/')}
           className="inline-block text-sm font-medium mc-pc-text underline decoration-neutral-300 underline-offset-4 transition duration-200 ease-in-out hover:opacity-65"
         >
-          Volver al catálogo
+          {giftWishlistId ? 'Volver a la lista' : 'Volver al catálogo'}
         </Link>
       </div>
     )
@@ -739,47 +1093,73 @@ export function PublicCheckoutPage() {
   )
 
   const resumenCtaAccentClass =
-    'inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40'
+    'inline-flex w-full items-center justify-center gap-2 mc-pc-btn bg-[var(--cat-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40'
 
   const navSecondaryClass =
-    'rounded-full border mc-pc-border bg-transparent px-4 py-3.5 text-sm font-semibold mc-pc-text transition duration-200 ease-in-out hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40'
+    'mc-pc-btn border mc-pc-border bg-transparent px-4 py-3.5 text-sm font-semibold mc-pc-text transition duration-200 ease-in-out hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40'
 
   const isFinalStep = checkoutStep === 'envio'
   const currentStepIdx = checkoutStepIndex(checkoutStep)
   const stepMeta = CHECKOUT_STEP_META[checkoutStep]
 
   const finalPayDisabled =
-    busy || onepayBusy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading
+    busy || onepayBusy || addiBusy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading
 
-  const finalPayButton = mostrarOnepayEnCheckout ? (
-    <button
-      type="button"
-      onClick={() => void pagarConOnepay()}
-      disabled={finalPayDisabled}
-      className={resumenCtaAccentClass}
-    >
-      {onepayBusy ? 'Abriendo OnePay…' : `Pagar · ${totalCop > 0 ? formatCop(totalCop) : '—'}`}
-    </button>
-  ) : checkoutVentasModo === 'whatsapp' ? (
-    <button
-      type="button"
-      onClick={pedirPorWhatsapp}
-      disabled={finalPayDisabled}
-      className={resumenCtaAccentClass}
-    >
-      <IconWhatsApp monochrome size={18} />
-      Pedir por WhatsApp
-    </button>
-  ) : (
-    <button
-      type="submit"
-      form="checkout-final-form"
-      disabled={finalPayDisabled}
-      className={resumenCtaAccentClass}
-    >
-      {busy ? 'Procesando…' : 'Confirmar pago simulado'}
-    </button>
-  )
+  const payWithAddi =
+    pagoMetodoCheckout === 'addi' || (mostrarAddiEnCheckout && !mostrarOnepayEnCheckout)
+
+  const finalPayButton =
+    pagoMetodoCheckout === 'contraentrega' ? (
+      <button
+        type="button"
+        onClick={() => void pagarContraEntrega()}
+        disabled={finalPayDisabled || busy}
+        className={resumenCtaAccentClass}
+      >
+        {busy
+          ? 'Confirmando…'
+          : `Pedir y pagar al recibir · ${totalCop > 0 ? formatCop(totalCop) : '—'}`}
+      </button>
+    ) : payWithAddi ? (
+      <button
+        type="button"
+        onClick={() => void pagarConAddi()}
+        disabled={finalPayDisabled}
+        className={resumenCtaAccentClass}
+      >
+        {addiBusy
+          ? 'Abriendo Addi…'
+          : `Pagar con Addi · ${totalCop > 0 ? formatCop(totalCop) : '—'}`}
+      </button>
+    ) : mostrarOnepayEnCheckout ? (
+      <button
+        type="button"
+        onClick={() => void pagarConOnepay()}
+        disabled={finalPayDisabled}
+        className={resumenCtaAccentClass}
+      >
+        {onepayBusy ? 'Abriendo OnePay…' : `Pagar · ${totalCop > 0 ? formatCop(totalCop) : '—'}`}
+      </button>
+    ) : checkoutVentasModo === 'whatsapp' ? (
+      <button
+        type="button"
+        onClick={pedirPorWhatsapp}
+        disabled={finalPayDisabled}
+        className={resumenCtaAccentClass}
+      >
+        <IconWhatsApp monochrome size={18} />
+        Pedir por WhatsApp
+      </button>
+    ) : (
+      <button
+        type="submit"
+        form="checkout-final-form"
+        disabled={finalPayDisabled}
+        className={resumenCtaAccentClass}
+      >
+        {busy ? 'Procesando…' : 'Confirmar pago simulado'}
+      </button>
+    )
 
   const stepNavButtons = (
     <div className="flex gap-3">
@@ -848,15 +1228,26 @@ export function PublicCheckoutPage() {
           <span className="text-[var(--cat-text)]">Pago</span>
         </nav>
         <h1 className="mc-pc-display mt-2 text-2xl font-semibold tracking-tight text-[var(--cat-text)] sm:mt-3 sm:text-3xl">
-          Checkout
+          {esRegalo ? 'Regalar' : 'Checkout'}
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--cat-muted)] sm:mt-3">
-          {mostrarOnepayEnCheckout
-            ? 'Tres pasos rápidos: revisás el pedido, cargás tus datos y pagás con OnePay de forma segura.'
-            : checkoutVentasModo === 'whatsapp'
-              ? 'Completá el pedido paso a paso. Esta tienda coordina el pago por WhatsApp.'
-              : 'Completá el pedido paso a paso. Cuando la tienda active la pasarela podrás pagar en línea.'}
+          {esRegalo && giftWishlist
+            ? `Vas a regalarle a ${giftWishlist.destinatarioNombre}. Vos pagás; el envío va a su dirección.`
+            : mostrarOnepayEnCheckout
+              ? 'Tres pasos rápidos: revisás el pedido, cargás tus datos y pagás con OnePay de forma segura.'
+              : checkoutVentasModo === 'whatsapp'
+                ? 'Completá el pedido paso a paso. Esta tienda coordina el pago por WhatsApp.'
+                : 'Completá el pedido paso a paso. Cuando la tienda active la pasarela podrás pagar en línea.'}
         </p>
+        {esRegalo && giftWishlist ? (
+          <div className="mt-4 rounded-xl border border-[color-mix(in_srgb,var(--cat-accent)_28%,transparent)] bg-[color-mix(in_srgb,var(--cat-accent)_8%,var(--cat-surface)_92%)] px-4 py-3 text-sm text-[var(--cat-text)]">
+            <p className="font-semibold">{giftWishlist.titulo}</p>
+            <p className="mt-1 text-[12px] text-[var(--cat-muted)]">
+              Entrega en {giftWishlist.envioCiudad}
+              {giftWishlist.envioDepartamento ? `, ${giftWishlist.envioDepartamento}` : ''}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div className="mb-6 sm:mb-8">
@@ -1031,6 +1422,12 @@ export function PublicCheckoutPage() {
               {checkoutStep === 'envio' && (
                 <form id="checkout-final-form" onSubmit={(e) => void pagarSimulado(e)} className="space-y-5">
                   {datosResumenCard}
+                  {esRegalo ? (
+                    <p className="rounded-md border border-dashed mc-pc-border px-3 py-2.5 text-[12px] leading-relaxed mc-pc-muted">
+                      La dirección de envío viene de la lista de regalos y no se puede cambiar (así llega a quien
+                      corresponde).
+                    </p>
+                  ) : null}
                   <div className="space-y-4">
                     <div>
                       <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
@@ -1039,6 +1436,7 @@ export function PublicCheckoutPage() {
                       <select
                         className={innerFieldClass}
                         value={envioDepartamento}
+                        disabled={esRegalo || busy || onepayBusy}
                         onChange={(e) => {
                           const v = e.target.value
                           setEnvioDepartamento(v)
@@ -1064,13 +1462,14 @@ export function PublicCheckoutPage() {
                           onChange={(e) => setEnvioCiudad(e.target.value)}
                           autoComplete="address-level2"
                           placeholder="Ej. nombre del municipio"
+                          disabled={esRegalo || busy || onepayBusy}
                         />
                       ) : (
                         <MunicipioCombobox
                           departamento={envioDepartamento}
                           value={envioCiudad}
                           onChange={setEnvioCiudad}
-                          disabled={busy || onepayBusy}
+                          disabled={esRegalo || busy || onepayBusy}
                           inputClassName={innerFieldClass}
                           placeholder="Buscá y elegí tu municipio…"
                         />
@@ -1081,21 +1480,23 @@ export function PublicCheckoutPage() {
                         </p>
                       ) : null}
                     </div>
-                    <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-dashed mc-pc-border px-3 py-2.5">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5"
-                        checked={ciudadManual}
-                        onChange={(e) => {
-                          const v = e.target.checked
-                          setCiudadManual(v)
-                          if (!v) setEnvioCiudad('')
-                        }}
-                      />
-                      <span className="text-[13px] leading-snug mc-pc-text">
-                        Mi ciudad no aparece en la lista (escribir manualmente)
-                      </span>
-                    </label>
+                    {!esRegalo ? (
+                      <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-dashed mc-pc-border px-3 py-2.5">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={ciudadManual}
+                          onChange={(e) => {
+                            const v = e.target.checked
+                            setCiudadManual(v)
+                            if (!v) setEnvioCiudad('')
+                          }}
+                        />
+                        <span className="text-[13px] leading-snug mc-pc-text">
+                          Mi ciudad no aparece en la lista (escribir manualmente)
+                        </span>
+                      </label>
+                    ) : null}
                     <div>
                       <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
                         Dirección <span className="text-red-700">*</span>
@@ -1105,6 +1506,7 @@ export function PublicCheckoutPage() {
                         value={envioDireccion}
                         onChange={(e) => setEnvioDireccion(e.target.value)}
                         autoComplete="street-address"
+                        disabled={esRegalo || busy || onepayBusy}
                       />
                     </div>
                     <div>
@@ -1113,6 +1515,7 @@ export function PublicCheckoutPage() {
                       </label>
                       <input
                         className={innerFieldClass}
+                        disabled={esRegalo || busy || onepayBusy || addiBusy}
                         value={envioReferencia}
                         onChange={(e) => setEnvioReferencia(e.target.value)}
                         placeholder="Torre, apartamento, barrio…"
@@ -1130,7 +1533,93 @@ export function PublicCheckoutPage() {
                       />
                     </div>
                   </div>
-                  {!mostrarOnepayEnCheckout && checkoutVentasModo !== 'whatsapp' ? (
+                  {mostrarSelectorMetodoPago ? (
+                    <div className="space-y-2 rounded-xl border mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] p-3 sm:p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] mc-pc-muted">
+                        Cómo querés pagar
+                      </p>
+                      <div className="grid gap-2">
+                        {mostrarOnepayEnCheckout || (!mostrarAddiEnCheckout && !contraentregaDisponible) ? (
+                          <button
+                            type="button"
+                            className={clsx(
+                              'rounded-xl border px-3 py-3 text-left transition',
+                              pagoMetodoCheckout === 'default'
+                                ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_8%,var(--cat-surface)_92%)]'
+                                : 'border-transparent bg-[var(--cat-surface)]',
+                            )}
+                            onClick={() => setPagoMetodoCheckout('default')}
+                          >
+                            <span className="block text-[14px] font-semibold mc-pc-text">
+                              {mostrarOnepayEnCheckout
+                                ? 'Pagar ahora (OnePay)'
+                                : checkoutVentasModo === 'whatsapp'
+                                  ? 'Coordinar por WhatsApp'
+                                  : 'Pago en línea / simulado'}
+                            </span>
+                            <span className="mt-0.5 block text-[12px] mc-pc-muted">
+                              {mostrarOnepayEnCheckout
+                                ? 'Tarjeta, Nequi, PSE y más'
+                                : 'Confirmás con la tienda antes del envío'}
+                            </span>
+                          </button>
+                        ) : null}
+                        {mostrarAddiEnCheckout ? (
+                          <button
+                            type="button"
+                            className={clsx(
+                              'rounded-xl border px-3 py-3 text-left transition',
+                              pagoMetodoCheckout === 'addi' ||
+                                (!mostrarOnepayEnCheckout && pagoMetodoCheckout === 'default')
+                                ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_8%,var(--cat-surface)_92%)]'
+                                : 'border-transparent bg-[var(--cat-surface)]',
+                            )}
+                            onClick={() => setPagoMetodoCheckout(mostrarOnepayEnCheckout ? 'addi' : 'default')}
+                          >
+                            <span className="block text-[14px] font-semibold mc-pc-text">
+                              Pagar con Addi
+                            </span>
+                            <span className="mt-0.5 block text-[12px] mc-pc-muted">
+                              Cuotas sin tarjeta · con tu cédula
+                            </span>
+                          </button>
+                        ) : null}
+                        {contraentregaDisponible ? (
+                          <button
+                            type="button"
+                            className={clsx(
+                              'rounded-xl border px-3 py-3 text-left transition',
+                              pagoMetodoCheckout === 'contraentrega'
+                                ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_8%,var(--cat-surface)_92%)]'
+                                : 'border-transparent bg-[var(--cat-surface)]',
+                            )}
+                            onClick={() => setPagoMetodoCheckout('contraentrega')}
+                          >
+                            <span className="block text-[14px] font-semibold mc-pc-text">
+                              Pagar al recibir
+                            </span>
+                            <span className="mt-0.5 block text-[12px] mc-pc-muted">
+                              Contraentrega · pagás {totalCop > 0 ? formatCop(totalCop) : 'el total'} al mensajero
+                            </span>
+                          </button>
+                        ) : null}
+                      </div>
+                      {pagoMetodoCheckout === 'contraentrega' ? (
+                        <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12px] leading-relaxed text-amber-950">
+                          Tené el dinero listo. Si no hay nadie para recibir, el pedido puede devolverse y se cancela el
+                          cobro.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : mostrarAddiEnCheckout && !mostrarOnepayEnCheckout ? (
+                    <div className="rounded-xl border mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] px-3 py-3 sm:px-4">
+                      <p className="text-[14px] font-semibold mc-pc-text">Pagar con Addi</p>
+                      <p className="mt-0.5 text-[12px] mc-pc-muted">Cuotas sin tarjeta · con tu cédula</p>
+                    </div>
+                  ) : null}
+                  {!mostrarOnepayEnCheckout &&
+                  checkoutVentasModo !== 'whatsapp' &&
+                  pagoMetodoCheckout !== 'contraentrega' ? (
                     <div className="rounded-md border border-dashed mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] px-3 py-4 sm:px-4">
                       <p className="text-[11px] font-medium uppercase tracking-[0.12em] mc-pc-muted">Pago simulado</p>
                       <p className="mt-2 text-[12px] leading-relaxed mc-pc-muted">

@@ -1,0 +1,18 @@
+# https://micatalogo.io
+User-agent: *
+Allow: /
+Allow: /preguntas-frecuentes
+Allow: /faq
+Allow: /pos
+Allow: /registro
+Allow: /login
+
+# Áreas privadas de la app (bajo valor de indexación)
+Disallow: /app/
+Disallow: /pos/admin/
+Disallow: /pos/vendedor/
+Disallow: /vendedor/
+Disallow: /superadmin/
+Disallow: /verificar-email
+
+Sitemap: https://micatalogo.io/sitemap.xml

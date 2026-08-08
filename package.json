@@ -18,7 +18,8 @@
     "deploy:functions:store": "bash scripts/deploy-functions.sh --only mcAdminCreateStore",
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
     "deploy:storage": "firebase deploy --only storage",
-    "build:pos-bridge": "npm --prefix packages/pos-bridge run build:installer"
+    "build:pos-bridge": "npm --prefix packages/pos-bridge run build:installer",
+    "generate:brand-icons": "node scripts/generate-brand-icons.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

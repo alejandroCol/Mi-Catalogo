@@ -25,7 +25,15 @@ export function addOrMergeSimpleLine(
   if (idx === -1) return [...lines, line]
   const next = [...lines]
   const cur = next[idx]!
-  next[idx] = { ...cur, cantidad: cur.cantidad + line.cantidad }
+  next[idx] = {
+    ...cur,
+    cantidad: cur.cantidad + line.cantidad,
+    ...(line.precioUnitarioCop != null ? { precioUnitarioCop: line.precioUnitarioCop } : {}),
+    ...(line.imageUrl && !cur.imageUrl ? { imageUrl: line.imageUrl } : {}),
+    ...(line.referencia?.trim() && !cur.referencia?.trim()
+      ? { referencia: line.referencia.trim() }
+      : {}),
+  }
   return next
 }
 

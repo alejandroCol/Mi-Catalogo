@@ -8,8 +8,12 @@ export type LineaCarritoSimple = {
   /** Id de `McProductoTalla`; ausente = producto sin talla. */
   tallaId?: string
   titulo: string
+  /** Referencia del producto (nombre + número), para pedidos WhatsApp. */
+  referencia?: string
   subtitulo?: string
   precioUnitarioCop?: number
+  /** Snapshot de imagen al agregar (thumb del carrito). */
+  imageUrl?: string
   cantidad: number
   esCombo?: boolean
   comboColorSeleccion?: McComboColorSeleccion[]

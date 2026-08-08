@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { collection, doc, onSnapshot, orderBy, query, writeBatch } from 'firebase/firestore'
+import { collection, doc, onSnapshot, orderBy, query, updateDoc, writeBatch } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { CrearCategoriaModal } from '@/components/categoria/CrearCategoriaModal'
+import { CategoriaImagePicker } from '@/components/categoria/CategoriaImagePicker'
+import { McToggleSwitch } from '@/components/McToggleSwitch'
 import {
   buildCategoriaTree,
   contarProductosEnCategoria,
@@ -13,8 +15,13 @@ import {
   puedeTenerSubcategorias,
   type CategoriaTreeNode,
 } from '@/lib/catalogCategorias'
+import {
+  mapCategoriaImageError,
+  removeCategoriaImage,
+  uploadCategoriaImage,
+} from '@/lib/categoriaImage'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
-import { mcCategoriasCollection, mcProductosCollection } from '@/lib/mcCollections'
+import { MC, mcCategoriasCollection, mcProductosCollection } from '@/lib/mcCollections'
 import {
   mcCreateCategoria,
   mcDeleteCategoria,
@@ -113,6 +120,7 @@ function CategoriaAdminCard({
   productCount,
   depth,
   busy,
+  imageBusy,
   siblingIndex,
   siblingCount,
   editingId,
@@ -126,11 +134,14 @@ function CategoriaAdminCard({
   onDelete,
   onAddSub,
   showAddSub,
+  onPickImage,
+  onRemoveImage,
 }: {
   cat: McCategoria & { id: string }
   productCount: number
   depth: 0 | 1
   busy: boolean
+  imageBusy: boolean
   siblingIndex: number
   siblingCount: number
   editingId: string | null
@@ -144,6 +155,8 @@ function CategoriaAdminCard({
   onDelete: () => void
   onAddSub?: () => void
   showAddSub?: boolean
+  onPickImage: (file: File) => void
+  onRemoveImage: () => void
 }) {
   const isSub = depth === 1
 
@@ -156,19 +169,15 @@ function CategoriaAdminCard({
       )}
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        <div
-          className={clsx(
-            'flex shrink-0 items-center justify-center rounded-2xl font-bold',
-            isSub ? 'h-9 w-9 text-[13px]' : 'h-11 w-11 text-[15px]',
-            cat.activa
-              ? isSub
-                ? 'bg-neutral-800 text-white'
-                : 'bg-mc-900 text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)]'
-              : 'bg-neutral-200 text-mc-600',
-          )}
-        >
-          {cat.nombre.charAt(0).toUpperCase()}
-        </div>
+        <CategoriaImagePicker
+          previewUrl={cat.imageUrl ?? null}
+          fallbackLetter={cat.nombre.charAt(0).toUpperCase()}
+          disabled={busy}
+          uploading={imageBusy}
+          size={isSub ? 'sm' : 'md'}
+          onPick={onPickImage}
+          onRemove={cat.imageUrl ? onRemoveImage : undefined}
+        />
         <div className="min-w-0 flex-1">
           {isSub ? (
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mc-400">Subcategoría</p>
@@ -231,6 +240,7 @@ function TreeAdminList({
   productos,
   categorias,
   busy,
+  imageBusyId,
   editingId,
   editNombre,
   onEditNombreChange,
@@ -241,11 +251,14 @@ function TreeAdminList({
   onToggle,
   onDelete,
   onAddSub,
+  onPickImage,
+  onRemoveImage,
 }: {
   nodes: CategoriaTreeNode[]
   productos: (McProducto & { id: string })[]
   categorias: (McCategoria & { id: string })[]
   busy: boolean
+  imageBusyId: string | null
   editingId: string | null
   editNombre: string
   onEditNombreChange: (v: string) => void
@@ -256,6 +269,8 @@ function TreeAdminList({
   onToggle: (cat: McCategoria & { id: string }) => void
   onDelete: (cat: McCategoria & { id: string }) => void
   onAddSub: (parent: McCategoria & { id: string }) => void
+  onPickImage: (cat: McCategoria & { id: string }, file: File) => void
+  onRemoveImage: (cat: McCategoria & { id: string }) => void
 }) {
   return (
     <ul className="space-y-3">
@@ -269,6 +284,7 @@ function TreeAdminList({
               productCount={rootCount}
               depth={0}
               busy={busy}
+              imageBusy={imageBusyId === node.id}
               siblingIndex={rootIdx}
               siblingCount={rootSiblings.length}
               editingId={editingId}
@@ -282,6 +298,8 @@ function TreeAdminList({
               onDelete={() => onDelete(node)}
               onAddSub={() => onAddSub(node)}
               showAddSub={puedeTenerSubcategorias(node)}
+              onPickImage={(file) => onPickImage(node, file)}
+              onRemoveImage={() => onRemoveImage(node)}
             />
             {node.children.map((sub, subIdx) => {
               const subSiblings = hermanosDe(sub.id, categorias)
@@ -293,6 +311,7 @@ function TreeAdminList({
                   productCount={subCount}
                   depth={1}
                   busy={busy}
+                  imageBusy={imageBusyId === sub.id}
                   siblingIndex={subIdx}
                   siblingCount={subSiblings.length}
                   editingId={editingId}
@@ -304,6 +323,8 @@ function TreeAdminList({
                   onMove={(dir) => onMove(sub.id, dir)}
                   onToggle={() => onToggle(sub)}
                   onDelete={() => onDelete(sub)}
+                  onPickImage={(file) => onPickImage(sub, file)}
+                  onRemoveImage={() => onRemoveImage(sub)}
                 />
               )
             })}
@@ -315,7 +336,7 @@ function TreeAdminList({
 }
 
 export function CategoriasPage() {
-  const { effectiveTenantId } = useMcAuth()
+  const { effectiveTenantId, tenant } = useMcAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const navState = (location.state ?? null) as CategoriasPageNavState | null
@@ -331,8 +352,15 @@ export function CategoriasPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editNombre, setEditNombre] = useState('')
   const [busy, setBusy] = useState(false)
+  const [imageBusyId, setImageBusyId] = useState<string | null>(null)
+  const [showWithImages, setShowWithImages] = useState(false)
+  const [toggleBusy, setToggleBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const { showSaveSuccess } = useSaveSuccess()
+
+  useEffect(() => {
+    setShowWithImages(tenant?.mostrarCategoriasConImagenes === true)
+  }, [tenant?.mostrarCategoriasConImagenes])
 
   useEffect(() => {
     if (fromProductForm) {
@@ -378,8 +406,7 @@ export function CategoriasPage() {
     setCreateParentId(null)
   }
 
-  async function crearCategoria(e: React.FormEvent) {
-    e.preventDefault()
+  async function crearCategoria(_e: React.FormEvent, imageFile: File | null) {
     if (!effectiveTenantId) return
     const nombre = nuevoNombre.trim()
     if (!nombre) {
@@ -398,6 +425,13 @@ export function CategoriasPage() {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       })
+      if (imageFile) {
+        try {
+          await uploadCategoriaImage(effectiveTenantId, id, imageFile)
+        } catch (imgErr) {
+          setCreateErr(mapCategoriaImageError(imgErr))
+        }
+      }
       setNuevoNombre('')
       setCreateModalOpen(false)
       setCreateParentId(null)
@@ -419,6 +453,56 @@ export function CategoriasPage() {
       setCreateErr('No se pudo crear.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function pickCategoriaImage(cat: McCategoria & { id: string }, file: File) {
+    if (!effectiveTenantId) return
+    setImageBusyId(cat.id)
+    setErr(null)
+    try {
+      await uploadCategoriaImage(effectiveTenantId, cat.id, file)
+      showSaveSuccess({ message: 'Foto de categoría actualizada.' })
+    } catch (e) {
+      setErr(mapCategoriaImageError(e))
+    } finally {
+      setImageBusyId(null)
+    }
+  }
+
+  async function clearCategoriaImage(cat: McCategoria & { id: string }) {
+    if (!effectiveTenantId) return
+    setImageBusyId(cat.id)
+    setErr(null)
+    try {
+      await removeCategoriaImage(effectiveTenantId, cat.id, cat.imageUrl)
+      showSaveSuccess({ message: 'Foto quitada.' })
+    } catch (e) {
+      setErr(mapCategoriaImageError(e))
+    } finally {
+      setImageBusyId(null)
+    }
+  }
+
+  async function setMostrarConImagenes(next: boolean) {
+    if (!effectiveTenantId) return
+    setShowWithImages(next)
+    setToggleBusy(true)
+    setErr(null)
+    try {
+      await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), {
+        mostrarCategoriasConImagenes: next,
+      })
+      showSaveSuccess({
+        message: next
+          ? 'El catálogo mostrará categorías con imagen.'
+          : 'El catálogo volverá a chips de texto.',
+      })
+    } catch {
+      setShowWithImages(!next)
+      setErr('No se pudo guardar la preferencia.')
+    } finally {
+      setToggleBusy(false)
     }
   }
 
@@ -561,12 +645,24 @@ export function CategoriasPage() {
 
       {err ? <p className="mt-4 text-[13px] text-red-800">{err}</p> : null}
 
+      <div className="mc-card mt-6 space-y-1">
+        <McToggleSwitch
+          id="mc-categorias-con-imagenes"
+          checked={showWithImages}
+          disabled={toggleBusy || !effectiveTenantId}
+          onChange={(v) => void setMostrarConImagenes(v)}
+          label="Mostrar categorías con imágenes"
+          description="En la tienda se ven círculos con foto y el nombre abajo. Si está apagado, se usan los chips de texto."
+        />
+      </div>
+
       <div className="mt-8">
         <TreeAdminList
           nodes={tree}
           productos={productos}
           categorias={categorias}
           busy={busy}
+          imageBusyId={imageBusyId}
           editingId={editingId}
           editNombre={editNombre}
           onEditNombreChange={setEditNombre}
@@ -580,6 +676,8 @@ export function CategoriasPage() {
           onToggle={(cat) => void toggleActiva(cat)}
           onDelete={(cat) => void eliminarCategoria(cat)}
           onAddSub={(parent) => openCreateModal(parent.id)}
+          onPickImage={(cat, file) => void pickCategoriaImage(cat, file)}
+          onRemoveImage={(cat) => void clearCategoriaImage(cat)}
         />
       </div>
 
@@ -609,7 +707,7 @@ export function CategoriasPage() {
         parentNombre={createParent?.nombre ?? null}
         onNombreChange={setNuevoNombre}
         onClose={closeCreateModal}
-        onSubmit={(e) => void crearCategoria(e)}
+        onSubmit={(e, file) => void crearCategoria(e, file)}
       />
     </div>
   )

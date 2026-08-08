@@ -16,18 +16,28 @@ export interface McCatalogThemeColors {
 /** Familias tipográficas elegibles para personalizar la tienda. */
 export type McCatalogFontId = 'inter-tight' | 'playfair' | 'fredoka' | 'quicksand' | 'dm-serif'
 
-/** `store`: catálogo completo; `banner`: solo título y descripción del banner principal. */
-export type McCatalogFontScope = 'store' | 'banner'
+/**
+ * Dónde aplicar la tipografía personalizada:
+ * - `store`: catálogo completo (incluye barra de anuncio)
+ * - `banner`: solo título y descripción del hero de temporada
+ * - `announcement`: solo la barra de anuncio (marquee superior)
+ */
+export type McCatalogFontScope = 'store' | 'banner' | 'announcement'
 
 export interface McCatalogThemeFonts {
   family: McCatalogFontId
   scope?: McCatalogFontScope
 }
 
+/** Forma de botones de acción del catálogo público. */
+export type McCatalogButtonShape = 'pill' | 'square'
+
 export interface McCatalogTheme {
   preset: McCatalogThemePreset
   colors?: McCatalogThemeColors
   fonts?: McCatalogThemeFonts
+  /** `pill` = redondos (default); `square` = esquinas cuadradas suaves. */
+  buttonShape?: McCatalogButtonShape
 }
 
 /** Tipo de fondo del banner de temporada. */
@@ -52,6 +62,71 @@ export interface McSeasonBanner {
   mediaType?: McSeasonBannerMediaType
   /** Cambia al guardar; invalida cierre en sessionStorage del visitante. */
   updatedAt?: number
+}
+
+/** Atmósfera visual del pasillo / showroom (solo plan Master). */
+export type McShowroomMood = 'midnight' | 'atelier' | 'runway' | 'gallery'
+
+/** Organización del texto en el banner de entrada del showroom (home). */
+export type McShowroomHomeLayout = 'editorial' | 'center' | 'panel' | 'bottom'
+
+/**
+ * Drop Room + Pasillo / Showroom inmersivo para presentar una colección.
+ * Solo plan Master con suscripción activa.
+ */
+export interface McCollectionShowroom {
+  enabled: boolean
+  /**
+   * Apertura del drop (UTC ms). Si es futuro → sala cerrada con countdown.
+   * Ausente o pasado → pasillo abierto.
+   */
+  dropAtMs?: number
+  teaserEyebrow?: string
+  teaserHeadline?: string
+  teaserSubheadline?: string
+  /** CTA en drop cerrado («Avisame») o puerta abierta («Entrar al pasillo»). */
+  teaserCtaLabel?: string
+  teaserImageUrl?: string
+  teaserVideoUrl?: string
+  teaserPosterUrl?: string
+  teaserMediaType?: McSeasonBannerMediaType
+  collectionTitle?: string
+  collectionSubtitle?: string
+  /** Banner de entrada en el home del catálogo. */
+  homeEyebrow?: string
+  homeHeadline?: string
+  homeSubheadline?: string
+  homeCtaLabel?: string
+  /** Estilo del banner en home (texto + forma). Por defecto `editorial`. */
+  homeLayout?: McShowroomHomeLayout
+  /** Fuente del título del banner en home. */
+  homeFontId?: McCatalogFontId
+  /**
+   * Ancho completo de borde a borde (rompe el padding del catálogo).
+   * Por defecto `true`.
+   */
+  homeFullWidth?: boolean
+  mood?: McShowroomMood
+  /** Productos del pasillo, en orden de recorrido. */
+  productIds?: string[]
+  atelierHeadline?: string
+  atelierSubheadline?: string
+  /** Look final del atelier (subconjunto o selección aparte). */
+  atelierProductIds?: string[]
+  /** Mostrar «Quedan N» en displays del pasillo. */
+  showStockLeft?: boolean
+  /** Lista de espera en Drop Room (email vía Cloud Function). */
+  waitlistEnabled?: boolean
+  updatedAtMs?: number
+}
+
+/** Entrada a la lista de espera del Drop Room (`showroom_waitlist`). */
+export interface McShowroomWaitlistEntry {
+  id: string
+  email: string
+  name?: string
+  createdAt: number
+  userAgent?: string
 }
 
 /** Dueño de tienda (default), representante comercial de campo o cajero POS. */
@@ -157,8 +232,17 @@ export interface McTenant {
   storeLogoUrl?: string
   /** Banner fullscreen opcional al entrar al catálogo (solo Expert). */
   seasonBanner?: McSeasonBanner
+  /**
+   * Drop Room + Pasillo / Showroom de colección (solo plan Master).
+   * Experiencia inmersiva aparte del grid del catálogo.
+   */
+  collectionShowroom?: McCollectionShowroom
   /** Contador de productos en inventario; se mantiene al crear/eliminar. */
   productCount?: number
+  /** Perfil proveedor marketplace (`mc_proveedores/{id}`). */
+  proveedorId?: string
+  /** La tienda también opera como proveedor del marketplace. */
+  esProveedorActivo?: boolean
   /** Etiqueta comercial del plan (solo súper admin; no afecta reglas de negocio). */
   subscriptionPlan?: 'trial' | 'monthly' | 'yearly' | 'custom'
   /** Suscripción Expert vía OnePay plataforma (subscription_v2). */
@@ -216,6 +300,18 @@ export interface McTenant {
   cuponesCatalogo?: McCuponTienda[]
   /** Tab de ofertas en el listado público del catálogo. */
   catalogDescuentosTab?: McCatalogDescuentosTab
+  /**
+   * Si true, las categorías del catálogo se muestran como círculo + nombre
+   * (usa `McCategoria.imageUrl` cuando exista).
+   */
+  mostrarCategoriasConImagenes?: boolean
+  /** Mini barra promocional opcional arriba del header del catálogo. */
+  announcementBar?: McAnnouncementBar
+  /**
+   * Disposición de la cabecera del catálogo público.
+   * Ausente o inválido → `brand-left` (logo a la izquierda).
+   */
+  headerLayout?: McCatalogHeaderLayoutId
   /** Sección «Sobre mi marca» opcional al pie del catálogo. */
   storeAbout?: McStoreAbout
   /** Redes sociales opcionales en el pie del catálogo. */
@@ -252,6 +348,11 @@ export interface McTenant {
    */
   checkoutVentasModo?: 'pasarela' | 'whatsapp' | 'pasarela_micatalogo'
   /**
+   * Si true, el checkout ofrece «Pagar al recibir» (contraentrega / COD).
+   * Útil con dropship: el cliente paga al mensajero; el recaudo se concilia después.
+   */
+  contraentregaCatalogoEnabled?: boolean
+  /**
    * Alta de empresa OnePay (KYB) vía API de plataforma: revisión antes de cobrar en catálogo.
    * `approved` + claves API (panel súper admin) habilitan pagos reales (junto al webhook).
    */
@@ -272,6 +373,17 @@ export interface McTenant {
   /** Últimos dígitos de la cuenta (solo visualización). */
   onepayPayoutAccountHint?: string
   onepayPayoutSetupAt?: number
+  /**
+   * Pago a cuotas con Addi (BYOK). Solo plan Master.
+   * Secretos en `private_addi/credentials` (clientId, clientSecret, allySlug, callback*).
+   */
+  addiPaymentsEnabled?: boolean
+  addiLinkedAt?: number
+  /** Token de ruta webhook Addi (`?k=`). */
+  addiWebHookK?: string
+  addiClientIdHint?: string
+  addiAllySlug?: string
+  addiSandbox?: boolean
   /** Millis UTC: checklist de tienda nueva completado (oculta banner y checklist). */
   onboardingSetupCompletedAt?: number
   /** Millis UTC: el dueño ya vio el CTA «listo para vender» en Inicio (no volver a mostrar). */
@@ -311,6 +423,38 @@ export interface McCatalogDescuentosTab {
   /** Etiqueta visible en el tab; si vacía → «Descuento». */
   label?: string
 }
+
+/** Fondo de la barra de anuncio; el texto se invierte automáticamente. */
+export type McAnnouncementBarTheme = 'black' | 'white'
+
+/** Separación horizontal entre mensajes del marquee. */
+export type McAnnouncementBarSpacing = 'near' | 'normal' | 'far'
+
+/**
+ * Mini banner / barra de anuncio arriba del header del catálogo público.
+ * Extensible: futuros campos (linkUrl, speed) sin romper el contrato actual.
+ */
+export interface McAnnouncementBar {
+  enabled: boolean
+  /**
+   * Hasta 2 mensajes que se alternan en el marquee.
+   * Si falta, se usa `text` (legado).
+   */
+  texts?: string[]
+  /** @deprecated Preferir `texts`. Se mantiene para tiendas ya configuradas. */
+  text?: string
+  /** Fondo negro o blanco; default `black`. */
+  theme?: McAnnouncementBarTheme
+  /** Distancia entre textos; default `normal`. */
+  spacing?: McAnnouncementBarSpacing
+}
+
+/**
+ * Layout de la cabecera del catálogo.
+ * - `brand-left`: logo/nombre a la izquierda (actual).
+ * - `logo-center`: secciones a la izquierda, marca al centro, iconos a la derecha.
+ */
+export type McCatalogHeaderLayoutId = 'brand-left' | 'logo-center'
 
 /** Sección «Sobre mi marca» al pie del catálogo público. */
 export interface McStoreAbout {
@@ -354,6 +498,8 @@ export interface McCarritoIniciadoLinea {
   varianteId?: string
   tallaId?: string
   titulo: string
+  /** Snapshot de `McProducto.referencia` al armar el carrito. */
+  referencia?: string
   subtitulo?: string
   precioUnitarioCop?: number
   cantidad: number
@@ -483,6 +629,8 @@ export interface McCategoria {
   activa: boolean
   /** Ausente o null = categoría raíz; id del padre = subcategoría (máx. 2 niveles). */
   parentId?: string | null
+  /** Foto opcional (círculo en el catálogo cuando `mostrarCategoriasConImagenes`). */
+  imageUrl?: string
   createdAt: number
   updatedAt: number
 }
@@ -490,6 +638,11 @@ export interface McCategoria {
 export interface McProducto {
   id: string
   nombre: string
+  /**
+   * Referencia interna del producto: nombre de la prenda + número secuencial
+   * (ej. "Camisa 12"). Se muestra al crear y se envía en pedidos por WhatsApp.
+   */
+  referencia?: string
   /** `combo` = producto empaquetado con componentes del inventario; default `simple`. */
   tipoProducto?: McProductoTipo
   /** Componentes fijos del combo (solo si `tipoProducto === 'combo'`). */
@@ -534,6 +687,8 @@ export interface McProducto {
   mostrarDescargaImagen?: boolean
   /** Muestra el botón «Añadir 1 docena» en la ficha pública del producto. */
   mostrarBotonDocena?: boolean
+  /** Muestra la cantidad disponible en la ficha pública del producto. */
+  mostrarStockCatalogo?: boolean
   /** Descuento visible en catálogo (sobre precio base o variante). */
   descuentoActivo?: boolean
   descuentoTipo?: 'porcentaje' | 'monto_fijo'
@@ -549,6 +704,43 @@ export interface McProducto {
   posSedeId?: string
   /** Falta imagen u otros datos para publicar en catálogo. */
   posPendientePublicar?: boolean
+  /** Fulfillment: inventario propio o proveedor marketplace. */
+  origenFulfillment?: 'propio' | 'proveedor'
+  /** Proveedor marketplace (`mc_proveedores`). */
+  proveedorId?: string
+  proveedorProductoId?: string
+  proveedorNombre?: string
+  /** Lead time anunciado del proveedor (horas). */
+  leadTimeHoras?: number
+  /**
+   * Oferta de reventa (dueño es proveedor). La fuente de verdad del catálogo
+   * sigue siendo este producto; el marketplace es una proyección.
+   */
+  reventa?: McProductoReventa
+  /** Promedio de reseñas aprobadas (1–5). */
+  ratingAvg?: number
+  /** Cantidad de reseñas aprobadas. */
+  ratingCount?: number
+}
+
+/** Condiciones B2B al publicar un producto propio en el marketplace. */
+export interface McProductoReventa {
+  enabled: boolean
+  proveedorId?: string
+  /** Doc en `mc_proveedores/{id}/productos` (suele coincidir con este product id). */
+  proveedorProductoId?: string
+  /** Costo que pagan las otras tiendas (COP). */
+  precioCostoCop: number
+  /** Precio de venta sugerido al cliente final. */
+  precioSugeridoCop?: number
+  precioMinimoVentaCop?: number
+  /**
+   * Horas hasta despacho desde que llega el pedido.
+   * 24 = mismo día / día siguiente; 48 = 1–2 días; etc.
+   */
+  leadTimeHoras: 24 | 48 | 72 | 96
+  publishedAt?: number
+  updatedAt?: number
 }
 
 /** Configuración de hardware POS por sede. */
@@ -786,6 +978,8 @@ export type McOrdenCatalogoEstado =
 export interface McOrdenCatalogoLinea {
   productId: string
   nombre: string
+  /** Snapshot de la referencia del producto al momento del pedido. */
+  referencia?: string
   cantidad: number
   precioUnitarioCop: number
   /** Costo unitario al momento de la venta (opcional). */
@@ -796,6 +990,9 @@ export interface McOrdenCatalogoLinea {
   esCombo?: boolean
   componentesExpandidos?: McComboComponenteExpandido[]
   comboColorSeleccion?: McComboColorSeleccion[]
+  /** Dropship: id del proveedor marketplace. */
+  proveedorId?: string
+  proveedorProductoId?: string
 }
 
 export interface McOrdenCatalogo {
@@ -812,6 +1009,11 @@ export interface McOrdenCatalogo {
   pagoOnePay?: boolean
   onepayViewToken?: string
   onepayPaymentId?: string | null
+  /** Pago con Addi (BNPL) confirmado vía callback. */
+  pagoAddi?: boolean
+  addiViewToken?: string
+  addiApplicationId?: string | null
+  addiStatus?: string
   /** Cobro con credenciales de la plataforma (checkout sin cuenta OnePay del comercio). */
   onepayViaMicatalogo?: boolean
   /** Id de tienda Firestore; también se envía a OnePay como `mi_catalogo_store_id` en metadata. */
@@ -850,6 +1052,63 @@ export interface McOrdenCatalogo {
   envioDireccion?: string
   envioReferencia?: string
   envioDepartamento?: string
+  /** Millis cuando se crearon POs a proveedores dropship. */
+  proveedorPosCreadosAt?: number
+  /** IDs de órdenes en `mc_proveedores/{id}/ordenes`. */
+  proveedorPoIds?: string[]
+  /** Pedido con pago contra entrega (COD). */
+  pagoContraEntrega?: boolean
+  /** Estado del recaudo COD con el cliente. */
+  estadoPagoCod?: 'pendiente' | 'recaudado' | 'no_entregado' | 'devuelto'
+  /** Monto que debe recaudar el mensajero (normalmente = totalCop). */
+  montoRecaudarCop?: number
+  recaudadoCodAt?: number
+  /** Pedido regalado desde una wishlist compartible. */
+  esRegalo?: boolean
+  /** Id de `mc_tenants/{tid}/wishlists/{id}`. */
+  wishlistId?: string
+  /** Nombre de quien recibe el regalo (puede diferir del pagador). */
+  destinatarioNombre?: string
+}
+
+/** Ítem de una lista de deseos compartible (regalos). */
+export interface McWishlistItem {
+  productId: string
+  varianteId?: string
+  tallaId?: string
+  titulo: string
+  referencia?: string
+  subtitulo?: string
+  precioUnitarioCop?: number
+  imageUrl?: string
+  /** Cantidad que la persona desea recibir. */
+  cantidadDeseada: number
+  /** Unidades ya compradas por amigos (parciales ok). */
+  compradoCantidad?: number
+}
+
+export type McWishlistEstado = 'activa' | 'cerrada'
+
+/**
+ * Lista de deseos compartible (`mc_tenants/{tid}/wishlists/{id}`).
+ * El creador define dónde llega el regalo; el amigo paga en checkout.
+ */
+export interface McWishlist {
+  createdAt: number
+  updatedAt: number
+  estado: McWishlistEstado
+  /** Token anónimo del editor (navegador). */
+  sessionToken: string
+  titulo: string
+  mensaje?: string
+  creadorNombre: string
+  destinatarioNombre: string
+  destinatarioTelefono?: string
+  envioDepartamento: string
+  envioCiudad: string
+  envioDireccion: string
+  envioReferencia?: string
+  items: McWishlistItem[]
 }
 
 /** Documento `mc_platform/settings` (sin secretos). */
@@ -1093,4 +1352,27 @@ export interface McLiveChatMessage {
   text: string
   type: McLiveChatMessageType
   createdAt: number
+}
+
+export type McProductReviewStatus = 'pending' | 'approved' | 'rejected'
+
+/** Reseña de producto del catálogo (compra verificada vía pedido). */
+export interface McProductReview {
+  id: string
+  productId: string
+  productNombre?: string
+  orderId: string
+  rating: number
+  comentario: string
+  clienteNombre: string
+  /** Email del pedido (interno); ya no se pide al cliente al reseñar. */
+  clienteEmail?: string
+  /** Foto opcional de cómo le quedó el producto. */
+  imageUrl?: string
+  status: McProductReviewStatus
+  verifiedPurchase: boolean
+  createdAt: number
+  updatedAt: number
+  moderatedAt?: number
+  moderatedByUid?: string
 }

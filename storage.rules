@@ -58,10 +58,22 @@ service firebase.storage {
       allow write: if mcUserCanAccessTenant(tenantId);
     }
 
+    /** Fotos de categorías del catálogo (círculo en navegación). */
+    match /mc_tenants/{tenantId}/categorias/{fileName} {
+      allow read: if true;
+      allow write: if mcUserCanWriteImage(tenantId, 3 * 1024 * 1024);
+    }
+
     /** Guías de rastreo (imagen comprimida) — lectura pública opcional */
     match /mc_tenants/{tenantId}/ordenes_catalogo/{fileName} {
       allow read: if true;
       allow write: if mcUserCanWriteImage(tenantId, 4 * 1024 * 1024);
+    }
+
+    /** Fotos de reseñas de producto (escritura vía Admin SDK / Cloud Functions). */
+    match /mc_tenants/{tenantId}/product_reviews/{fileName} {
+      allow read: if true;
+      allow write: if false;
     }
 
     /** Logo de tienda (plan Expert) */
@@ -74,6 +86,17 @@ service firebase.storage {
     match /mc_tenants/{tenantId}/season_banner/{fileName} {
       allow read: if true;
       allow write: if mcUserCanWriteSeasonBanner(tenantId, fileName);
+    }
+
+    /** Teaser Drop Room / Showroom — imagen, video y poster (plan Master en app). */
+    match /mc_tenants/{tenantId}/showroom/{fileName} {
+      allow read: if true;
+      allow write: if mcUserCanAccessTenant(tenantId)
+        && (
+          (fileName == 'teaser.jpg' && request.resource.size < 6 * 1024 * 1024 && request.resource.contentType.matches('image/.*'))
+          || (fileName == 'poster.jpg' && request.resource.size < 4 * 1024 * 1024 && request.resource.contentType.matches('image/.*'))
+          || (fileName == 'teaser.mp4' && request.resource.size < 12 * 1024 * 1024 && request.resource.contentType == 'video/mp4')
+        );
     }
 
     match /mc_tenants/{tenantId}/onepay_kyb/{fileName} {

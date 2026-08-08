@@ -3,7 +3,9 @@ import { ProductoDescuentoEditor, parseProductoDescuentoDraft, productoDescuento
 import { ProductoFormSection } from '@/components/producto/ProductoFormSection'
 import { ProductoImagenesEditor } from '@/components/producto/ProductoImagenesEditor'
 import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
+import { ProductoReferenciaPreview } from '@/components/producto/ProductoReferenciaPreview'
 import { ComboComponentesEditor } from '@/components/producto/ComboComponentesEditor'
+import { resolveProductoReferencia } from '@/lib/productoReferencia'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 import { useTenantProductos } from '@/hooks/useTenantProductos'
@@ -55,6 +57,8 @@ type Props = {
   tenantId: string
   product?: McProducto & { id: string }
   nextOrden?: number
+  /** Cantidad actual de productos (para preview de referencia al crear). */
+  currentCount?: number
   initialCategoriaIds?: string[]
   /** Desde inventario POS: vincula productos POS al catálogo para poder armar combos. */
   posInventoryMode?: boolean
@@ -65,6 +69,7 @@ export function ComboProductModal({
   tenantId,
   product,
   nextOrden = 0,
+  currentCount,
   initialCategoriaIds,
   posInventoryMode = false,
   onClose,
@@ -129,6 +134,11 @@ export function ComboProductModal({
   const initialImagenes = product ? imagenDraftFromProducto(product) : { items: [] as ProductoImagenDraft[], coverId: null as string | null }
 
   const [nombre, setNombre] = useState(product?.nombre ?? '')
+  const productCountForRef = currentCount ?? nextOrden
+  const referenciaPreview = resolveProductoReferencia(nombre, {
+    referenciaActual: product?.referencia,
+    productCount: isEdit ? undefined : productCountForRef,
+  })
   const [descripcion, setDescripcion] = useState(product?.descripcion ?? '')
   const [precio, setPrecio] = useState(
     product && product.precioCop > 0 ? formatIntegerEsCo(product.precioCop) : '',
@@ -243,6 +253,7 @@ export function ComboProductModal({
         if (!isEdit) {
           const { id } = await mcCreateProducto(tenantId, {
             nombre: nombre.trim(),
+            ...(referenciaPreview ? { referencia: referenciaPreview } : {}),
             ...(descripcion.trim() ? { descripcion: descripcion.trim() } : {}),
             precioCop: precioNum,
             stock: stockCombo,
@@ -275,6 +286,11 @@ export function ComboProductModal({
 
         const patch: Record<string, unknown> = {
           nombre: nombre.trim(),
+          ...(referenciaPreview
+            ? { referencia: referenciaPreview }
+            : product?.referencia
+              ? { referencia: product.referencia }
+              : {}),
           descripcion: descripcion.trim() ? descripcion.trim() : deleteField(),
           precioCop: precioNum,
           stock: stockCombo,
@@ -444,6 +460,9 @@ export function ComboProductModal({
                     onChange={(e) => setNombre(e.target.value)}
                     placeholder="Ej. Promo 3 camisetas"
                     required
+                  />
+                  <ProductoReferenciaPreview
+                    referencia={referenciaPreview || product?.referencia || ''}
                   />
                 </div>
                 <div>

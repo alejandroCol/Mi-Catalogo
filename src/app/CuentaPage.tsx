@@ -6,7 +6,7 @@ import { useMcAuth } from '@/auth/McAuthContext'
 import { buildConfigMenuItems, ConfigTileGrid } from '@/app/configuraciones'
 import { BillingPastDueBanner } from '@/components/billing/BillingPastDueBanner'
 import { PlanEleganceBadge } from '@/components/billing/PlanEleganceBadge'
-import { hasExpertFeatureAccess } from '@/lib/billingAccess'
+import { hasExpertFeatureAccess, ownerPlanEleganceLabel } from '@/lib/billingAccess'
 import { isPaidBillingPlan } from '@/lib/billingPlan'
 import { billingPlanOf } from '@/lib/catalogTheme'
 import { isCatalogoVendedorListo } from '@/lib/checkoutVentasModo'
@@ -29,6 +29,7 @@ export function CuentaPage() {
 
   const catalogoPublico = tenant ? isCatalogPubliclyAccessible(tenant) : false
   const plan = tenant ? billingPlanOf(tenant) : 'free'
+  const planLabel = ownerPlanEleganceLabel(tenant, platformSettings)
   const expertAccess = tenant ? hasExpertFeatureAccess(tenant) : false
   const expertPaused =
     tenant &&
@@ -91,7 +92,7 @@ export function CuentaPage() {
               >
                 <span className="ios-footnote font-medium text-[var(--cat-text)]">Plan producto:</span>
                 <span className="border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-[var(--cat-text)]">
-                  Expert
+                  {planLabel}
                 </span>
               </Link>
             )}

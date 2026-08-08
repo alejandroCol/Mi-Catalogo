@@ -48,6 +48,7 @@ type McCuponTienda = {
 
 type CarritoLinea = {
   titulo?: string
+  referencia?: string
   cantidad?: number
   precioUnitarioCop?: number
 }
@@ -70,7 +71,9 @@ function buildRecoveryEmailHtml(opts: {
 
   const lineRows = opts.lineas
     .map((l) => {
-      const titulo = escapeHtml(l.titulo ?? 'Producto')
+      const titulo = escapeHtml(
+        (typeof l.referencia === 'string' && l.referencia.trim()) || l.titulo || 'Producto',
+      )
       const cant = Math.max(0, Math.round(Number(l.cantidad) || 0))
       const pu = Math.max(0, Math.round(Number(l.precioUnitarioCop) || 0))
       return `<tr>

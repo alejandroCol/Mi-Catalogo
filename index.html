@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-CO">
   <head>
     <meta charset="UTF-8" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -8,17 +8,101 @@
       href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Fredoka:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Quicksand:wght@500;600&display=swap"
       rel="stylesheet"
     />
+
+    <!-- Favicons: plato claro + marca (legible en el chip oscuro de Google) -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16x16.png" />
     <link rel="icon" type="image/svg+xml" href="/brand/mi-catalogo-icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#faf9f7" />
+    <meta name="color-scheme" content="light" />
     <meta
       name="description"
-      content="Catálogos online hermosos para emprendedores colombianos. Registrate gratis y empezá a vender por WhatsApp hoy."
+      content="Tienda online, catálogo WhatsApp y punto de venta en un solo lugar. Empezá gratis, sin tarjeta. Para emprendedores en Colombia."
     />
+    <meta
+      name="keywords"
+      content="mi catálogo, mi catalogo, tienda online, sistema POS, catálogo WhatsApp, punto de venta, emprendedores Colombia"
+    />
+    <meta name="author" content="Mi Catálogo" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <link rel="canonical" href="https://micatalogo.io/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_CO" />
+    <meta property="og:site_name" content="Mi Catálogo" />
+    <meta property="og:url" content="https://micatalogo.io/" />
+    <meta property="og:title" content="Mi Catálogo — Tienda online y sistema POS" />
+    <meta
+      property="og:description"
+      content="Tienda online, catálogo WhatsApp y punto de venta en un solo lugar. Empezá gratis, sin tarjeta. Para emprendedores en Colombia."
+    />
+    <meta property="og:image" content="https://micatalogo.io/brand/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Mi Catálogo — tienda online y catálogo WhatsApp" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Mi Catálogo — Tienda online y sistema POS" />
+    <meta
+      name="twitter:description"
+      content="Tienda online, catálogo WhatsApp y punto de venta en un solo lugar. Empezá gratis, sin tarjeta."
+    />
+    <meta name="twitter:image" content="https://micatalogo.io/brand/og-image.png" />
+
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Mi Catálogo" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <title>Mi Catálogo</title>
+    <title>Mi Catálogo — Tienda online y sistema POS</title>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://micatalogo.io/#organization",
+            "name": "Mi Catálogo",
+            "url": "https://micatalogo.io/",
+            "logo": "https://micatalogo.io/brand/android-chrome-512x512.png",
+            "description": "Plataforma para crear tiendas online, catálogos WhatsApp y sistema POS.",
+            "areaServed": "CO",
+            "sameAs": []
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://micatalogo.io/#website",
+            "url": "https://micatalogo.io/",
+            "name": "Mi Catálogo",
+            "publisher": { "@id": "https://micatalogo.io/#organization" },
+            "inLanguage": "es-CO"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://micatalogo.io/#app",
+            "name": "Mi Catálogo",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "url": "https://micatalogo.io/",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "COP",
+              "description": "Registro gratis para crear tu tienda y probar la plataforma"
+            },
+            "description": "Tienda online, catálogo WhatsApp y sistema POS. Empezá gratis, sin tarjeta de crédito."
+          }
+        ]
+      }
+    </script>
+
     <!-- Bootstrap: siempre fresco (no-cache). Recupera chunks viejos tras deploy sin depender del bundle JS. -->
     <script>
       ;(function () {
@@ -71,6 +155,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <main>
+        <h1>Mi Catálogo — Tienda online y sistema POS</h1>
+        <p>
+          Tienda online, catálogo WhatsApp y punto de venta en un solo lugar. Empezá gratis, sin tarjeta.
+          Para emprendedores en Colombia.
+        </p>
+        <p>
+          Empezá a vender sin pagar un solo peso. Registrate en
+          <a href="https://micatalogo.io/registro">micatalogo.io/registro</a>.
+        </p>
+        <p><a href="https://micatalogo.io/preguntas-frecuentes">Preguntas frecuentes</a></p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

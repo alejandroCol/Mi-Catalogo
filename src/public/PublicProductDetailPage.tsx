@@ -6,11 +6,21 @@ import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext
 import type { LineaCarritoSimple } from '@/catalog-local/simpleCartTypes'
 import { downloadCatalogImage } from '@/catalog-local/downloadCatalogImage'
 import { FullscreenImageOverlay } from '@/catalog-local/FullscreenImageOverlay'
-import { ProductImageGallery } from '@/public/ProductImageGallery'
+import { ProductGalleryActionButton, ProductImageGallery } from '@/public/ProductImageGallery'
 import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { formatCop } from '@/lib/formatCop'
+import { buildCatalogProductShareUrl } from '@/lib/catalogShareUrl'
+import {
+  applyStoreProductSeo,
+  clearStoreProductSeo,
+} from '@/lib/storePageSeo'
+import { CatalogFavoriteButton } from '@/public/CatalogFavoriteButton'
+import { CatalogTrustSignals } from '@/public/CatalogTrustSignals'
+import { CatalogRelatedProducts } from '@/public/CatalogRelatedProducts'
+import { CatalogProductReviews } from '@/public/CatalogProductReviews'
+import { CatalogCartShippingEstimator } from '@/public/CatalogCartShippingEstimator'
 import {
   productoPorcentajeDescuentoDisplay,
   productoPrecioLista,
@@ -134,8 +144,8 @@ function buildGalleryUrls(
 export function PublicProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
   const { slug, to, storePublicUrl } = usePublicStore()
-  const { tenantId, tenant, loading, error } = useCatalogTenant()
-  const { add, lines } = useCatalogoSimpleCart()
+  const { tenantId, tenant, platformSettings, loading, error } = useCatalogTenant()
+  const { add, lines, subtotalCop, totalPiezas } = useCatalogoSimpleCart()
   const { playAddToCartFly } = useCartAddAnimation()
   const [p, setP] = useState<(McProducto & { id: string }) | null>(null)
   const [productResolved, setProductResolved] = useState(false)
@@ -288,6 +298,31 @@ export function PublicProductDetailPage() {
     selected && prod ? productoPrecioVenta(prod, selected) : prod ? productoPrecioVenta(prod) : 0
   const enOferta = prod ? productoTieneDescuento(prod) : false
 
+  useEffect(() => {
+    if (!prod || !tenant || !slug) return
+    applyStoreProductSeo({
+      nombreTienda: tenant.nombreTienda,
+      productName: prod.nombre,
+      description: prod.descripcion,
+      imageUrl: galeriaUrls[0] || prod.imageUrl,
+      priceCop: effectivePrice,
+      canonicalUrl: storePublicUrl(`/p/${prod.id}`),
+      availability: (prod.stock ?? 0) > 0 ? 'InStock' : 'OutOfStock',
+    })
+    return () => clearStoreProductSeo()
+  }, [
+    prod?.id,
+    prod?.nombre,
+    prod?.descripcion,
+    prod?.imageUrl,
+    prod?.stock,
+    tenant?.nombreTienda,
+    slug,
+    galeriaUrls[0],
+    effectivePrice,
+    storePublicUrl,
+  ])
+
   const enCarrito = useMemo(() => {
     if (!prod) return 0
     let n = 0
@@ -424,8 +459,10 @@ export function PublicProductDetailPage() {
         varianteId: hasVariants && selected ? selected.id : undefined,
         tallaId: hasTallas ? selectedTalla!.id : undefined,
         titulo,
+        ...(product.referencia?.trim() ? { referencia: product.referencia.trim() } : {}),
         subtitulo: incluye ?? formatCop(effectivePrice),
         precioUnitarioCop: effectivePrice,
+        ...(galeriaUrls[0] ? { imageUrl: galeriaUrls[0] } : {}),
         cantidad: cant,
         ...(isCombo ? { esCombo: true } : {}),
         ...(isCombo && comboColorSeleccion.length ? { comboColorSeleccion } : {}),
@@ -448,7 +485,7 @@ export function PublicProductDetailPage() {
       <span aria-hidden className="text-[color-mix(in_srgb,var(--cat-muted)_60%,transparent)]">
         /
       </span>
-      <span className="line-clamp-1 text-[var(--cat-muted)]">Producto</span>
+      <span className="line-clamp-1 text-[var(--cat-text)]">{product.nombre}</span>
     </nav>
   )
 
@@ -673,17 +710,17 @@ export function PublicProductDetailPage() {
             +
           </button>
         </div>
-        {disp >= 1 ? (
+        {disp < 1 ? (
+          <span className="text-[10px] mc-pc-muted sm:text-[11px]">Sin stock disponible</span>
+        ) : product.mostrarStockCatalogo ? (
           <span className="text-[10px] leading-tight mc-pc-muted sm:text-[11px]">
             Hasta {disp} {disp === 1 ? 'unidad' : 'unidades'}
           </span>
-        ) : (
-          <span className="text-[10px] mc-pc-muted sm:text-[11px]">Sin stock disponible</span>
-        )}
+        ) : null}
       </div>
       <button
         type="button"
-        className="mc-pc-add-to-cart-btn min-h-[52px] w-full rounded-2xl bg-[#0a0a0a] px-4 py-3.5 text-[15px] font-semibold text-white shadow-sm transition duration-200 ease-in-out hover:bg-neutral-800 disabled:opacity-40 sm:min-h-[48px] sm:text-base"
+        className="mc-pc-add-to-cart-btn min-h-[48px] w-full bg-[#0a0a0a] px-4 py-3 text-[15px] font-semibold text-white shadow-sm transition duration-200 ease-in-out hover:bg-neutral-800 disabled:opacity-40 sm:min-h-[48px] sm:py-3.5 sm:text-base"
         disabled={
           disp < 1 ||
           (hasTallas && !selectedTalla) ||
@@ -697,7 +734,7 @@ export function PublicProductDetailPage() {
       {product.mostrarBotonDocena && disp >= DOCENA ? (
         <button
           type="button"
-          className="mc-pc-add-to-cart-btn min-h-[48px] w-full rounded-2xl border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out hover:border-[color-mix(in_srgb,var(--cat-text)_28%,transparent)] hover:bg-[color-mix(in_srgb,var(--cat-text)_4%,var(--cat-surface))] active:scale-[0.99] disabled:opacity-40"
+          className="mc-pc-add-to-cart-btn min-h-[48px] w-full border border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] bg-[var(--cat-surface)] px-4 py-3 text-[14px] font-semibold text-[var(--cat-text)] transition duration-200 ease-in-out hover:border-[color-mix(in_srgb,var(--cat-text)_28%,transparent)] hover:bg-[color-mix(in_srgb,var(--cat-text)_4%,var(--cat-surface))] active:scale-[0.99] disabled:opacity-40"
           disabled={disp < DOCENA || (hasTallas && !selectedTalla) || (hasMatrizSku && !selected)}
           onClick={(e) => sumar(DOCENA, e.currentTarget)}
         >
@@ -707,8 +744,28 @@ export function PublicProductDetailPage() {
     </div>
   )
 
+  const stockLine = (() => {
+    if (!product.mostrarStockCatalogo) {
+      if (disp < 1) return 'Sin stock'
+      return null
+    }
+    if (hasTallas && selectedTalla) {
+      return disp > 0 ? `${disp} disponibles` : 'Sin stock en esta talla'
+    }
+    if (hasVariants && selected) {
+      if (usaStockPorVariante) return disp > 0 ? `${disp} disponibles` : 'Sin stock en esta opción'
+      return `Stock ${product.stock}`
+    }
+    if (hasVariants && actsAsOriginal) {
+      if (usaStockPorVariante) return disp > 0 ? `${disp} disponibles` : 'Sin stock'
+      return `Stock ${product.stock}`
+    }
+    if (enCarrito > 0) return `Stock ${product.stock} · podés sumar hasta ${disp} más`
+    return `Stock ${product.stock}`
+  })()
+
   return (
-    <div className="pb-28 md:pb-0">
+    <div className="pb-[7.5rem] md:pb-0">
       <div
         className={clsx(
           'md:grid md:items-start',
@@ -723,66 +780,91 @@ export function PublicProductDetailPage() {
             isBold && 'w-full',
           )}
         >
-          <Breadcrumb />
-          <div className="mt-4">
+          <div className="max-md:hidden">
+            <Breadcrumb />
+          </div>
+          <div className="md:mt-4">
             <ProductImageGallery
               urls={galeriaUrls}
               alt={product.nombre}
               isBold={isBold}
               onOpenFullscreen={(index) => setFullscreen({ index, alt: product.nombre })}
+              overlayActions={
+                <>
+                  <CatalogFavoriteButton
+                    productId={product.id}
+                    size="sm"
+                    onMedia={false}
+                    className="h-9 w-9 rounded-full bg-white/90 p-0 text-[var(--cat-text)] shadow-[0_4px_14px_-6px_rgba(0,0,0,0.35)] ring-1 ring-black/5 backdrop-blur-md hover:bg-white"
+                  />
+                  {canUseWebShare() ? (
+                    <ProductGalleryActionButton
+                      label="Compartir"
+                      onClick={() =>
+                        void shareSafe(
+                          buildProductShareData({
+                            nombreTienda: tenant.nombreTienda,
+                            productName: product.nombre,
+                            productUrl: storePublicUrl(`/p/${product.id}`),
+                            sharePreviewUrl: buildCatalogProductShareUrl(slug, product.id),
+                            priceLabel: formatCop(effectivePrice),
+                          }),
+                        )
+                      }
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-[1.05rem] w-[1.05rem]"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        aria-hidden
+                      >
+                        <circle cx="18" cy="5" r="2.4" />
+                        <circle cx="6" cy="12" r="2.4" />
+                        <circle cx="18" cy="19" r="2.4" />
+                        <path strokeLinecap="round" d="M8.3 13.2 15.7 17.3M15.7 6.7 8.3 10.8" />
+                      </svg>
+                    </ProductGalleryActionButton>
+                  ) : null}
+                </>
+              }
             />
           </div>
         </div>
 
         <div
           className={clsx(
-            'mt-6 min-w-0 md:mt-0',
+            'mt-4 min-w-0 sm:mt-6 md:mt-0',
             isBold && 'max-w-2xl text-center',
             isBoutique && 'text-center md:text-left',
           )}
         >
-          <div
+          <p
             className={clsx(
-              'mb-2 flex flex-wrap items-center gap-2',
-              (isBold || isBoutique) && 'justify-center md:justify-start',
+              'mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--cat-muted)] sm:mb-2 sm:text-[11px] sm:tracking-[0.2em]',
+              (isBold || isBoutique) && 'text-center md:text-left',
             )}
           >
-            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--cat-muted)] sm:text-[11px]">
-              {tenant.nombreTienda}
-            </span>
-            {canUseWebShare() && (
-              <button
-                type="button"
-                className="text-[11px] font-medium text-[var(--cat-muted)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_40%,transparent)] underline-offset-4 transition hover:text-[var(--cat-text)] sm:text-xs"
-                onClick={() =>
-                  void shareSafe(
-                    buildProductShareData({
-                      nombreTienda: tenant.nombreTienda,
-                      productName: product.nombre,
-                      productUrl: storePublicUrl(`/p/${product.id}`),
-                    }),
-                  )
-                }
-              >
-                Compartir
-              </button>
-            )}
-          </div>
+            {tenant.nombreTienda}
+          </p>
 
           <h1
             className={clsx(
               'mc-pc-display text-[var(--cat-text)]',
-              isBold && 'text-2xl font-bold tracking-tighter sm:text-3xl',
-              isBoutique && 'text-2xl font-semibold tracking-tight sm:text-3xl',
-              preset === 'minimal' && 'text-left text-xl font-semibold sm:text-2xl',
-              (preset === 'ios' || preset === 'morning') && 'text-left text-2xl font-semibold sm:text-3xl',
+              isBold && 'text-[1.65rem] font-bold leading-tight tracking-tighter sm:text-3xl',
+              isBoutique && 'text-[1.65rem] font-semibold leading-tight tracking-tight sm:text-3xl',
+              preset === 'minimal' && 'text-left text-xl font-semibold leading-tight sm:text-2xl',
+              (preset === 'ios' || preset === 'morning') &&
+                'text-left text-[1.65rem] font-semibold leading-tight sm:text-3xl',
             )}
           >
             {product.nombre}
           </h1>
+
           <div
             className={clsx(
-              'mt-2 sm:mt-3',
+              'mt-1.5 sm:mt-3',
               isBold && 'text-center',
               isBoutique && 'text-center md:text-left',
               preset === 'minimal' && 'text-left',
@@ -790,11 +872,11 @@ export function PublicProductDetailPage() {
             )}
           >
             {enOferta && listaPrice > effectivePrice ? (
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <p className="text-2xl font-bold tabular-nums text-[var(--cat-accent)] sm:text-3xl">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <p className="text-[1.5rem] font-bold tabular-nums text-[var(--cat-accent)] sm:text-3xl">
                   {formatCop(effectivePrice)}
                 </p>
-                <p className="text-base font-medium tabular-nums text-[var(--cat-muted)] line-through sm:text-lg">
+                <p className="text-sm font-medium tabular-nums text-[var(--cat-muted)] line-through sm:text-lg">
                   {formatCop(listaPrice)}
                 </p>
                 {productoPorcentajeDescuentoDisplay(product, selected ?? undefined) != null && (
@@ -804,54 +886,75 @@ export function PublicProductDetailPage() {
                 )}
               </div>
             ) : (
-              <p className="text-2xl font-semibold tabular-nums text-[var(--cat-text)] sm:text-3xl">
+              <p className="text-[1.5rem] font-semibold tabular-nums text-[var(--cat-text)] sm:text-3xl">
                 {formatCop(effectivePrice)}
               </p>
             )}
             {enOferta && (
-              <p className="mt-2 inline-flex items-center rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+              <p className="mt-1.5 inline-flex items-center rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
                 Oferta especial
               </p>
             )}
           </div>
 
+          <div
+            className={clsx(
+              'mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:mt-3',
+              (isBold || isBoutique) && 'justify-center md:justify-start',
+            )}
+          >
+            {slug ? (
+              <CatalogCartShippingEstimator
+                slug={slug}
+                tenant={tenant}
+                platformSettings={platformSettings}
+                subtotalCop={subtotalCop > 0 ? subtotalCop : effectivePrice}
+                totalPiezas={totalPiezas > 0 ? totalPiezas : 1}
+                className="mt-0"
+              />
+            ) : null}
+            {stockLine ? (
+              <p className="text-[11px] tabular-nums text-[var(--cat-muted)] sm:text-[12px]">{stockLine}</p>
+            ) : null}
+          </div>
+
           {product.descripcion?.trim() ? (
             <div
               className={clsx(
-                'mt-4 rounded-2xl border border-[color-mix(in_srgb,var(--cat-muted)_14%,transparent)] bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] px-4 py-3.5 sm:mt-5 sm:px-5 sm:py-4',
+                'mt-3 sm:mt-5',
                 (isBold || isBoutique) && 'text-center md:text-left',
               )}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--cat-muted)]">
-                Descripción
-              </p>
-              <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--cat-text)] sm:text-[15px]">
+              <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[var(--cat-muted)] sm:rounded-2xl sm:border sm:border-[color-mix(in_srgb,var(--cat-muted)_14%,transparent)] sm:bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] sm:px-5 sm:py-4 sm:text-[15px] sm:text-[var(--cat-text)]">
+                <span className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--cat-muted)] sm:mb-2 sm:block">
+                  Descripción
+                </span>
                 {product.descripcion.trim()}
               </p>
             </div>
           ) : null}
 
           {isCombo ? (
-            <div className="mt-5 rounded-2xl border border-violet-200/60 bg-violet-50/40 px-4 py-3.5">
+            <div className="mt-3 rounded-xl border border-violet-200/60 bg-violet-50/40 px-3.5 py-3 sm:mt-5 sm:rounded-2xl sm:px-4 sm:py-3.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-violet-800">Incluye</p>
               {!comboPideOpciones ? (
-                <ul className="mt-2 space-y-1 text-[14px] text-violet-950">
+                <ul className="mt-1.5 space-y-1 text-[13px] text-violet-950 sm:mt-2 sm:text-[14px]">
                   {comboIncluyeResumen(product, componentLookup).map((line) => (
                     <li key={line}>· {line}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 text-[14px] text-violet-950">
+                <p className="mt-1.5 text-[13px] text-violet-950 sm:mt-2 sm:text-[14px]">
                   Elegí color y/o talla de cada prenda en el selector de abajo.
                 </p>
               )}
               {product.comboPrecioSeparadoCop != null &&
               product.comboPrecioSeparadoCop > effectivePrice ? (
-                <p className="mt-2 text-[13px] font-medium text-emerald-700">
+                <p className="mt-1.5 text-[12px] font-medium text-emerald-700 sm:mt-2 sm:text-[13px]">
                   Ahorrás {formatCop(product.comboPrecioSeparadoCop - effectivePrice)} vs comprar por separado
                 </p>
               ) : comboPrecioSeparado(product, componentLookup) > effectivePrice ? (
-                <p className="mt-2 text-[13px] font-medium text-emerald-700">
+                <p className="mt-1.5 text-[12px] font-medium text-emerald-700 sm:mt-2 sm:text-[13px]">
                   Ahorrás {formatCop(comboPrecioSeparado(product, componentLookup) - effectivePrice)} vs comprar por
                   separado
                 </p>
@@ -860,7 +963,7 @@ export function PublicProductDetailPage() {
           ) : null}
 
           {isCombo && comboPideOpciones ? (
-            <div className="mt-5">
+            <div className="mt-3 sm:mt-5">
               <ComboColorPicker
                 slots={comboClienteSlotsList}
                 products={componentLookup}
@@ -872,53 +975,24 @@ export function PublicProductDetailPage() {
           ) : null}
 
           <VariantSelectors
-            className={clsx('mt-5', (isBold || isBoutique) && 'md:mx-auto md:max-w-md')}
+            className={clsx('mt-3.5 sm:mt-5', (isBold || isBoutique) && 'md:mx-auto md:max-w-md')}
           />
 
           <TallaSelectors
-            className={clsx('mt-5', (isBold || isBoutique) && 'md:mx-auto md:max-w-md')}
+            className={clsx('mt-3.5 sm:mt-5', (isBold || isBoutique) && 'md:mx-auto md:max-w-md')}
           />
 
-          <CtaGroup className={clsx('mt-6 max-md:hidden', isBold && 'mx-auto max-w-xl')} />
+          <CtaGroup className={clsx('mt-5 max-md:hidden sm:mt-6', isBold && 'mx-auto max-w-xl')} />
 
-          <p
-            className={clsx(
-              'mt-4 text-sm leading-relaxed text-[var(--cat-muted)]',
-              (isBold || isBoutique) && 'text-center md:text-left',
-            )}
-          >
-            {hasTallas && selectedTalla ? (
-              <>
-                Talla {selectedTalla.nombre}
-                <> · {disp > 0 ? `${disp} disponibles` : 'Sin stock en esta talla'}</>
-              </>
-            ) : hasVariants && selected ? (
-              <>
-                {selected.tipo ? `${selected.tipo}: ${selected.nombre}` : selected.nombre}
-                {usaStockPorVariante ? (
-                  <> · {disp > 0 ? `${disp} disponibles` : 'Sin stock en esta opción'}</>
-                ) : (
-                  <> · stock general {product.stock}</>
-                )}
-              </>
-            ) : hasVariants && actsAsOriginal ? (
-              <>
-                {selectedOption === 'original' ? 'Original' : 'Producto base'}
-                {usaStockPorVariante ? (
-                  <> · {disp > 0 ? `${disp} disponibles` : 'Sin stock'}</>
-                ) : (
-                  <> · stock general {product.stock}</>
-                )}
-              </>
-            ) : (
-              <>Stock {product.stock}{enCarrito > 0 ? ` · podés sumar hasta ${disp} más` : ` · podés pedir ${disp}`}</>
-            )}
-          </p>
+          <CatalogTrustSignals
+            tenant={tenant}
+            className={clsx('mt-3 sm:mt-4', isBold && 'mx-auto max-w-xl')}
+          />
 
           {galeriaUrls.length > 0 && product.mostrarDescargaImagen ? (
             <button
               type="button"
-              className="mt-5 w-full rounded-full border mc-pc-border bg-transparent px-4 py-2.5 text-xs font-medium text-[var(--cat-text)] transition duration-200 ease-in-out hover:opacity-80 sm:mt-6 sm:max-w-xs sm:py-2"
+              className="mc-pc-btn mt-3 w-full border mc-pc-border bg-transparent px-4 py-2 text-xs font-medium text-[var(--cat-text)] transition duration-200 ease-in-out hover:opacity-80 sm:mt-5 sm:max-w-xs sm:py-2.5"
               onClick={() =>
                 void downloadCatalogImage(galeriaUrls[0]!, `${product.nombre.replace(/\s+/g, '_')}.jpg`, {
                   getFirebaseStorage: () => (firebaseStorageConfigured ? getStorageApp() : null),
@@ -931,7 +1005,19 @@ export function PublicProductDetailPage() {
         </div>
       </div>
 
-      <p className="mt-2 md:mt-8">
+      {tenantId ? <CatalogRelatedProducts tenantId={tenantId} product={product} /> : null}
+
+      {tenantId ? (
+        <CatalogProductReviews
+          tenantId={tenantId}
+          productId={product.id}
+          productName={product.nombre}
+          ratingAvg={product.ratingAvg}
+          ratingCount={product.ratingCount}
+        />
+      ) : null}
+
+      <p className="mt-6 md:mt-10">
         <Link
           to={to('/')}
           className="text-sm font-medium text-[var(--cat-muted)] transition hover:text-[var(--cat-text)]"

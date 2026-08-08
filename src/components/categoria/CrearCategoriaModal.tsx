@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { CategoriaImagePicker } from '@/components/categoria/CategoriaImagePicker'
 
 type Props = {
   open: boolean
@@ -9,7 +10,7 @@ type Props = {
   parentNombre?: string | null
   onNombreChange: (value: string) => void
   onClose: () => void
-  onSubmit: (e: React.FormEvent) => void
+  onSubmit: (e: React.FormEvent, imageFile: File | null) => void
 }
 
 export function CrearCategoriaModal({
@@ -24,12 +25,37 @@ export function CrearCategoriaModal({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const esSub = !!parentNombre?.trim()
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setImageFile(null)
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
+      return
+    }
     const t = window.setTimeout(() => inputRef.current?.focus(), 50)
     return () => window.clearTimeout(t)
   }, [open])
+
+  function pickImage(file: File) {
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return URL.createObjectURL(file)
+    })
+    setImageFile(file)
+  }
+
+  function clearImage() {
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    setImageFile(null)
+  }
 
   if (!open) return null
 
@@ -49,7 +75,13 @@ export function CrearCategoriaModal({
           )}
         </p>
 
-        <form onSubmit={onSubmit} className="mt-4 space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            onSubmit(e, imageFile)
+          }}
+          className="mt-4 space-y-4"
+        >
           <div>
             <label className="ios-footnote font-medium text-mc-700">
               {esSub ? 'Nombre de la subcategoría' : 'Nombre'}
@@ -63,6 +95,17 @@ export function CrearCategoriaModal({
               maxLength={48}
               disabled={busy}
               required
+            />
+          </div>
+
+          <div>
+            <p className="ios-footnote mb-2 font-medium text-mc-700">Foto (opcional)</p>
+            <CategoriaImagePicker
+              previewUrl={previewUrl}
+              fallbackLetter={nombre.trim().charAt(0).toUpperCase() || undefined}
+              disabled={busy}
+              onPick={pickImage}
+              onRemove={previewUrl ? clearImage : undefined}
             />
           </div>
 

@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { resolveCatalogHeaderLayout } from '@/lib/catalogHeaderLayout'
 import { publicCatalogCssVars, publicCatalogPresetClass, resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import type { McTenant } from '@/types/mc'
 
@@ -9,6 +10,7 @@ type Props = {
 
 export function StoreLogoCatalogHeaderPreview({ tenant, logoUrl }: Props) {
   const { preset } = resolvePublicCatalogTheme(tenant)
+  const layout = resolveCatalogHeaderLayout(tenant)
 
   return (
     <div className="rounded-xl border border-neutral-200/80 bg-gradient-to-b from-white to-neutral-50/80 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
@@ -26,7 +28,9 @@ export function StoreLogoCatalogHeaderPreview({ tenant, logoUrl }: Props) {
         <div className="min-w-0 flex-1">
           <p className="ios-footnote font-semibold text-mc-900">Vista previa en tu catálogo</p>
           <p className="mt-1 text-[12px] leading-relaxed text-mc-600">
-            Así verán tus clientes el logo junto al nombre de tu tienda en la cabecera.
+            {layout === 'logo-center'
+              ? 'Así verán tus clientes el logo centrado en la cabecera.'
+              : 'Así verán tus clientes el logo junto al nombre de tu tienda en la cabecera.'}
           </p>
         </div>
       </div>
@@ -39,16 +43,39 @@ export function StoreLogoCatalogHeaderPreview({ tenant, logoUrl }: Props) {
         style={publicCatalogCssVars(tenant)}
       >
         <div className="mc-pc-elev-header bg-[var(--cat-surface)]">
-          <div className="flex h-[3.25rem] items-center gap-2.5 px-4 sm:h-[3.75rem] sm:gap-3">
-            <img
-              src={logoUrl}
-              alt=""
-              className="h-8 w-8 shrink-0 rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] object-cover shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:h-9 sm:w-9"
-            />
-            <span className="mc-pc-display min-w-0 truncate text-[15px] font-semibold tracking-tight text-[var(--cat-text)] sm:text-base">
-              {tenant.nombreTienda}
-            </span>
-          </div>
+          {layout === 'logo-center' ? (
+            <div className="grid h-[3.5rem] grid-cols-3 items-center gap-2 px-4 sm:h-[4rem]">
+              <div className="flex items-center gap-1.5 opacity-40">
+                <span className="h-1 w-6 rounded-full bg-[var(--cat-muted)]" />
+                <span className="h-1 w-6 rounded-full bg-[var(--cat-muted)]" />
+              </div>
+              <div className="flex flex-col items-center gap-0.5 justify-self-center">
+                <img
+                  src={logoUrl}
+                  alt=""
+                  className="h-7 w-auto max-w-[5.5rem] object-contain sm:h-8"
+                />
+                <span className="mc-pc-display max-w-full truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-text)] opacity-80">
+                  {tenant.nombreTienda}
+                </span>
+              </div>
+              <div className="flex items-center justify-end gap-1.5 opacity-40">
+                <span className="h-3.5 w-3.5 rounded-full border border-[var(--cat-muted)]" />
+                <span className="h-3.5 w-3.5 rounded-full border border-[var(--cat-muted)]" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-[3.25rem] items-center gap-2.5 px-4 sm:h-[3.75rem] sm:gap-3">
+              <img
+                src={logoUrl}
+                alt=""
+                className="h-8 w-8 shrink-0 rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] object-cover shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:h-9 sm:w-9"
+              />
+              <span className="mc-pc-display min-w-0 truncate text-[15px] font-semibold tracking-tight text-[var(--cat-text)] sm:text-base">
+                {tenant.nombreTienda}
+              </span>
+            </div>
+          )}
         </div>
         <div className="border-t border-[color-mix(in_srgb,var(--cat-muted)_10%,transparent)] bg-[var(--cat-bg)] px-4 py-3">
           <div className="pointer-events-none select-none opacity-35">

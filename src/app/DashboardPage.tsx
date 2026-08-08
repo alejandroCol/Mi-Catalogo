@@ -28,6 +28,7 @@ import {
   IconLink,
   IconLive,
   IconMagicBrush,
+  IconNetwork,
   IconPlusCircle,
 } from '@/icons/McIcons'
 import { CheckoutEnvioRequiredModal } from '@/app/CheckoutEnvioRequiredModal'
@@ -443,6 +444,21 @@ export function DashboardPage() {
             <IconChevronRight size={17} className="shrink-0 text-[var(--cat-muted)] opacity-60 transition group-hover:opacity-100" />
           </Link>
         </div>
+        <Link
+          to="/app/proveedores"
+          className="group flex items-center gap-4 border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-5 no-underline transition duration-200 ease-in-out hover:border-neutral-300/70 hover:bg-neutral-50/50"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-neutral-200/60 text-[var(--cat-text)]">
+            <IconNetwork size={22} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium tracking-tight text-[var(--cat-text)]">Proveedores</p>
+            <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
+              Importá sin stock o vendé a otras tiendas
+            </p>
+          </div>
+          <IconChevronRight size={17} className="shrink-0 text-[var(--cat-muted)] opacity-60 transition group-hover:opacity-100" />
+        </Link>
       </section>
 
       <Link

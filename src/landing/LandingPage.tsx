@@ -13,19 +13,13 @@ import { LandingFinalCta } from '@/landing/components/LandingFinalCta'
 import { LandingFooter } from '@/landing/components/LandingFooter'
 import { LandingMobileDock } from '@/landing/components/LandingMobileDock'
 import { LandingWhatsAppButton } from '@/landing/components/LandingWhatsAppButton'
+import { applyMcPageSeo, MC_SEO } from '@/seo/mcSeo'
 
 export function LandingPage() {
   const { firebaseUser, profile, profileReady, loading, isImpersonating } = useMcAuth()
 
   useEffect(() => {
-    document.title = 'Mi Catálogo — Creá tu tienda online y empezá a vender'
-    const meta = document.querySelector('meta[name="description"]')
-    if (meta) {
-      meta.setAttribute(
-        'content',
-        'Catálogos online hermosos para emprendedores colombianos. Registrate gratis y empezá a vender por WhatsApp hoy.',
-      )
-    }
+    applyMcPageSeo(MC_SEO.home)
   }, [])
 
   if (!loading && profileReady && firebaseUser) {

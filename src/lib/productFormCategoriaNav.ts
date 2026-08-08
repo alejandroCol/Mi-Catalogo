@@ -40,6 +40,7 @@ export type QuickAddProductDraft = {
   marcarNovedad: boolean
   mostrarDescargaImagen: boolean
   mostrarBotonDocena: boolean
+  mostrarStockCatalogo?: boolean
   descuento: ProductoDescuentoDraft
   variantes: Omit<VarianteDraftConArchivo, 'file'>[]
   skuMatrix?: import('@/lib/productoSkus').SkuDraft[]
@@ -48,6 +49,8 @@ export type QuickAddProductDraft = {
   categoriaIds: string[]
   /** ID del producto borrador en Firestore, si ya se creó. */
   draftProductId?: string
+  /** Referencia ya asignada (nombre + número) para preservarla al reabrir el borrador. */
+  referencia?: string
 }
 
 export function categoriasNavFromProductForm(

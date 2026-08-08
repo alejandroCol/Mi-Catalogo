@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import {
   buildCatalogThemeForSave,
+  catalogButtonShapeCssVars,
   catalogColorsToCssVars,
   publicCatalogPresetClass,
   resolveCatalogTheme,
 } from '@/lib/catalogTheme'
 import { IconChevronRight } from '@/icons/McIcons'
-import type { McCatalogThemePreset, McTenant } from '@/types/mc'
+import type { McCatalogButtonShape, McCatalogThemePreset, McTenant } from '@/types/mc'
 
 const HEX = /^#[0-9A-Fa-f]{6}$/
 
 type Props = {
   tenant: McTenant
   preset: McCatalogThemePreset
+  buttonShape?: McCatalogButtonShape
   cAccent: string
   cAccentText: string
   cBg: string
@@ -86,6 +88,7 @@ function PreviewListInner({ preset }: { preset: McCatalogThemePreset }) {
 export function PublicCatalogThemePreview({
   tenant,
   preset,
+  buttonShape = 'pill',
   cAccent,
   cAccentText,
   cBg,
@@ -95,17 +98,22 @@ export function PublicCatalogThemePreview({
 }: Props) {
   const colors = resolveCatalogTheme({
     ...tenant,
-    catalogTheme: buildCatalogThemeForSave(preset, {
-      ...(HEX.test(cAccent) ? { accent: cAccent } : {}),
-      ...(HEX.test(cAccentText) ? { accentText: cAccentText } : {}),
-      ...(HEX.test(cBg) ? { bg: cBg } : {}),
-      ...(HEX.test(cSurface) ? { surface: cSurface } : {}),
-      ...(HEX.test(cText) ? { text: cText } : {}),
-      ...(HEX.test(cMuted) ? { muted: cMuted } : {}),
-    }),
+    catalogTheme: buildCatalogThemeForSave(
+      preset,
+      {
+        ...(HEX.test(cAccent) ? { accent: cAccent } : {}),
+        ...(HEX.test(cAccentText) ? { accentText: cAccentText } : {}),
+        ...(HEX.test(cBg) ? { bg: cBg } : {}),
+        ...(HEX.test(cSurface) ? { surface: cSurface } : {}),
+        ...(HEX.test(cText) ? { text: cText } : {}),
+        ...(HEX.test(cMuted) ? { muted: cMuted } : {}),
+      },
+      tenant.catalogTheme,
+      buttonShape,
+    ),
   }).colors
 
-  const vars = catalogColorsToCssVars(colors)
+  const vars = { ...catalogColorsToCssVars(colors), ...catalogButtonShapeCssVars(buttonShape) }
   const [previewOpen, setPreviewOpen] = useState(false)
 
   return (
@@ -147,6 +155,12 @@ export function PublicCatalogThemePreview({
                 Catálogo
               </h3>
               <PreviewListInner preset={preset} />
+              <button
+                type="button"
+                className="mc-pc-btn mt-3 w-full bg-[var(--cat-accent)] px-3 py-2 text-[11px] font-semibold text-[var(--cat-accent-text)]"
+              >
+                Añadir al carrito
+              </button>
             </div>
           </div>
         </div>

@@ -11,6 +11,7 @@ import {
   CATALOG_FONT_LABELS,
   catalogFontsToCssVars,
   defaultFontIdForPreset,
+  normalizeFontScope,
   resolveDraftCatalogFonts,
 } from '@/lib/catalogFonts'
 import {
@@ -19,10 +20,12 @@ import {
   publicCatalogPresetClass,
   resolveCatalogTheme,
 } from '@/lib/catalogTheme'
+import { resolveAnnouncementBar } from '@/lib/announcementBar'
 import { getDb } from '@/lib/firebase'
 import { productSaveErrorMessage } from '@/lib/mcSaveError'
 import { MC } from '@/lib/mcCollections'
 import { resolveSeasonBanner } from '@/lib/seasonBanner'
+import { CatalogAnnouncementBar } from '@/public/CatalogAnnouncementBar'
 import { SeasonBannerHero } from '@/public/SeasonBannerHero'
 import type { McCatalogFontId, McCatalogFontScope, McTenant } from '@/types/mc'
 
@@ -100,7 +103,7 @@ export function CuentaFuentesPage() {
     const saved = tenant.catalogTheme?.fonts
     if (saved?.family) {
       setFamily(saved.family)
-      setScope(saved.scope === 'banner' ? 'banner' : 'store')
+      setScope(normalizeFontScope(saved.scope))
       return
     }
     setFamily(defaultFontIdForPreset(tenant.catalogTheme?.preset ?? 'morning'))
@@ -113,6 +116,27 @@ export function CuentaFuentesPage() {
   )
 
   const bannerContent = previewTenant ? resolveSeasonBanner(previewTenant) : null
+  const announcementPreview =
+    resolveAnnouncementBar(previewTenant) ??
+    ({
+      texts: ['Envíos GRATIS desde $250.000', 'Actitud y comodidad en cada movimiento'],
+      theme: 'black' as const,
+      spacing: 'normal' as const,
+    })
+
+  const previewDescription =
+    scope === 'store'
+      ? 'Así se verán los textos de tu catálogo con la fuente elegida.'
+      : scope === 'banner'
+        ? 'Así se verán el título y la descripción del banner principal.'
+        : 'Así se verá el texto de la barra de anuncio superior.'
+
+  const saveMessage =
+    scope === 'store'
+      ? `La fuente ${CATALOG_FONT_LABELS[family]} ya se ve en todo tu catálogo.`
+      : scope === 'banner'
+        ? `La fuente ${CATALOG_FONT_LABELS[family]} ya se ve en el título y descripción del banner.`
+        : `La fuente ${CATALOG_FONT_LABELS[family]} ya se ve en la barra de anuncio.`
 
   async function guardarFuentes() {
     if (!effectiveTenantId || !tenant) return
@@ -124,10 +148,7 @@ export function CuentaFuentesPage() {
       })
       showSaveSuccess({
         title: 'Tipografía actualizada',
-        message:
-          scope === 'store'
-            ? `La fuente ${CATALOG_FONT_LABELS[family]} ya se ve en todo tu catálogo.`
-            : `La fuente ${CATALOG_FONT_LABELS[family]} ya se ve en el título y descripción del banner.`,
+        message: saveMessage,
       })
     } catch (saveErr: unknown) {
       setErr(productSaveErrorMessage(saveErr, 'No se pudo guardar la tipografía.'))
@@ -142,8 +163,8 @@ export function CuentaFuentesPage() {
         <ConfiguracionesBackLink to={returnTo} label={returnLabel} state={navState} />
         <h1 className="ios-large-title mt-3">Tipografía</h1>
         <p className="ios-subhead mt-2 max-w-xl leading-relaxed text-[var(--cat-muted)]">
-          Elegí una fuente que refleje el estilo de tu marca. Podés aplicarla a todo el catálogo o solo al banner
-          principal.
+          Elegí una fuente que refleje el estilo de tu marca. Podés aplicarla a toda la tienda, al banner
+          principal o solo a la barra de anuncio.
         </p>
       </div>
 
@@ -154,7 +175,7 @@ export function CuentaFuentesPage() {
           <div className="mc-card space-y-6">
             <ProductoFormSection
               title="Dónde aplicar"
-              description="Elegí si la fuente afecta todo el catálogo o únicamente el hero de temporada."
+              description="Elegí si la fuente afecta todo el catálogo, el hero de temporada o la barra de anuncio."
             >
               <CatalogFontScopeToggle value={scope} disabled={busy} onChange={setScope} />
             </ProductoFormSection>
@@ -166,17 +187,10 @@ export function CuentaFuentesPage() {
               <CatalogFontPickerGrid value={family} disabled={busy} onChange={setFamily} />
             </ProductoFormSection>
 
-            <ProductoFormSection
-              title="Vista previa"
-              description={
-                scope === 'store'
-                  ? 'Así se verán los textos de tu catálogo con la fuente elegida.'
-                  : 'Así se verán el título y la descripción del banner principal.'
-              }
-            >
+            <ProductoFormSection title="Vista previa" description={previewDescription}>
               {scope === 'store' ? (
                 <StoreFontPreview tenant={tenant} family={family} scope={scope} />
-              ) : previewTenant ? (
+              ) : scope === 'banner' && previewTenant ? (
                 <div
                   className={`overflow-hidden rounded-xl border border-neutral-200/50 ${publicCatalogPresetClass(preset)}`}
                   style={{
@@ -186,10 +200,31 @@ export function CuentaFuentesPage() {
                 >
                   <SeasonBannerHero tenant={previewTenant} preview />
                 </div>
+              ) : scope === 'announcement' ? (
+                <div
+                  className={`overflow-hidden rounded-xl border border-neutral-200/50 ${publicCatalogPresetClass(preset)}`}
+                  style={{
+                    ...catalogColorsToCssVars(resolveCatalogTheme(tenant).colors),
+                    ...catalogFontsToCssVars(resolveDraftCatalogFonts(preset, family, scope)),
+                  }}
+                >
+                  <CatalogAnnouncementBar bar={announcementPreview} preview />
+                  <div className="border-t border-[color-mix(in_srgb,var(--cat-muted)_14%,transparent)] bg-[var(--cat-surface)] px-4 py-3">
+                    <p className="text-[13px] font-medium text-[var(--cat-text)]">
+                      {tenant.nombreTienda || 'Tu tienda'}
+                    </p>
+                  </div>
+                </div>
               ) : null}
               {scope === 'banner' && !bannerContent ? (
                 <p className="ios-footnote mt-2 text-[var(--cat-muted)]">
                   Activá el banner de temporada en Personalizar para ver el hero completo en tu catálogo.
+                </p>
+              ) : null}
+              {scope === 'announcement' && !resolveAnnouncementBar(tenant) ? (
+                <p className="ios-footnote mt-2 text-[var(--cat-muted)]">
+                  Activá la barra de anuncio en Personalizar para verla en tu catálogo. Acá te mostramos una
+                  muestra con la fuente elegida.
                 </p>
               ) : null}
             </ProductoFormSection>

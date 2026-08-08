@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext'
 import { formatCop } from '@/lib/formatCop'
@@ -8,6 +8,8 @@ import { useCatalogOrderTracking } from '@/public/useCatalogOrderTracking'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { usePublicCheckoutCompleteTracking } from '@/public/usePublicCatalogAnalytics'
+import { rememberLocalOrderId } from '@/lib/catalogLocalOrders'
+import { recordWishlistPurchase } from '@/lib/wishlist'
 
 export function PublicCheckoutSuccessPage() {
   const { slug, to, storePublicUrl } = usePublicStore()
@@ -20,6 +22,7 @@ export function PublicCheckoutSuccessPage() {
   const { order, loading, error, fetchTracking } = useCatalogOrderTracking()
   const [copiedId, setCopiedId] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
+  const wishlistRecordedRef = useRef(false)
 
   const trackingUrl = useMemo(() => {
     if (!slug || !orderId) return ''
@@ -29,6 +32,7 @@ export function PublicCheckoutSuccessPage() {
 
   useEffect(() => {
     if (!slug || !orderId) return
+    rememberLocalOrderId(slug, orderId)
     void fetchTracking({ slug, orderId })
   }, [slug, orderId, fetchTracking])
 
@@ -37,6 +41,16 @@ export function PublicCheckoutSuccessPage() {
       clear()
     }
   }, [order?.estado, clear])
+
+  /** OnePay: marca ítems regalados cuando el pedido ya está confirmado. */
+  useEffect(() => {
+    if (!slug || !orderId || wishlistRecordedRef.current) return
+    if (order?.estado !== 'pagado' && order?.estado !== 'en_preparacion') return
+    wishlistRecordedRef.current = true
+    void recordWishlistPurchase(slug, orderId).catch(() => {
+      /* idempotente / no-regalo */
+    })
+  }, [slug, orderId, order?.estado])
 
   if (!slug || !orderId) {
     return <Navigate to={to('/')} replace />
@@ -105,7 +119,7 @@ export function PublicCheckoutSuccessPage() {
           <button
             type="button"
             onClick={() => void copiarPedido()}
-            className="inline-flex flex-1 items-center justify-center rounded-full bg-[var(--cat-accent)] px-4 py-2.5 text-sm font-semibold text-[var(--cat-accent-text)] transition hover:opacity-90"
+            className="inline-flex flex-1 items-center justify-center mc-pc-btn bg-[var(--cat-accent)] px-4 py-2.5 text-sm font-semibold text-[var(--cat-accent-text)] transition hover:opacity-90"
           >
             {copiedId ? 'Número copiado' : 'Copiar número'}
           </button>

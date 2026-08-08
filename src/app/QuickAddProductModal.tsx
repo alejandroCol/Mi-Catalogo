@@ -53,8 +53,10 @@ import {
 } from '@/lib/productoZapatos'
 import type { McPlatformSettings, McProducto, McProductoTallaModo, McProductoVariante, McTenant } from '@/types/mc'
 import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
+import { ProductoReferenciaPreview } from '@/components/producto/ProductoReferenciaPreview'
 import { McErrorDialog } from '@/components/McErrorDialog'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
+import { resolveProductoReferencia } from '@/lib/productoReferencia'
 import {
   categoriasNavFromProductForm,
   clearQuickAddDraft,
@@ -80,6 +82,7 @@ function tipoProductoEsConTallas(tipo: ProductoFormTipo): boolean {
 export function QuickAddProductModal({
   tenantId,
   platformSettings,
+  currentCount,
   nextOrden,
   onClose,
   initialDraft,
@@ -99,6 +102,10 @@ export function QuickAddProductModal({
   const esZapatosForm = tipoProducto === 'zapatos'
   const tallaModo: McProductoTallaModo = esZapatosForm ? 'zapatos' : 'ropa'
   const [nombre, setNombre] = useState(initialDraft?.nombre ?? '')
+  /** Referencia asignada al crear el borrador (preserva el número al renombrar). */
+  const [referenciaAsignada, setReferenciaAsignada] = useState<string | null>(
+    () => initialDraft?.referencia?.trim() || null,
+  )
   const [descripcion, setDescripcion] = useState(initialDraft?.descripcion ?? '')
   const [precio, setPrecio] = useState(initialDraft?.precio ?? '')
   const [precioCosto, setPrecioCosto] = useState(initialDraft?.precioCosto ?? '')
@@ -119,6 +126,9 @@ export function QuickAddProductModal({
   )
   const [mostrarBotonDocena, setMostrarBotonDocena] = useState(
     initialDraft?.mostrarBotonDocena ?? false,
+  )
+  const [mostrarStockCatalogo, setMostrarStockCatalogo] = useState(
+    initialDraft?.mostrarStockCatalogo ?? false,
   )
   const [descuento, setDescuento] = useState<ProductoDescuentoDraft>(
     () =>
@@ -155,6 +165,11 @@ export function QuickAddProductModal({
 
   const { categorias } = useTenantCategorias(tenantId)
 
+  const referenciaPreview = resolveProductoReferencia(nombre, {
+    referenciaActual: referenciaAsignada,
+    productCount: currentCount,
+  })
+
   const { showSaveSuccess } = useSaveSuccess()
   const tieneVariantes = variantes.length > 0
   const colorRows = variantes.filter((v) => v.nombre.trim())
@@ -187,6 +202,7 @@ export function QuickAddProductModal({
       marcarNovedad,
       mostrarDescargaImagen,
       mostrarBotonDocena,
+      mostrarStockCatalogo,
       descuento,
       variantes,
       skuMatrix,
@@ -208,6 +224,7 @@ export function QuickAddProductModal({
     marcarNovedad,
     mostrarDescargaImagen,
     mostrarBotonDocena,
+    mostrarStockCatalogo,
     descuento,
     variantes,
     skuMatrix,
@@ -229,6 +246,7 @@ export function QuickAddProductModal({
       marcarNovedad,
       mostrarDescargaImagen,
       mostrarBotonDocena,
+      mostrarStockCatalogo,
       descuento,
       variantes: variantes.map(({ file: _file, ...rest }) => rest),
       skuMatrix,
@@ -236,6 +254,9 @@ export function QuickAddProductModal({
       imagenPrincipalColorId,
       categoriaIds,
       ...(draftProductIdRef.current ? { draftProductId: draftProductIdRef.current } : {}),
+      ...(referenciaAsignada || referenciaPreview
+        ? { referencia: referenciaAsignada || referenciaPreview }
+        : {}),
     })
   }, [
     step,
@@ -245,6 +266,8 @@ export function QuickAddProductModal({
     coloresZapatos,
     imagenPrincipalColorId,
     nombre,
+    referenciaAsignada,
+    referenciaPreview,
     descripcion,
     precio,
     stock,
@@ -252,6 +275,7 @@ export function QuickAddProductModal({
     marcarNovedad,
     mostrarDescargaImagen,
     mostrarBotonDocena,
+    mostrarStockCatalogo,
     descuento,
     variantes,
     categoriaIds,
@@ -261,19 +285,28 @@ export function QuickAddProductModal({
     const form = getFormSnapshot()
     if (!quickAddFormHasDraftContent(form)) return draftProductIdRef.current
 
-    const payload = buildProductoPayloadFromQuickAddForm(form, nextOrden)
+    const ref = resolveProductoReferencia(form.nombre, {
+      referenciaActual: referenciaAsignada,
+      productCount: currentCount,
+    })
+    const payload = {
+      ...buildProductoPayloadFromQuickAddForm(form, nextOrden),
+      ...(ref ? { referencia: ref } : {}),
+    }
     const existingId = draftProductIdRef.current
 
     if (existingId) {
       await mcUpdateProductoBorrador(tenantId, existingId, payload)
+      if (ref) setReferenciaAsignada(ref)
       return existingId
     }
 
-    const { id } = await mcCreateProductoBorrador(tenantId, payload, platformSettings)
+    const { id, referencia } = await mcCreateProductoBorrador(tenantId, payload, platformSettings)
     setDraftProductId(id)
     draftProductIdRef.current = id
+    if (referencia) setReferenciaAsignada(referencia)
     return id
-  }, [getFormSnapshot, nextOrden, platformSettings, tenantId])
+  }, [currentCount, getFormSnapshot, nextOrden, platformSettings, referenciaAsignada, tenantId])
 
   useEffect(() => {
     if (step !== 'form' || busy) return
@@ -464,8 +497,15 @@ export function QuickAddProductModal({
     try {
       let productId = draftProductId
 
+      const referenciaFinal =
+        resolveProductoReferencia(nombre, {
+          referenciaActual: referenciaAsignada,
+          productCount: currentCount,
+        }) || undefined
+
       const publishFields = {
         nombre: nombre.trim(),
+        ...(referenciaFinal ? { referencia: referenciaFinal } : {}),
         ...(descripcion.trim() ? { descripcion: descripcion.trim() } : {}),
         precioCop: precioNum,
         ...(precioCostoNum != null && Number.isFinite(precioCostoNum) ? { precioCostoCop: precioCostoNum } : {}),
@@ -486,6 +526,7 @@ export function QuickAddProductModal({
         ...(marcarNovedad ? { marcarNovedad: true } : {}),
         ...(mostrarDescargaImagen ? { mostrarDescargaImagen: true } : {}),
         ...(mostrarBotonDocena ? { mostrarBotonDocena: true } : {}),
+        ...(mostrarStockCatalogo ? { mostrarStockCatalogo: true } : {}),
         ...descParsed.fields,
         ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
         ...(categoriaIds.length > 0 ? { categoriaIds } : {}),
@@ -498,6 +539,7 @@ export function QuickAddProductModal({
           tenantId,
           {
             nombre: nombre.trim(),
+            ...(referenciaFinal ? { referencia: referenciaFinal } : {}),
             ...(descripcion.trim() ? { descripcion: descripcion.trim() } : {}),
             precioCop: precioNum,
             ...(precioCostoNum != null && Number.isFinite(precioCostoNum) ? { precioCostoCop: precioCostoNum } : {}),
@@ -519,6 +561,7 @@ export function QuickAddProductModal({
             ...(marcarNovedad ? { marcarNovedad: true } : {}),
             ...(mostrarDescargaImagen ? { mostrarDescargaImagen: true } : {}),
             ...(mostrarBotonDocena ? { mostrarBotonDocena: true } : {}),
+            ...(mostrarStockCatalogo ? { mostrarStockCatalogo: true } : {}),
             ...descParsed.fields,
             ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
             ...(categoriaIds.length > 0 ? { categoriaIds } : {}),
@@ -526,6 +569,7 @@ export function QuickAddProductModal({
           platformSettings,
         )
         productId = created.id
+        if (created.referencia) setReferenciaAsignada(created.referencia)
       }
 
       const patch: Record<string, unknown> = {}
@@ -690,6 +734,7 @@ export function QuickAddProductModal({
                   <div>
                     <label className="ios-footnote font-medium text-mc-700">Nombre</label>
                     <input className="mc-input bg-white" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                    <ProductoReferenciaPreview referencia={referenciaPreview} />
                   </div>
                   <div>
                     <label className="ios-footnote font-medium text-mc-700">Descripción (opcional)</label>
@@ -883,6 +928,13 @@ export function QuickAddProductModal({
                     disabled={busy}
                     title="Mostrar botón «Añadir 1 docena»"
                     description="Permite a tus clientes agregar 12 unidades de una sola vez en la ficha del producto."
+                  />
+                  <ProductoOpcionToggle
+                    checked={mostrarStockCatalogo}
+                    onChange={setMostrarStockCatalogo}
+                    disabled={busy}
+                    title="Mostrar cantidad en stock"
+                    description="En la ficha pública se ve cuántas unidades hay disponibles."
                   />
                 </div>
               </ProductoFormSection>

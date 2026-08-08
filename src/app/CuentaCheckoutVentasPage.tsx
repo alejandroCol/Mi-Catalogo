@@ -19,6 +19,7 @@ import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 import { IconBankCard } from '@/icons/McIcons'
 import type { McPlatformSettings } from '@/types/mc'
+import { hasAddiFeatureAccess } from '@/lib/addiAccess'
 
 function PasarelaStatusPanel({
   gate,
@@ -184,6 +185,22 @@ export function CuentaCheckoutVentasPage() {
         >
           Seleccionar método de pago
         </Link>
+
+        {hasAddiFeatureAccess(tenant) ? (
+          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/40 px-4 py-4">
+            <p className="text-[14px] font-semibold text-[var(--cat-text)]">Addi · Cuotas</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-[var(--cat-muted)]">
+              Opción extra para Master: tus clientes pueden financiar con Addi si pegás las credenciales del comercio.
+            </p>
+            <Link
+              to="/app/pagos-addi"
+              state={navState}
+              className="mt-2.5 inline-flex text-[12px] font-semibold text-[var(--cat-text)] underline underline-offset-2"
+            >
+              {tenant?.addiPaymentsEnabled ? 'Administrar Addi →' : 'Configurar Addi →'}
+            </Link>
+          </div>
+        ) : null}
       </div>
     </ConfiguracionesSubpageLayout>
   )

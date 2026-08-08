@@ -296,6 +296,8 @@ export async function fulfillCatalogOrderInventory(db, tenantId, orderId) {
                 productCache.set(pid, ps.data());
             }
             const product = productCache.get(pid);
+            if (product.origenFulfillment === 'proveedor')
+                continue;
             if (esCombo(product)) {
                 for (const c of componentesValidos(product)) {
                     if (componentCache.has(c.productId))

@@ -57,6 +57,7 @@ export function detalleVariantesLineaWhatsapp(l: LineaCarritoSimple): string | n
 
 export function formatLineaCarritoWhatsapp(l: LineaCarritoSimple): string {
   const { nombre } = parseTituloPartes(l.titulo)
+  const ref = l.referencia?.trim()
   const detalle = detalleVariantesLineaWhatsapp(l)
   const qty = `${l.cantidad} u`
   const precio =
@@ -64,7 +65,8 @@ export function formatLineaCarritoWhatsapp(l: LineaCarritoSimple): string {
       ? `${formatCopPlain(l.precioUnitarioCop)} c/u`
       : null
 
-  const lineas = [`• ${nombre}`]
+  // La referencia (nombre + número) identifica la prenda en el pedido WhatsApp.
+  const lineas = [`• ${ref || nombre}`]
   if (detalle) lineas.push(`  ${detalle}`)
   const cola = [qty, precio].filter(Boolean).join(' · ')
   if (cola) lineas.push(`  ${cola}`)

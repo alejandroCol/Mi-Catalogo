@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -14,13 +15,14 @@ import { Link } from 'react-router-dom'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
-import { MC } from '@/lib/mcCollections'
-import type { McPlatformSettings } from '@/types/mc'
+import { MC, mcProductosCollection } from '@/lib/mcCollections'
+import type { McPlatformSettings, McProducto } from '@/types/mc'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
 import { firebaseConfigured, firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
 import { formatCop } from '@/lib/formatCop'
 import { formatoDepartamentoEtiqueta } from '@/lib/colombiaGeo'
 import { mcOrdenesCatalogoCollection, mcPedidosCollection } from '@/lib/mcCollections'
+import { mcEnsureSupplierPosForOrder } from '@/lib/mcProveedorWrites'
 import { IconChevronRight } from '@/icons/McIcons'
 import { MobilePullToRefresh } from '@/components/MobilePullToRefresh'
 import { ADMIN_SEGUIMIENTO_ESTADOS } from '@/lib/catalogOrderTracking'
@@ -40,7 +42,7 @@ function previewCliente(o: McOrdenCatalogo) {
 function previewLineas(o: McOrdenCatalogo) {
   const n = o.lineas.length
   if (n === 0) return 'Sin ítems'
-  const bits = o.lineas.slice(0, 2).map((l) => `${l.nombre} ×${l.cantidad}`)
+  const bits = o.lineas.slice(0, 2).map((l) => `${l.referencia?.trim() || l.nombre} ×${l.cantidad}`)
   return n > 2 ? `${bits.join(' · ')}… (+${n - 2})` : bits.join(' · ')
 }
 
@@ -124,6 +126,83 @@ export function PedidosPage() {
     await deleteDoc(doc(getDb(), mcPedidosCollection(effectiveTenantId), id))
   }
 
+  const productsCacheRef = useRef<Map<string, McProducto>>(new Map())
+  const ensuringPoRef = useRef<Set<string>>(new Set())
+
+  const loadProductsMap = useCallback(async () => {
+    if (!effectiveTenantId) return new Map<string, McProducto>()
+    if (productsCacheRef.current.size > 0) return productsCacheRef.current
+    const snap = await getDocs(collection(getDb(), mcProductosCollection(effectiveTenantId)))
+    const map = new Map<string, McProducto>()
+    for (const d of snap.docs) {
+      map.set(d.id, { id: d.id, ...(d.data() as Omit<McProducto, 'id'>) })
+    }
+    productsCacheRef.current = map
+    return map
+  }, [effectiveTenantId])
+
+  const ensurePosForOrden = useCallback(
+    async (orden: McOrdenCatalogo & { id: string }) => {
+      if (!tenant || !effectiveTenantId) return
+      if (orden.proveedorPosCreadosAt) return
+      const isCod = orden.pagoContraEntrega === true
+      if (!isCod && (orden.estado === 'esperando_pago' || orden.estado === 'cancelado')) return
+      if (isCod && orden.estado === 'cancelado') return
+      if (ensuringPoRef.current.has(orden.id)) return
+      ensuringPoRef.current.add(orden.id)
+      try {
+        const map = await loadProductsMap()
+        const hasDrop = (orden.lineas ?? []).some((l) => {
+          const p = map.get(l.productId)
+          return p?.origenFulfillment === 'proveedor' && !!p.proveedorId
+        })
+        if (!hasDrop) return
+        await mcEnsureSupplierPosForOrder({
+          tenant: { ...tenant, id: effectiveTenantId },
+          ordenId: orden.id,
+          orden,
+          productosById: map,
+        })
+      } catch {
+        // silent: user can retry by changing status
+      } finally {
+        ensuringPoRef.current.delete(orden.id)
+      }
+    },
+    [tenant, effectiveTenantId, loadProductsMap],
+  )
+
+  useEffect(() => {
+    for (const o of ventas) {
+      const isCod = o.pagoContraEntrega === true
+      const skip =
+        o.proveedorPosCreadosAt ||
+        o.estado === 'cancelado' ||
+        (!isCod && o.estado === 'esperando_pago')
+      if (!skip) void ensurePosForOrden(o)
+    }
+  }, [ventas, ensurePosForOrden])
+
+  async function marcarRecaudoCod(
+    orden: McOrdenCatalogo & { id: string },
+    estadoPagoCod: 'recaudado' | 'no_entregado' | 'devuelto',
+  ) {
+    if (!effectiveTenantId) return
+    const now = Date.now()
+    const patch: Record<string, unknown> = {
+      estadoPagoCod,
+      updatedAt: now,
+    }
+    if (estadoPagoCod === 'recaudado') {
+      patch.recaudadoCodAt = now
+      patch.estado = 'entregado'
+      patch.seguimientoEntregaAt = now
+    } else {
+      patch.estado = 'cancelado'
+    }
+    await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(effectiveTenantId), orden.id), patch)
+  }
+
   async function setEstadoOrden(
     orden: McOrdenCatalogo & { id: string },
     estado: McOrdenCatalogoEstado,
@@ -140,6 +219,9 @@ export function PedidosPage() {
     if (estado === 'enviado') patch.seguimientoDespachoAt = now
     if (estado === 'entregado') patch.seguimientoEntregaAt = now
     await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(effectiveTenantId), orden.id), patch)
+    if (estado !== 'esperando_pago' && estado !== 'cancelado') {
+      void ensurePosForOrden({ ...orden, estado, ...patch } as McOrdenCatalogo & { id: string })
+    }
   }
 
   async function setTrackingNumber(id: string, trackingNumber: string) {
@@ -248,6 +330,26 @@ export function PedidosPage() {
                           {clienteTxt && (
                             <p className="truncate text-[11px] leading-snug text-mc-500">{clienteTxt}</p>
                           )}
+                          <div className="mt-0.5 flex flex-wrap gap-1">
+                            {o.pagoContraEntrega ? (
+                              <span className="mc-prov-badge mc-prov-badge--warn">
+                                COD ·{' '}
+                                {o.estadoPagoCod === 'recaudado'
+                                  ? 'Recaudado'
+                                  : o.estadoPagoCod === 'no_entregado'
+                                    ? 'No entregado'
+                                    : o.estadoPagoCod === 'devuelto'
+                                      ? 'Devuelto'
+                                      : 'Pendiente cobro'}
+                              </span>
+                            ) : null}
+                            {o.proveedorPoIds?.length ? (
+                              <span className="mc-prov-badge mc-prov-badge--drop">
+                                Dropship · {o.proveedorPoIds.length} proveedor
+                                {o.proveedorPoIds.length > 1 ? 'es' : ''}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                       <div
@@ -306,7 +408,8 @@ export function PedidosPage() {
                             {o.lineas.map((ln) => (
                               <tr key={`${o.id}-${ln.productId}`} className="border-b border-neutral-200/30 last:border-0">
                                 <td className="py-1.5 pr-2 font-medium text-mc-800">
-                                  {ln.nombre} <span className="font-normal text-mc-500">×{ln.cantidad}</span>
+                                  {ln.referencia?.trim() || ln.nombre}{' '}
+                                  <span className="font-normal text-mc-500">×{ln.cantidad}</span>
                                 </td>
                                 <td className="py-1.5 text-right tabular-nums text-mc-600">
                                   {formatCop(ln.precioUnitarioCop * ln.cantidad)}
@@ -315,6 +418,43 @@ export function PedidosPage() {
                             ))}
                           </tbody>
                         </table>
+                        {o.pagoContraEntrega ? (
+                          <div className="mt-2 space-y-2 border-t border-amber-200/50 bg-amber-50/40 px-2.5 py-2.5">
+                            <p className="text-[12px] font-semibold text-amber-950">
+                              Contraentrega · recaudar{' '}
+                              {formatCop(o.montoRecaudarCop ?? o.totalCop)}
+                            </p>
+                            {(o.estadoPagoCod ?? 'pendiente') === 'pendiente' ? (
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-lg bg-emerald-700 px-3 py-1.5 text-[12px] font-semibold text-white"
+                                  onClick={() => void marcarRecaudoCod(o, 'recaudado')}
+                                >
+                                  Cliente pagó
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[12px] font-medium text-amber-950"
+                                  onClick={() => void marcarRecaudoCod(o, 'no_entregado')}
+                                >
+                                  No entregado
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-[12px] font-medium text-mc-700"
+                                  onClick={() => void marcarRecaudoCod(o, 'devuelto')}
+                                >
+                                  Devuelto
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-[12px] text-amber-900">
+                                Recaudo: {o.estadoPagoCod}
+                              </p>
+                            )}
+                          </div>
+                        ) : null}
                         {(o.clienteTipoDocumento || o.clienteDocumentoNumero) && (
                           <div className="mt-2 border-t border-neutral-200/40 pt-2 text-[12px] leading-relaxed text-mc-700">
                             <p className="font-medium text-mc-800">Documento</p>

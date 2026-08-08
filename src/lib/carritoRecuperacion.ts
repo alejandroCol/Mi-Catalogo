@@ -70,7 +70,7 @@ export function buildRecordatorioWhatsappText(opts: {
     descuentoPorcentaje > 0 ? cuponCodigo : undefined,
   )
   const lineas = carrito.lineas
-    .map((l) => `• ${l.titulo} × ${l.cantidad}`)
+    .map((l) => `• ${l.referencia?.trim() || l.titulo} × ${l.cantidad}`)
     .join('\n')
   const partes = [
     `Hola${carrito.clienteNombre ? ` ${carrito.clienteNombre.split(' ')[0]}` : ''} 👋`,

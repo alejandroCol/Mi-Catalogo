@@ -339,11 +339,42 @@ service cloud.firestore {
         'catalogTheme',
         'storeLogoUrl',
         'seasonBanner',
+        'announcementBar',
+        'headerLayout',
         'storeAbout',
         'storeSocialFooter',
         'posSedeBodegaId',
         'posBridgeInstallerUrl',
+        'proveedorId',
+        'esProveedorActivo',
+        'contraentregaCatalogoEnabled',
       ];
+    }
+    /** Campos solo plan Master (Drop Room + Pasillo / Showroom). */
+    function mcTenantOwnerPatchKeysMasterOnly() {
+      return ['collectionShowroom'];
+    }
+    function mcTenantMasterFeatureActive(data) {
+      return mcTenantIsMaster(data)
+        && (
+          mcTenantSubscriptionEndsOk(data)
+          || (
+            data.billingSubStatus == 'past_due'
+            && data.billingGraceUntilMs is number
+            && data.billingGraceUntilMs > request.time.toMillis()
+          )
+        );
+    }
+    /** Dueño puede tocar keys free; collectionShowroom solo si Master activo. */
+    function mcTenantOwnerAffectedKeysOk() {
+      let keys = request.resource.data.diff(resource.data).affectedKeys();
+      return keys.hasOnly(
+          mcTenantOwnerPatchKeysFree().concat(mcTenantOwnerPatchKeysMasterOnly())
+        )
+        && (
+          !keys.hasAny(mcTenantOwnerPatchKeysMasterOnly())
+          || mcTenantMasterFeatureActive(resource.data)
+        );
     }
     /** Campos de facturación inmutables en patches del dueño (free implícito = explícito). */
     function mcTenantOwnerBillingUnchanged() {
@@ -517,8 +548,7 @@ service cloud.firestore {
                 || request.resource.data.salesSummaryPeriod in ['week', 'fortnight'])
               && (!('checkoutVentasModo' in request.resource.data)
                 || request.resource.data.checkoutVentasModo in ['pasarela', 'whatsapp', 'pasarela_micatalogo'])
-              && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(mcTenantOwnerPatchKeysFree())
+              && mcTenantOwnerAffectedKeysOk()
             )
             /** Contador de productos: ver mcTenantOwnerProductCountPatch() arriba. */
           )
@@ -564,6 +594,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /** Credenciales Addi (BYOK): solo backend (Admin SDK). */
+    match /mc_tenants/{tid}/private_addi/{doc} {
+      allow read, write: if false;
+    }
+    match /mc_tenants/{tid}/addi_idem/{id} {
+      allow read, write: if false;
+    }
+
     /** Registro inmutable de aceptación de T&C plataforma. */
     match /mc_tenants/{tid}/legal_acceptances/{version} {
       allow read: if mcIsSuperAdmin()
@@ -588,6 +626,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /mc_onpay_event_log/{id} {
+      allow read, write: if false;
+    }
+
+    /** Enrutamiento y deduplicación de webhooks Addi: solo Admin / Functions. */
+    match /mc_addi_webhook_routes/{key} {
+      allow read, write: if false;
+    }
+    match /mc_addi_event_log/{id} {
       allow read, write: if false;
     }
 
@@ -789,13 +835,23 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    /** Lista de espera Drop Room — escritura solo Admin SDK (callable); dueño/Master lee. */
+    match /mc_tenants/{tid}/showroom_waitlist/{entryId} {
+      allow read: if mcIsSuperAdmin()
+        || (
+          mcSignedIn()
+          && mcBelongsToTenant(tid)
+          && mcTenantSubActive(tid)
+          && mcTenantIsMaster(get(/databases/$(database)/documents/mc_tenants/$(tid)).data)
+        );
+      allow create, update, delete: if false;
+    }
+
     match /mc_tenants/{tid}/ordenes_catalogo/{oid} {
       allow create: if mcTenantCatalogPublic(tid)
         && request.resource.data.keys().hasAll([
           'createdAt', 'updatedAt', 'estado', 'lineas', 'totalCop', 'pagoSimulado'
         ])
-        && request.resource.data.estado == 'pagado'
-        && request.resource.data.pagoSimulado == true
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int
         && request.resource.data.totalCop is number
@@ -804,6 +860,21 @@ service cloud.firestore {
         && request.resource.data.lineas is list
         && request.resource.data.lineas.size() > 0
         && request.resource.data.lineas.size() <= 100
+        && (
+          (
+            request.resource.data.estado == 'pagado'
+            && request.resource.data.pagoSimulado == true
+          )
+          || (
+            /** Contraentrega (COD): confirmado sin cobro previo. */
+            request.resource.data.pagoContraEntrega == true
+            && request.resource.data.pagoSimulado == false
+            && request.resource.data.estado == 'en_preparacion'
+            && request.resource.data.estadoPagoCod == 'pendiente'
+            && request.resource.data.montoRecaudarCop is number
+            && request.resource.data.montoRecaudarCop == request.resource.data.totalCop
+          )
+        )
         && (!('subtotalCop' in request.resource.data)
           || (request.resource.data.subtotalCop is number
             && request.resource.data.subtotalCop > 0
@@ -827,7 +898,17 @@ service cloud.firestore {
         && (!('clienteTipoDocumento' in request.resource.data)
           || request.resource.data.clienteTipoDocumento is string)
         && (!('clienteDocumentoNumero' in request.resource.data)
-          || request.resource.data.clienteDocumentoNumero is string);
+          || request.resource.data.clienteDocumentoNumero is string)
+        && (!('esRegalo' in request.resource.data) || request.resource.data.esRegalo == true)
+        && (!('wishlistId' in request.resource.data)
+          || (request.resource.data.wishlistId is string
+            && request.resource.data.wishlistId.size() > 0
+            && request.resource.data.wishlistId.size() <= 128
+            && request.resource.data.esRegalo == true))
+        && (!('destinatarioNombre' in request.resource.data)
+          || (request.resource.data.destinatarioNombre is string
+            && request.resource.data.destinatarioNombre.size() > 0
+            && request.resource.data.destinatarioNombre.size() <= 80));
       allow read: if mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin());
       allow update: if mcSignedIn()
         && mcBelongsToTenant(tid)
@@ -855,9 +936,33 @@ service cloud.firestore {
             'seguimientoCompraAt',
             'seguimientoPreparacionAt',
             'seguimientoDespachoAt',
-            'seguimientoEntregaAt'
+            'seguimientoEntregaAt',
+            'proveedorPosCreadosAt',
+            'proveedorPoIds',
+            'estadoPagoCod',
+            'recaudadoCodAt',
+            'montoRecaudarCop'
           ]);
       allow delete: if false;
+    }
+
+    /** Reseñas de producto (lectura pública de aprobadas; escritura vía Cloud Functions). */
+    match /mc_tenants/{tid}/product_reviews/{rid} {
+      allow get, list: if mcIsSuperAdmin()
+        || (mcSignedIn() && mcBelongsToTenant(tid))
+        || (resource.data.status == 'approved' && mcTenantCatalogPublic(tid));
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * Listas de deseos compartibles (regalos).
+     * Lectura pública de una lista; escritura solo Admin SDK (callables).
+     */
+    match /mc_tenants/{tid}/wishlists/{wid} {
+      allow get: if mcTenantCatalogPublic(tid)
+        || (mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin()));
+      allow list: if mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin());
+      allow create, update, delete: if false;
     }
 
     /** Auditoría de modo soporte (súper admin impersonando tienda). Escritura solo Admin SDK. */
@@ -1057,6 +1162,100 @@ service cloud.firestore {
       allow create: if mcPosCanWriteCajaTurno(tid)
         && request.resource.data.createdAt is int;
       allow update, delete: if false;
+    }
+
+    /** Vínculos tienda ↔ proveedores marketplace. */
+    match /mc_tenants/{tid}/proveedor_links/{proveedorId} {
+      allow read: if mcSignedIn() && (mcBelongsToTenant(tid) || mcIsSuperAdmin());
+      allow create, update, delete: if mcSignedIn()
+        && mcBelongsToTenant(tid)
+        && (mcIsTenantOwner(tid) || mcIsSuperAdmin());
+    }
+
+    /**
+     * Marketplace proveedores (dropship / Collective).
+     * Colección raíz: perfiles, productos, POs y listings denormalizados.
+     */
+    match /mc_proveedores/{proveedorId} {
+      allow read: if mcSignedIn();
+      allow create: if mcSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.nombre is string
+        && request.resource.data.whatsapp is string
+        && request.resource.data.ciudadBodega is string
+        && request.resource.data.onboardingCompleto is bool
+        && request.resource.data.createdAt is int;
+      allow update: if mcSignedIn()
+        && (
+          resource.data.ownerUid == request.auth.uid
+          || mcIsSuperAdmin()
+        );
+      allow delete: if mcIsSuperAdmin();
+
+      match /productos/{productoId} {
+        allow read: if mcSignedIn();
+        allow create, update: if mcSignedIn()
+          && (
+            get(/databases/$(database)/documents/mc_proveedores/$(proveedorId)).data.ownerUid
+              == request.auth.uid
+            || mcIsSuperAdmin()
+          );
+        allow delete: if mcSignedIn()
+          && (
+            get(/databases/$(database)/documents/mc_proveedores/$(proveedorId)).data.ownerUid
+              == request.auth.uid
+            || mcIsSuperAdmin()
+          );
+      }
+
+      match /ordenes/{ordenId} {
+        allow read: if mcSignedIn()
+          && (
+            get(/databases/$(database)/documents/mc_proveedores/$(proveedorId)).data.ownerUid
+              == request.auth.uid
+            || (
+              resource.data.storeTenantId is string
+              && mcBelongsToTenant(resource.data.storeTenantId)
+            )
+            || mcIsSuperAdmin()
+          );
+        allow create: if mcSignedIn()
+          && request.resource.data.storeTenantId is string
+          && mcBelongsToTenant(request.resource.data.storeTenantId)
+          && request.resource.data.proveedorId == proveedorId
+          && request.resource.data.estado == 'nuevo'
+          && request.resource.data.createdAt is int;
+        allow update: if mcSignedIn()
+          && (
+            get(/databases/$(database)/documents/mc_proveedores/$(proveedorId)).data.ownerUid
+              == request.auth.uid
+            || (
+              resource.data.storeTenantId is string
+              && mcBelongsToTenant(resource.data.storeTenantId)
+            )
+            || mcIsSuperAdmin()
+          );
+        allow delete: if false;
+      }
+    }
+
+    match /mc_marketplace_listings/{listingId} {
+      allow read: if mcSignedIn();
+      allow create, update: if mcSignedIn()
+        && request.resource.data.proveedorId is string
+        && exists(/databases/$(database)/documents/mc_proveedores/$(request.resource.data.proveedorId))
+        && (
+          get(/databases/$(database)/documents/mc_proveedores/$(request.resource.data.proveedorId)).data.ownerUid
+            == request.auth.uid
+          || mcIsSuperAdmin()
+        );
+      allow delete: if mcIsSuperAdmin()
+        || (
+          mcSignedIn()
+          && resource.data.proveedorId is string
+          && get(/databases/$(database)/documents/mc_proveedores/$(resource.data.proveedorId)).data.ownerUid
+            == request.auth.uid
+        );
     }
   }
 }

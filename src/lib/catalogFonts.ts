@@ -12,6 +12,8 @@ export type ResolvedCatalogFonts = {
   display: string
   bannerTitle: string
   bannerSub: string
+  /** Barra de anuncio (marquee superior). */
+  announcement: string
   scope: McCatalogFontScope
   /** Fuente personalizada activa (no solo preset). */
   custom: boolean
@@ -59,16 +61,27 @@ export const CATALOG_FONT_SAMPLES: Record<McCatalogFontId, { title: string; body
   'dm-serif': { title: 'Tu tienda', body: 'Calidad que perdura' },
 }
 
-function fontStack(id: McCatalogFontId): string {
+export function catalogFontStack(id: McCatalogFontId): string {
   return FONT_STACKS[id]
 }
 
-function isValidFontId(v: unknown): v is McCatalogFontId {
+export function isValidFontId(v: unknown): v is McCatalogFontId {
   return typeof v === 'string' && v in FONT_STACKS
 }
 
+function fontStack(id: McCatalogFontId): string {
+  return catalogFontStack(id)
+}
+
+export function normalizeFontScope(raw: unknown): McCatalogFontScope {
+  if (raw === 'banner' || raw === 'announcement') return raw
+  return 'store'
+}
+
 /** Tipografía por defecto según plantilla (sin personalización). */
-export function defaultFontStacksForPreset(preset: McCatalogThemePreset): Omit<ResolvedCatalogFonts, 'scope' | 'custom' | 'family'> {
+export function defaultFontStacksForPreset(
+  preset: McCatalogThemePreset,
+): Omit<ResolvedCatalogFonts, 'scope' | 'custom' | 'family'> {
   const inter = FONT_STACKS['inter-tight']
   const playfair = FONT_STACKS.playfair
   const fredoka = FONT_STACKS.fredoka
@@ -81,6 +94,7 @@ export function defaultFontStacksForPreset(preset: McCatalogThemePreset): Omit<R
         display: playfair,
         bannerTitle: playfair,
         bannerSub: inter,
+        announcement: inter,
       }
     case 'bold':
       return {
@@ -88,6 +102,7 @@ export function defaultFontStacksForPreset(preset: McCatalogThemePreset): Omit<R
         display: fredoka,
         bannerTitle: fredoka,
         bannerSub: fredoka,
+        announcement: fredoka,
       }
     case 'boutique':
       return {
@@ -95,6 +110,7 @@ export function defaultFontStacksForPreset(preset: McCatalogThemePreset): Omit<R
         display: quicksand,
         bannerTitle: quicksand,
         bannerSub: quicksand,
+        announcement: quicksand,
       }
     case 'ios':
     case 'morning':
@@ -104,6 +120,7 @@ export function defaultFontStacksForPreset(preset: McCatalogThemePreset): Omit<R
         display: inter,
         bannerTitle: inter,
         bannerSub: inter,
+        announcement: inter,
       }
   }
 }
@@ -139,7 +156,7 @@ export function resolveCatalogFonts(
   }
 
   const stack = fontStack(saved.family)
-  const scope: McCatalogFontScope = saved.scope === 'banner' ? 'banner' : 'store'
+  const scope = normalizeFontScope(saved.scope)
 
   if (scope === 'banner') {
     return {
@@ -147,7 +164,21 @@ export function resolveCatalogFonts(
       display: presetDefaults.display,
       bannerTitle: stack,
       bannerSub: stack,
+      announcement: presetDefaults.announcement,
       scope: 'banner',
+      custom: true,
+      family: saved.family,
+    }
+  }
+
+  if (scope === 'announcement') {
+    return {
+      body: presetDefaults.body,
+      display: presetDefaults.display,
+      bannerTitle: presetDefaults.bannerTitle,
+      bannerSub: presetDefaults.bannerSub,
+      announcement: stack,
+      scope: 'announcement',
       custom: true,
       family: saved.family,
     }
@@ -158,6 +189,7 @@ export function resolveCatalogFonts(
     display: stack,
     bannerTitle: stack,
     bannerSub: stack,
+    announcement: stack,
     scope: 'store',
     custom: true,
     family: saved.family,
@@ -170,13 +202,13 @@ export function catalogFontsToCssVars(fonts: ResolvedCatalogFonts): CSSPropertie
     '--cat-font-display': fonts.display,
     '--cat-font-banner-title': fonts.bannerTitle,
     '--cat-font-banner-sub': fonts.bannerSub,
+    '--cat-font-announcement': fonts.announcement,
   } as CSSProperties
 }
 
 export function sanitizeThemeFonts(raw: McCatalogThemeFonts | undefined): McCatalogThemeFonts | undefined {
   if (!raw?.family || !isValidFontId(raw.family)) return undefined
-  const scope: McCatalogFontScope = raw.scope === 'banner' ? 'banner' : 'store'
-  return { family: raw.family, scope }
+  return { family: raw.family, scope: normalizeFontScope(raw.scope) }
 }
 
 /** Vista previa en panel: fuente y alcance en borrador. */

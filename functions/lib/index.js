@@ -1882,6 +1882,17 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public', secrets:
     const carritoIniciadoId = typeof data.carritoIniciadoId === 'string' ? data.carritoIniciadoId.trim().slice(0, 128) : '';
     if (carritoIniciadoId)
         orderDoc.carritoIniciadoId = carritoIniciadoId;
+    const wishlistId = typeof data.wishlistId === 'string' ? data.wishlistId.trim().slice(0, 128) : '';
+    const destinatarioNombre = typeof data.destinatarioNombre === 'string' ? data.destinatarioNombre.trim().slice(0, 80) : '';
+    if (data.esRegalo === true && wishlistId) {
+        orderDoc.esRegalo = true;
+        orderDoc.wishlistId = wishlistId;
+        if (destinatarioNombre)
+            orderDoc.destinatarioNombre = destinatarioNombre;
+        const giftNote = destinatarioNombre ? `Regalo para ${destinatarioNombre}` : 'Regalo (lista de deseos)';
+        const prevNota = typeof orderDoc.notaCliente === 'string' ? orderDoc.notaCliente : '';
+        orderDoc.notaCliente = prevNota ? `${giftNote}. ${prevNota}`.slice(0, 2000) : giftNote;
+    }
     await orderRef.set(orderDoc);
     /** Límites del POST /v1/payments de OnePay (p. ej. reference ≤ 30). external_id conserva el id de orden. */
     const ONEPAY_REF_MAX = 30;
@@ -2409,6 +2420,10 @@ export { mcTallerRegister, mcTallerSendReminders } from './tallerEmail.js';
 export { mcTallerGetMeetLink } from './tallerGetMeetLink.js';
 export { mcFinalizeNewStoreOnboarding } from './onboardingExpertReward.js';
 export { mcQuoteEnvioCheckout } from './shipping/mcQuoteEnvioCheckout.js';
+export { mcCatalogSharePreview } from './catalog/mcCatalogSharePreview.js';
+export { mcCatalogOrdersByEmail } from './catalog/mcCatalogOrdersByEmail.js';
+export { mcCatalogSubmitProductReview, mcCatalogModerateProductReview, } from './catalog/mcCatalogProductReviews.js';
+export { mcCatalogWishlistUpsert, mcCatalogWishlistGet, mcCatalogWishlistRecordPurchase, } from './catalog/mcCatalogWishlist.js';
 export { mcStartStoreImpersonation, mcStopStoreImpersonation } from './storeImpersonation.js';
 export { mcCreateSalesRep, mcSetSalesRepActive } from './salesRep.js';
 export { mcCreatePosVendor, mcSetPosVendorActive } from './posVendor.js';
@@ -2419,4 +2434,6 @@ export { mcSeedReportDemoData } from './reportDemoSeed.js';
 export { mcCatalogPublish, mcCatalogUnpublish, mcBackfillCatalogPublishGrandfather, } from './catalogPublishHandlers.js';
 export { mcChangeStoreSlug } from './storeIdentityHandlers.js';
 export { mcLiveCreateSession, mcLiveUpdateProducts, mcLiveStartSession, mcLiveEndSession, mcLivePinProduct, mcLiveSendChat, mcLiveJoinViewer, mcLiveRecordPurchase, mcLiveMuxWebhook, mcLiveGetBrowserBroadcastConfig, mcLiveStartBrowserBroadcast, mcLiveStartBrowserBroadcastEgress, mcLiveHostDisconnect, } from './live/handlers.js';
+export { mcShowroomJoinWaitlist } from './showroom/handlers.js';
+export { mcAddiLinkMerchant, mcAddiUnlinkMerchant, mcAddiSetEnabled, mcAddiStartCatalogCheckout, mcAddiCheckoutStatus, mcAddiCatalogWebhook, } from './addi/handlers.js';
 export { mcBillingGetSdkContext, mcBillingEnsureCustomer, mcBillingAddCard, mcBillingAddNequi, mcBillingListNequiBanks, mcBillingValidateNequi, mcBillingCheckNequiReady, mcBillingCompleteActivation, mcBillingPaymentMethods, mcBillingGetSubscriptionState, mcBillingListPaymentHistoryCallable, mcBillingCancelAutoRenewCallable, mcBillingSetDefaultPaymentMethod, mcBillingValidateDiscountCode, mcBillingCron, };

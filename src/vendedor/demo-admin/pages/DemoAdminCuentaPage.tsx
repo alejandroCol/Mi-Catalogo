@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { buildConfigMenuItems } from '@/app/configuraciones/configMenuItems'
 import { PlanEleganceBadge } from '@/components/billing/PlanEleganceBadge'
-import { hasExpertFeatureAccess } from '@/lib/billingAccess'
+import { hasExpertFeatureAccess, ownerPlanEleganceLabel } from '@/lib/billingAccess'
 import { billingPlanOf } from '@/lib/catalogTheme'
 import { isCatalogoVendedorListo } from '@/lib/checkoutVentasModo'
 import { isCatalogPubliclyAccessible } from '@/lib/catalogPublish'
@@ -20,6 +20,7 @@ export function DemoAdminCuentaPage() {
   const { tenant } = useDemoAdmin()
   const catalogoPublico = isCatalogPubliclyAccessible(tenant)
   const plan = billingPlanOf(tenant)
+  const planLabel = ownerPlanEleganceLabel(tenant, { pasarelaMicatalogoActiva: true })
   const expertAccess = hasExpertFeatureAccess(tenant)
   const catalogoListo = isCatalogoVendedorListo(tenant, { pasarelaMicatalogoActiva: true })
   const cuponesCount = tenant.cuponesCatalogo?.length ?? 0
@@ -41,12 +42,12 @@ export function DemoAdminCuentaPage() {
           <span className="ios-footnote font-medium">Plan producto:</span>
           <span
             className={`border px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide ${
-              plan === 'expert'
-                ? 'border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] text-[var(--cat-text)]'
-                : 'border-neutral-200/80 text-neutral-600'
+              plan === 'free'
+                ? 'border-neutral-200/80 text-neutral-600'
+                : 'border-[color-mix(in_srgb,var(--cat-text)_18%,transparent)] text-[var(--cat-text)]'
             }`}
           >
-            {plan === 'expert' ? 'Expert' : 'Free'}
+            {planLabel}
           </span>
           {catalogoPublico ? (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-medium text-emerald-800">

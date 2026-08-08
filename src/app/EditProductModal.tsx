@@ -45,9 +45,11 @@ import {
 } from '@/lib/productoVariantes'
 import type { McProducto, McProductoVariante } from '@/types/mc'
 import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
+import { ProductoReferenciaPreview } from '@/components/producto/ProductoReferenciaPreview'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 import { categoriasNavFromProductForm, clearQuickAddDraft } from '@/lib/productFormCategoriaNav'
 import { isProductoBorrador } from '@/lib/productoFormDraft'
+import { resolveProductoReferencia } from '@/lib/productoReferencia'
 import {
   buildZapatosStockPayload,
   coloresZapatosDraftFromProducto,
@@ -77,6 +79,9 @@ export function EditProductModal({
   const esZapatosForm = esRopa && tallaModo === 'zapatos'
   const esRopaForm = esRopa && tallaModo === 'ropa'
   const [nombre, setNombre] = useState(product.nombre)
+  const referenciaPreview = resolveProductoReferencia(nombre, {
+    referenciaActual: product.referencia,
+  })
   const [descripcion, setDescripcion] = useState(product.descripcion ?? '')
   const [precio, setPrecio] = useState(
     product.precioCop > 0 ? formatIntegerEsCo(product.precioCop) : '',
@@ -90,6 +95,7 @@ export function EditProductModal({
   const [marcarNovedad, setMarcarNovedad] = useState(!!product.marcarNovedad)
   const [mostrarDescargaImagen, setMostrarDescargaImagen] = useState(!!product.mostrarDescargaImagen)
   const [mostrarBotonDocena, setMostrarBotonDocena] = useState(!!product.mostrarBotonDocena)
+  const [mostrarStockCatalogo, setMostrarStockCatalogo] = useState(!!product.mostrarStockCatalogo)
   const [imagenes, setImagenes] = useState<ProductoImagenDraft[]>(initialImagenes.items)
   const [coverId, setCoverId] = useState<string | null>(initialImagenes.coverId)
   const [tallas, setTallas] = useState<TallaDraft[]>(() => {
@@ -346,6 +352,11 @@ export function EditProductModal({
 
       await updateDoc(refDoc, {
         nombre: nombre.trim(),
+        ...(referenciaPreview
+          ? { referencia: referenciaPreview }
+          : product.referencia
+            ? { referencia: product.referencia }
+            : {}),
         descripcion: descripcion.trim() ? descripcion.trim() : deleteField(),
         precioCop: precioNum,
         ...(precioCostoNum != null && Number.isFinite(precioCostoNum)
@@ -357,6 +368,7 @@ export function EditProductModal({
         marcarNovedad,
         mostrarDescargaImagen,
         mostrarBotonDocena,
+        mostrarStockCatalogo,
         esRopa: esRopa ? true : deleteField(),
         tallaModo: esRopa ? tallaModo : deleteField(),
         ...(esZapatosForm
@@ -485,6 +497,7 @@ export function EditProductModal({
               <div>
                 <label className="ios-footnote font-medium text-mc-700">Nombre</label>
                 <input className="mc-input bg-white" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                <ProductoReferenciaPreview referencia={referenciaPreview || product.referencia || ''} />
               </div>
               <div>
                 <label className="ios-footnote font-medium text-mc-700">Descripción (opcional)</label>
@@ -668,6 +681,13 @@ export function EditProductModal({
                 disabled={busy}
                 title="Mostrar botón «Añadir 1 docena»"
                 description="Permite a tus clientes agregar 12 unidades de una sola vez en la ficha del producto."
+              />
+              <ProductoOpcionToggle
+                checked={mostrarStockCatalogo}
+                onChange={setMostrarStockCatalogo}
+                disabled={busy}
+                title="Mostrar cantidad en stock"
+                description="En la ficha pública se ve cuántas unidades hay disponibles."
               />
             </div>
           </ProductoFormSection>

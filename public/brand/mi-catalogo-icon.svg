@@ -1,6 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 44" fill="none">
-  <rect x="5" y="6" width="10" height="32" rx="5" fill="#3F3D45"/>
-  <rect x="20" y="14" width="10" height="24" rx="5" fill="#3F3D45"/>
-  <rect x="35" y="6" width="10" height="32" rx="5" fill="#3F3D45"/>
-  <rect x="0" y="19" width="56" height="6" rx="3" fill="#C5A367"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Mi Catálogo">
+  <!-- Plato claro: contraste en el chip oscuro de Google / pestañas -->
+  <rect width="64" height="64" rx="14" fill="#FAF9F7"/>
+  <!-- Isotipo centrado (barras + trazo dorado) -->
+  <g transform="translate(8 12)">
+    <rect x="5" y="6" width="10" height="32" rx="5" fill="#3F3D45"/>
+    <rect x="20" y="14" width="10" height="24" rx="5" fill="#3F3D45"/>
+    <rect x="35" y="6" width="10" height="32" rx="5" fill="#3F3D45"/>
+    <rect x="0" y="19" width="48" height="6" rx="3" fill="#C5A367"/>
+  </g>
 </svg>

@@ -41,6 +41,8 @@ type ProductoDoc = {
   precioCostoCop?: number
   activo?: boolean
   enCatalogo?: boolean
+  /** Dropship marketplace: no descontar stock local. */
+  origenFulfillment?: string
 }
 
 type OrdenLinea = {
@@ -466,6 +468,7 @@ export async function fulfillCatalogOrderInventory(
         productCache.set(pid, ps.data() as ProductoDoc)
       }
       const product = productCache.get(pid)!
+      if (product.origenFulfillment === 'proveedor') continue
       if (esCombo(product)) {
         for (const c of componentesValidos(product)) {
           if (componentCache.has(c.productId)) continue

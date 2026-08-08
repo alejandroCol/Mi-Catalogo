@@ -294,6 +294,12 @@ export function InventarioPage() {
                     Combo
                   </span>
                 ) : null}
+                {p.origenFulfillment === 'proveedor' ? (
+                  <span className="mc-prov-badge mc-prov-badge--drop">
+                    Proveedor{p.proveedorNombre ? ` · ${p.proveedorNombre}` : ''}
+                    {p.leadTimeHoras ? ` · ${p.leadTimeHoras}h` : ''}
+                  </span>
+                ) : null}
               </div>
               <p className="ios-subhead tabular-nums">
                 {productoTieneDescuento(p) ? (
@@ -437,6 +443,7 @@ export function InventarioPage() {
           tenantId={effectiveTenantId}
           product={editComboProduct ?? undefined}
           nextOrden={rows.length}
+          currentCount={rows.length}
           initialCategoriaIds={editInitialCategoriaIds}
           onClose={() => {
             setComboModalOpen(false)

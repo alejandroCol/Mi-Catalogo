@@ -39,6 +39,11 @@ export function hasLiveFeatureAccess(tenant: McTenant | null | undefined): boole
   return hasActivePaidSubscription(tenant)
 }
 
+/** Solo Master con suscripción activa: Drop Room + Pasillo / Showroom. */
+export function hasShowroomFeatureAccess(tenant: McTenant | null | undefined): boolean {
+  return hasLiveFeatureAccess(tenant)
+}
+
 /** Cobro vencido pero aún en período de gracia (7 días). */
 export function isBillingPastDueInGrace(tenant: McTenant | null | undefined): boolean {
   if (!tenant || tenant.billingSubStatus !== 'past_due') return false

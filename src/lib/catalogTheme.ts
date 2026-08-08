@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { catalogFontsToCssVars, resolveCatalogFonts, sanitizeThemeFonts } from '@/lib/catalogFonts'
 import type {
   McBillingPlan,
+  McCatalogButtonShape,
   McCatalogTheme,
   McCatalogThemeColors,
   McCatalogThemeFonts,
@@ -140,10 +141,25 @@ export function resolvePublicCatalogTheme(tenant: McTenant | null | undefined): 
   return resolveCatalogTheme(tenant)
 }
 
+export function resolveCatalogButtonShape(tenant: McTenant | null | undefined): McCatalogButtonShape {
+  return tenant?.catalogTheme?.buttonShape === 'square' ? 'square' : 'pill'
+}
+
+export function catalogButtonShapeCssVars(shape: McCatalogButtonShape): CSSProperties {
+  return {
+    '--cat-btn-radius': shape === 'square' ? '0.5rem' : '9999px',
+  } as CSSProperties
+}
+
 export function publicCatalogCssVars(tenant: McTenant | null | undefined): CSSProperties {
   const { colors, preset } = resolvePublicCatalogTheme(tenant)
   const fonts = resolveCatalogFonts(tenant, preset)
-  return { ...catalogColorsToCssVars(colors), ...catalogFontsToCssVars(fonts) }
+  const shape = resolveCatalogButtonShape(tenant)
+  return {
+    ...catalogColorsToCssVars(colors),
+    ...catalogFontsToCssVars(fonts),
+    ...catalogButtonShapeCssVars(shape),
+  }
 }
 
 export function publicCatalogPresetClass(preset: McCatalogThemePreset): string {
@@ -177,15 +193,25 @@ export function sanitizeThemeColors(raw: McCatalogThemeColors | undefined): McCa
   return Object.keys(o).length ? o : undefined
 }
 
+export function sanitizeButtonShape(raw: unknown): McCatalogButtonShape | undefined {
+  return raw === 'square' || raw === 'pill' ? raw : undefined
+}
+
 export function buildCatalogThemeForSave(
   preset: McCatalogThemePreset,
   colors: McCatalogThemeColors,
   existing?: McCatalogTheme | null,
+  buttonShape?: McCatalogButtonShape | null,
 ): McCatalogTheme {
   const c = sanitizeThemeColors(colors)
   const fonts = sanitizeThemeFonts(existing?.fonts)
+  const shape = sanitizeButtonShape(buttonShape ?? existing?.buttonShape)
   const base: McCatalogTheme = c ? { preset, colors: c } : { preset }
-  return fonts ? { ...base, fonts } : base
+  return {
+    ...base,
+    ...(fonts ? { fonts } : {}),
+    ...(shape ? { buttonShape: shape } : {}),
+  }
 }
 
 export function buildCatalogThemeWithFonts(
@@ -195,9 +221,11 @@ export function buildCatalogThemeWithFonts(
   const preset = existing?.preset ?? 'morning'
   const colors = existing?.colors
   const f = sanitizeThemeFonts(fonts)
+  const shape = sanitizeButtonShape(existing?.buttonShape)
   return {
     preset,
     ...(colors ? { colors } : {}),
     ...(f ? { fonts: f } : {}),
+    ...(shape ? { buttonShape: shape } : {}),
   }
 }

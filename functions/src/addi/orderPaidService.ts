@@ -1,0 +1,177 @@
+import { getAuth } from 'firebase-admin/auth'
+import type { Firestore } from 'firebase-admin/firestore'
+import { markCarritoIniciadoAfterOrderPaid } from '../carritoIniciado.js'
+import {
+  resolveEmailCatalogThemeColors,
+  sendCatalogCustomerPurchaseConfirmationEmail,
+  sendCatalogSalePaidEmail,
+} from '../catalogSaleEmail.js'
+import { fulfillCatalogOrderInventory } from '../catalogInventoryFulfill.js'
+import { MC_RESEND_FROM } from '../mcResend.js'
+import { buildStorePublicUrl } from '../storePublicUrl.js'
+
+type OrderEmailSlice = {
+  totalCop?: number
+  ventaNotificacionEmailSentAt?: number
+  ventaClienteConfirmacionEmailSentAt?: number
+  lineas?: unknown
+  clienteNombre?: string
+  clienteTelefono?: string
+  clienteEmail?: string
+  envioCiudad?: string
+  envioDireccion?: string
+  notaCliente?: string
+  carritoIniciadoId?: string
+  cuponCodigo?: string
+}
+
+/**
+ * Confirma un pedido de catálogo como pagado (SRP: side-effects post-pago).
+ * Reutilizable por cualquier proveedor (Addi hoy; OnePay puede migrar después).
+ */
+export async function confirmCatalogOrderPaid(params: {
+  db: Firestore
+  storeId: string
+  orderId: string
+  paymentPatch: Record<string, unknown>
+  publicOrigin: string
+  resendApiKey: string
+}): Promise<void> {
+  const { db, storeId, orderId, paymentPatch, publicOrigin, resendApiKey } = params
+  const oref = db.doc(`mc_tenants/${storeId}/ordenes_catalogo/${orderId}`)
+  const paidAt = Date.now()
+
+  await oref.update({
+    estado: 'pagado',
+    updatedAt: paidAt,
+    seguimientoCompraAt: paidAt,
+    ...paymentPatch,
+  })
+
+  try {
+    await fulfillCatalogOrderInventory(db, storeId, orderId)
+  } catch (e) {
+    console.error('[confirmCatalogOrderPaid] fulfill:', e)
+  }
+
+  const oSnap = await oref.get()
+  const o = (oSnap.data() || {}) as OrderEmailSlice
+
+  const oCarritoId = typeof o.carritoIniciadoId === 'string' ? o.carritoIniciadoId.trim() : ''
+  if (oCarritoId) {
+    try {
+      await markCarritoIniciadoAfterOrderPaid(
+        db,
+        storeId,
+        oCarritoId,
+        orderId,
+        typeof o.cuponCodigo === 'string' ? o.cuponCodigo : undefined,
+      )
+    } catch {
+      /* no bloquear */
+    }
+  }
+
+  const pendingOwner = typeof o.ventaNotificacionEmailSentAt !== 'number'
+  const pendingCliente = typeof o.ventaClienteConfirmacionEmailSentAt !== 'number'
+  const ce = typeof o.clienteEmail === 'string' ? o.clienteEmail.trim() : ''
+  if (!resendApiKey || (!pendingOwner && !pendingCliente)) return
+
+  try {
+    const tenantSnap = await db.doc(`mc_tenants/${storeId}`).get()
+    const tdata = tenantSnap.data() as
+      | {
+          ownerUid?: string
+          nombreTienda?: string
+          slug?: string
+          billingPlan?: string
+          catalogTheme?: { preset?: string; colors?: Record<string, string | undefined> }
+        }
+      | undefined
+    const ownerUid = typeof tdata?.ownerUid === 'string' ? tdata.ownerUid : ''
+    const nombreTienda =
+      typeof tdata?.nombreTienda === 'string' && tdata.nombreTienda.trim()
+        ? tdata.nombreTienda.trim()
+        : 'Tu tienda'
+    const themeColors = resolveEmailCatalogThemeColors(tdata)
+    const origin = publicOrigin.replace(/\/$/, '')
+    const slug =
+      typeof tdata?.slug === 'string' && tdata.slug.trim() ? tdata.slug.trim().toLowerCase() : ''
+    const catalogUrl = slug ? buildStorePublicUrl(origin, slug) : origin
+    const seguimientoUrl = slug
+      ? buildStorePublicUrl(origin, slug, `/seguimiento?o=${encodeURIComponent(orderId)}`)
+      : undefined
+
+    let toEmail = ''
+    if (ownerUid) {
+      try {
+        const au = await getAuth().getUser(ownerUid)
+        toEmail = au.email?.trim() ?? ''
+      } catch {
+        /* */
+      }
+    }
+
+    const lineasRaw = Array.isArray(o.lineas) ? o.lineas : []
+    const lineas = lineasRaw as {
+      nombre?: string
+      cantidad?: number
+      precioUnitarioCop?: number
+    }[]
+    const totalCop = typeof o.totalCop === 'number' ? o.totalCop : 0
+    const emailPatch: {
+      ventaNotificacionEmailSentAt?: number
+      ventaClienteConfirmacionEmailSentAt?: number
+    } = {}
+
+    if (pendingOwner && toEmail) {
+      const sent = await sendCatalogSalePaidEmail({
+        resendApiKey,
+        from: MC_RESEND_FROM,
+        to: toEmail,
+        nombreTienda,
+        orderId,
+        totalCop,
+        lineas,
+        themeColors,
+        clienteNombre: o.clienteNombre,
+        clienteTelefono: o.clienteTelefono,
+        clienteEmail: o.clienteEmail,
+        envioCiudad: o.envioCiudad,
+        envioDireccion: o.envioDireccion,
+        notaCliente: o.notaCliente,
+      })
+      if (sent.ok) emailPatch.ventaNotificacionEmailSentAt = Date.now()
+      else console.error('[confirmCatalogOrderPaid] Resend dueño:', sent.error)
+    }
+
+    if (pendingCliente && ce) {
+      const sentCliente = await sendCatalogCustomerPurchaseConfirmationEmail({
+        resendApiKey,
+        from: MC_RESEND_FROM,
+        to: ce,
+        nombreTienda,
+        orderId,
+        totalCop,
+        lineas,
+        themeColors,
+        clienteNombre: o.clienteNombre,
+        clienteTelefono: o.clienteTelefono,
+        clienteEmail: o.clienteEmail,
+        envioCiudad: o.envioCiudad,
+        envioDireccion: o.envioDireccion,
+        notaCliente: o.notaCliente,
+        catalogUrl,
+        seguimientoUrl,
+      })
+      if (sentCliente.ok) emailPatch.ventaClienteConfirmacionEmailSentAt = Date.now()
+      else console.error('[confirmCatalogOrderPaid] Resend cliente:', sentCliente.error)
+    }
+
+    if (Object.keys(emailPatch).length > 0) {
+      await oref.update(emailPatch)
+    }
+  } catch (e) {
+    console.error('[confirmCatalogOrderPaid] email:', e)
+  }
+}

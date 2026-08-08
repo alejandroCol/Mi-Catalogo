@@ -153,13 +153,20 @@ export function LiveQuickBuySheet({ open, sessionProduct, sessionId, displayName
       if (selectedVariant) tituloParts.push(varianteEtiqueta(selectedVariant))
       if (selectedTalla?.nombre) tituloParts.push(selectedTalla.nombre)
 
+      const imageUrl =
+        selectedVariant?.imageUrl ||
+        product.imageUrl ||
+        product.galeriaImagenes?.[0] ||
+        sessionProduct.snapshot.imageUrl
       add({
         productId: product.id,
         varianteId: selectedVariant?.id,
         tallaId: selectedTalla?.id,
         titulo: tituloParts.join(' · '),
+        ...(product.referencia?.trim() ? { referencia: product.referencia.trim() } : {}),
         subtitulo: formatCop(effectivePrice),
         precioUnitarioCop: effectivePrice,
+        ...(imageUrl ? { imageUrl } : {}),
         cantidad: qty,
       })
 

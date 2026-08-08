@@ -6,12 +6,13 @@ import { PosBrandLogo } from '@/pos/components/PosBrandLogo'
 import { PosIcon, PosIconBox } from '@/pos/components/PosIcon'
 import { PosLandingMockAnimated } from '@/pos/components/PosLandingMockAnimated'
 import { POS_LANDING_FEATURES } from '@/pos/lib/posNavConfig'
+import { applyMcPageSeo, MC_SEO } from '@/seo/mcSeo'
 
 export function PosLandingPage() {
   const { firebaseUser, profile, profileReady, loading } = useMcAuth()
 
   useEffect(() => {
-    document.title = 'Mi Catálogo POS — Punto de venta'
+    applyMcPageSeo(MC_SEO.pos)
   }, [])
 
   if (!loading && profileReady && firebaseUser && profile) {

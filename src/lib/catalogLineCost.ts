@@ -70,10 +70,24 @@ export async function enrichCatalogLineasWithCost(
 
 export function catalogLineCostFromProduct(
   line: McOrdenCatalogoLinea,
-  product?: Pick<McProducto, 'precioCostoCop'> | null,
+  product?: Pick<
+    McProducto,
+    'precioCostoCop' | 'origenFulfillment' | 'proveedorId' | 'proveedorProductoId'
+  > | null,
 ): McOrdenCatalogoLinea {
   const cost = product?.precioCostoCop
-  return cost != null && cost >= 0 ? { ...line, costoUnitarioCop: Math.round(cost) } : line
+  const withCost =
+    cost != null && cost >= 0 ? { ...line, costoUnitarioCop: Math.round(cost) } : { ...line }
+  if (product?.origenFulfillment === 'proveedor' && product.proveedorId) {
+    return {
+      ...withCost,
+      proveedorId: product.proveedorId,
+      ...(product.proveedorProductoId
+        ? { proveedorProductoId: product.proveedorProductoId }
+        : {}),
+    }
+  }
+  return withCost
 }
 
 export function catalogLineasPiezasEnvio(lineas: McOrdenCatalogoLinea[]): number {

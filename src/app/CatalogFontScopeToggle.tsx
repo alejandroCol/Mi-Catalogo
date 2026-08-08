@@ -6,7 +6,7 @@ const OPTIONS: { id: McCatalogFontScope; title: string; description: string; ico
   {
     id: 'store',
     title: 'Toda la tienda',
-    description: 'Títulos, productos y textos del catálogo',
+    description: 'Títulos, productos, textos y barra de anuncio',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
         <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
@@ -16,13 +16,25 @@ const OPTIONS: { id: McCatalogFontScope; title: string; description: string; ico
   },
   {
     id: 'banner',
-    title: 'Solo banner principal',
+    title: 'Banner principal',
     description: 'Título y descripción del hero de temporada',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
         <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
         <path d="M3 10h18" stroke="currentColor" strokeWidth="1.5" />
         <path d="M7 14h6M7 16.5h4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    id: 'announcement',
+    title: 'Barra de anuncio',
+    description: 'Solo el texto del marquee superior',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+        <rect x="3" y="4" width="18" height="3.5" rx="1" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M6 5.75h4M12.5 5.75h5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="3" y="10" width="18" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
       </svg>
     ),
   },
@@ -39,7 +51,7 @@ export function CatalogFontScopeToggle({
 }) {
   return (
     <div
-      className="grid grid-cols-1 gap-2.5 sm:grid-cols-2"
+      className="grid grid-cols-1 gap-2.5 sm:grid-cols-3"
       role="radiogroup"
       aria-label="Dónde aplicar la fuente"
     >
@@ -54,7 +66,7 @@ export function CatalogFontScopeToggle({
             disabled={disabled}
             onClick={() => onChange(opt.id)}
             className={clsx(
-              'flex items-start gap-3 rounded-xl border px-4 py-3.5 text-left transition duration-200',
+              'flex items-start gap-3 rounded-xl border px-3.5 py-3.5 text-left transition duration-200 sm:flex-col sm:gap-2.5 sm:px-3',
               selected
                 ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_6%,var(--cat-surface)_94%)] ring-1 ring-[color-mix(in_srgb,var(--cat-accent)_22%,transparent)]'
                 : 'border-neutral-200/60 bg-[var(--cat-surface)] hover:border-neutral-300/90',
@@ -72,7 +84,7 @@ export function CatalogFontScopeToggle({
               {opt.icon}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-semibold tracking-tight text-[var(--cat-text)]">
+              <span className="block text-[14px] font-semibold tracking-tight text-[var(--cat-text)] sm:text-[15px]">
                 {opt.title}
               </span>
               <span className="ios-footnote mt-0.5 block leading-relaxed text-[var(--cat-muted)]">

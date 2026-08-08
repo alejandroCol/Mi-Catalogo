@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
+import {
+  catalogListSearchParamsEqual,
+  catalogListStateToSearchParams,
+  parseCatalogListSearchParams,
+} from '@/lib/catalogListUrlState'
+import { applyStoreHomeSeo, clearStoreHomeSeo } from '@/lib/storePageSeo'
+import { CatalogFavoriteButton } from '@/public/CatalogFavoriteButton'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { isProductNovedad, NOVEDAD_DIAS_RECENTE } from '@/lib/catalogNovedad'
 import {
@@ -39,6 +46,7 @@ import { SeasonBannerHero } from '@/public/SeasonBannerHero'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { isSeasonBannerActive, MC_CATALOGO_PRODUCTOS_ID } from '@/lib/seasonBanner'
+import { ShowroomEntranceCard } from '@/public/showroom/ShowroomEntranceCard'
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 
 function CatalogIntro({ preset }: { preset: McCatalogThemePreset }) {
@@ -126,11 +134,10 @@ function ReyProductCard({
             <NovedadBadge floating />
           </span>
         )}
-        <CatalogDiscountBadge
-          product={p}
-          floating
-          className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3"
-        />
+        <div className="absolute right-2.5 top-2.5 z-10 flex flex-col items-end gap-1.5 sm:right-3 sm:top-3">
+          <CatalogFavoriteButton productId={p.id} size="sm" />
+          <CatalogDiscountBadge product={p} floating />
+        </div>
         {img ? (
           <Link
             to={productPath(p.id)}
@@ -139,7 +146,7 @@ function ReyProductCard({
           >
             <img
               src={img}
-              alt=""
+              alt={p.nombre}
               loading="lazy"
               className="h-full w-full object-cover transition duration-500 will-change-transform group-hover:scale-[1.03]"
             />
@@ -197,7 +204,10 @@ function ReyProductCardBold({
             <NovedadBadge floating />
           </span>
         )}
-        <CatalogDiscountBadge product={p} floating className="absolute right-4 top-4 z-10" />
+        <div className="absolute right-4 top-4 z-10 flex flex-col items-end gap-2">
+          <CatalogFavoriteButton productId={p.id} size="sm" />
+          <CatalogDiscountBadge product={p} floating />
+        </div>
         {img ? (
           <Link
             to={productPath(p.id)}
@@ -206,7 +216,7 @@ function ReyProductCardBold({
           >
             <img
               src={img}
-              alt=""
+              alt={p.nombre}
               loading="lazy"
               className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
             />
@@ -244,18 +254,23 @@ function sectionHeading(preset: McCatalogThemePreset, key: 'novedades' | 'resto'
 }
 
 export function PublicCatalogListPage() {
-  const { slug, to } = usePublicStore()
+  const { slug, to, storePublicUrl } = usePublicStore()
   const { tenantId, tenant, loading, error } = useCatalogTenant()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
   const { categorias: categoriasRaw } = usePublicCategorias(tenantId)
   const categoriasActivas = useMemo(
     () => categoriasPublicasVisibles(categoriasRaw),
     [categoriasRaw],
   )
-  const [selectedCategoriaId, setSelectedCategoriaId] = useState<string | null>(null)
-  const [filter, setFilter] = useState(getDefaultCatalogListFilter)
-  const [viewTab, setViewTab] = useState<CatalogViewTab>('todos')
+  const initialUrl = useMemo(() => parseCatalogListSearchParams(searchParams), [])
+  const [selectedCategoriaId, setSelectedCategoriaId] = useState<string | null>(
+    () => initialUrl.selectedCategoriaId,
+  )
+  const [filter, setFilter] = useState(() => initialUrl.filter)
+  const [viewTab, setViewTab] = useState<CatalogViewTab>(() => initialUrl.viewTab)
   const [novedadNow] = useState(() => Date.now())
+  const [urlHydrated, setUrlHydrated] = useState(false)
 
   const preset = tenant ? resolvePublicCatalogTheme(tenant).preset : 'morning'
 
@@ -272,6 +287,61 @@ export function PublicCatalogListPage() {
       setRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<McProducto, 'id'>) })))
     })
   }, [tenantId])
+
+  useEffect(() => {
+    const parsed = parseCatalogListSearchParams(searchParams)
+    setSelectedCategoriaId((prev) =>
+      prev === parsed.selectedCategoriaId ? prev : parsed.selectedCategoriaId,
+    )
+    setViewTab((prev) => (prev === parsed.viewTab ? prev : parsed.viewTab))
+    setFilter((prev) => {
+      const n = parsed.filter
+      if (
+        prev.query === n.query &&
+        prev.sort === n.sort &&
+        prev.onlyNovedades === n.onlyNovedades &&
+        prev.onlyInStock === n.onlyInStock &&
+        prev.priceMin === n.priceMin &&
+        prev.priceMax === n.priceMax
+      ) {
+        return prev
+      }
+      return n
+    })
+    setUrlHydrated(true)
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!urlHydrated) return
+    const next = catalogListStateToSearchParams({
+      filter,
+      selectedCategoriaId,
+      viewTab,
+    })
+    if (!catalogListSearchParamsEqual(next, searchParams)) {
+      setSearchParams(next, { replace: true })
+    }
+  }, [filter, selectedCategoriaId, viewTab, urlHydrated, searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (!tenant || !slug) return
+    applyStoreHomeSeo({
+      nombreTienda: tenant.nombreTienda,
+      descripcion: tenant.storeAbout?.body,
+      imageUrl: tenant.storeLogoUrl || rows[0]?.imageUrl,
+      logoUrl: tenant.storeLogoUrl,
+      canonicalUrl: storePublicUrl('/'),
+    })
+    return () => clearStoreHomeSeo()
+  }, [
+    tenant,
+    slug,
+    storePublicUrl,
+    rows[0]?.imageUrl,
+    tenant?.storeAbout?.body,
+    tenant?.storeLogoUrl,
+    tenant?.nombreTienda,
+  ])
 
   const descuentos = useMemo(() => rows.filter((p) => productoTieneDescuento(p)), [rows])
   const productsLookup = useMemo(() => new Map(rows.map((p) => [p.id, p])), [rows])
@@ -417,6 +487,7 @@ export function PublicCatalogListPage() {
               selectedId={selectedCategoriaId}
               onSelect={setSelectedCategoriaId}
               counts={categoryCounts}
+              showWithImages={tenant?.mostrarCategoriasConImagenes === true}
             />
             <CatalogCategoryHeader title={catalogTitle} subtitle={catalogSubtitle} />
           </>
@@ -459,7 +530,7 @@ export function PublicCatalogListPage() {
               <button
                 type="button"
                 onClick={() => setFilter(getDefaultCatalogListFilter())}
-                className="mt-5 rounded-full bg-[var(--cat-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--cat-accent-text)] transition hover:opacity-90"
+                className="mt-5 mc-pc-btn bg-[var(--cat-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--cat-accent-text)] transition hover:opacity-90"
               >
                 Quitar todos los filtros
               </button>
@@ -530,6 +601,7 @@ export function PublicCatalogListPage() {
           showSeasonHero && 'pt-6 sm:pt-8',
         )}
       >
+        <ShowroomEntranceCard tenant={tenant} />
         {showCategoriasSidebar ? (
           <div className="mc-cat-layout flex items-start gap-8 xl:gap-12">
             <CatalogCategorySidebar
@@ -537,6 +609,7 @@ export function PublicCatalogListPage() {
               selectedId={selectedCategoriaId}
               onSelect={setSelectedCategoriaId}
               counts={categoryCounts}
+              showWithImages={tenant?.mostrarCategoriasConImagenes === true}
             />
             <div className="min-w-0 flex-1 space-y-8 sm:space-y-10">{catalogMain}</div>
           </div>

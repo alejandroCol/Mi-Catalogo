@@ -23,11 +23,29 @@ export function buildProductShareData(opts: {
   nombreTienda: string
   productName: string
   productUrl: string
+  /** URL con OG tags para WhatsApp/IG (preferida al compartir). */
+  sharePreviewUrl?: string
+  priceLabel?: string
 }): ShareData {
+  const priceBit = opts.priceLabel ? ` ${opts.priceLabel}` : ''
   return {
-    title: `${opts.productName} · ${opts.nombreTienda}`,
-    text: `Mirá ${opts.productName} en ${opts.nombreTienda}`,
-    url: opts.productUrl,
+    title: `${opts.productName}${priceBit} · ${opts.nombreTienda}`,
+    text: `Mirá ${opts.productName}${priceBit} en ${opts.nombreTienda}`,
+    url: opts.sharePreviewUrl || opts.productUrl,
+  }
+}
+
+export function buildWishlistShareData(opts: {
+  titulo: string
+  destinatarioNombre: string
+  wishlistUrl: string
+  nombreTienda?: string
+}): ShareData {
+  const storeBit = opts.nombreTienda ? ` en ${opts.nombreTienda}` : ''
+  return {
+    title: `${opts.titulo}${storeBit}`,
+    text: `Lista de regalos de ${opts.destinatarioNombre}: elegí uno y se lo enviamos a su casa.`,
+    url: opts.wishlistUrl,
   }
 }
 

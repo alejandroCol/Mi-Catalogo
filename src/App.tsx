@@ -6,6 +6,7 @@ import { McPostLoginRedirect } from '@/app/McPostLoginRedirect'
 import { RequireMcAuth } from '@/app/RequireMcAuth'
 import { RequireMcSalesRep } from '@/app/RequireMcSalesRep'
 import { RequireMcLiveAccess } from '@/app/RequireMcLiveAccess'
+import { RequireMcShowroomAccess } from '@/app/RequireMcShowroomAccess'
 import { RequireMcStoreOwner } from '@/app/RequireMcStoreOwner'
 import { McRouteAnalyticsTracker } from '@/lib/McRouteAnalyticsTracker'
 import { parseStoreSlugFromHostname, resolveAppSurface } from '@/lib/storePublicUrl'
@@ -41,6 +42,20 @@ const InventarioPage = lazy(() =>
 const CategoriasPage = lazy(() =>
   import('@/app/CategoriasPage').then((m) => ({ default: m.CategoriasPage })),
 )
+const ProveedoresHubPage = lazy(() =>
+  import('@/app/proveedores/ProveedoresHubPage').then((m) => ({ default: m.ProveedoresHubPage })),
+)
+const ProveedorBodegaPage = lazy(() =>
+  import('@/app/proveedores/ProveedorBodegaPage').then((m) => ({ default: m.ProveedorBodegaPage })),
+)
+const ProveedorOnboardingPage = lazy(() =>
+  import('@/app/proveedores/ProveedorOnboardingPage').then((m) => ({
+    default: m.ProveedorOnboardingPage,
+  })),
+)
+const ProveedorPortalPage = lazy(() =>
+  import('@/app/proveedores/ProveedorPortalPage').then((m) => ({ default: m.ProveedorPortalPage })),
+)
 const PedidosPage = lazy(() =>
   import('@/app/PedidosPage').then((m) => ({ default: m.PedidosPage })),
 )
@@ -71,8 +86,20 @@ const CuentaLogoPage = lazy(() =>
 const CuentaBannerTemporadaPage = lazy(() =>
   import('@/app/CuentaBannerTemporadaPage').then((m) => ({ default: m.CuentaBannerTemporadaPage })),
 )
+const CuentaShowroomPage = lazy(() =>
+  import('@/app/CuentaShowroomPage').then((m) => ({ default: m.CuentaShowroomPage })),
+)
+const PublicShowroomPage = lazy(() =>
+  import('@/public/showroom/PublicShowroomPage').then((m) => ({ default: m.PublicShowroomPage })),
+)
 const CuentaSobreMarcaPage = lazy(() =>
   import('@/app/CuentaSobreMarcaPage').then((m) => ({ default: m.CuentaSobreMarcaPage })),
+)
+const CuentaAnnouncementBarPage = lazy(() =>
+  import('@/app/CuentaAnnouncementBarPage').then((m) => ({ default: m.CuentaAnnouncementBarPage })),
+)
+const CuentaCabeceraPage = lazy(() =>
+  import('@/app/CuentaCabeceraPage').then((m) => ({ default: m.CuentaCabeceraPage })),
 )
 const PersonalizarMiTiendaPage = lazy(() =>
   import('@/app/PersonalizarMiTiendaPage').then((m) => ({ default: m.PersonalizarMiTiendaPage })),
@@ -111,6 +138,9 @@ const CuentaTutorialesPage = lazy(() =>
 )
 const PagosPasarelaPage = lazy(() =>
   import('@/app/PagosPasarelaPage').then((m) => ({ default: m.PagosPasarelaPage })),
+)
+const PagosAddiPage = lazy(() =>
+  import('@/app/PagosAddiPage').then((m) => ({ default: m.PagosAddiPage })),
 )
 const OnepayPasarelaResumenPage = lazy(() =>
   import('@/app/OnepayPasarelaResumenPage').then((m) => ({ default: m.OnepayPasarelaResumenPage })),
@@ -355,6 +385,31 @@ const PublicPoliciesPage = lazy(() =>
     default: m.PublicPoliciesPage,
   })),
 )
+const PublicFavoritesPage = lazy(() =>
+  import('@/public/PublicFavoritesPage').then((m) => ({
+    default: m.PublicFavoritesPage,
+  })),
+)
+const PublicWishlistPage = lazy(() =>
+  import('@/public/PublicWishlistPage').then((m) => ({
+    default: m.PublicWishlistPage,
+  })),
+)
+const PublicWishlistManagePage = lazy(() =>
+  import('@/public/PublicWishlistManagePage').then((m) => ({
+    default: m.PublicWishlistManagePage,
+  })),
+)
+const PublicMisPedidosPage = lazy(() =>
+  import('@/public/PublicMisPedidosPage').then((m) => ({
+    default: m.PublicMisPedidosPage,
+  })),
+)
+const CuentaResenasPage = lazy(() =>
+  import('@/app/CuentaResenasPage').then((m) => ({
+    default: m.CuentaResenasPage,
+  })),
+)
 const PosLandingPage = lazy(() =>
   import('@/pos/PosLandingPage').then((m) => ({ default: m.PosLandingPage })),
 )
@@ -434,8 +489,13 @@ const publicCatalogRouteElements = (
     <Route path="checkout/exito" element={<PublicCheckoutSuccessPage />} />
     <Route path="checkout" element={<PublicCheckoutPage />} />
     <Route path="seguimiento" element={<PublicOrderTrackingPage />} />
+    <Route path="mis-pedidos" element={<PublicMisPedidosPage />} />
+    <Route path="favoritos" element={<PublicFavoritesPage />} />
+    <Route path="lista/:wishlistId/gestionar" element={<PublicWishlistManagePage />} />
+    <Route path="lista/:wishlistId" element={<PublicWishlistPage />} />
     <Route path="politicas" element={<PublicPoliciesPage />} />
     <Route path="live/:sessionId" element={<LiveViewerPage />} />
+    <Route path="coleccion" element={<PublicShowroomPage />} />
   </>
 )
 
@@ -523,6 +583,10 @@ function PlatformRoutes() {
         <Route index element={<DashboardPage />} />
         <Route path="inventario" element={<InventarioPage />} />
         <Route path="inventario/categorias" element={<CategoriasPage />} />
+        <Route path="proveedores" element={<ProveedoresHubPage />} />
+        <Route path="proveedores/:proveedorId" element={<ProveedorBodegaPage />} />
+        <Route path="proveedor/onboarding" element={<ProveedorOnboardingPage />} />
+        <Route path="proveedor" element={<ProveedorPortalPage />} />
         <Route path="pedidos" element={<PedidosPage />} />
         <Route path="reportes" element={<CatalogReportesHubPage />} />
         <Route path="reportes/:reportId" element={<CatalogReporteDetailPage />} />
@@ -536,6 +600,7 @@ function PlatformRoutes() {
         <Route path="cuenta/checkout-ventas" element={<CuentaCheckoutVentasPage />} />
         <Route path="cuenta/checkout-ventas/seleccion" element={<CuentaCheckoutVentasSeleccionPage />} />
         <Route path="cuenta/politicas" element={<CuentaPoliticasPage />} />
+        <Route path="cuenta/resenas" element={<CuentaResenasPage />} />
         <Route path="cuenta/resumen-ventas" element={<CuentaResumenVentasPage />} />
         <Route path="cuenta/envio" element={<CuentaEnvioPage />} />
         <Route path="cuenta/envio/automatico" element={<CuentaEnvioAutomaticoPage />} />
@@ -546,11 +611,22 @@ function PlatformRoutes() {
         <Route path="cuenta/fuentes" element={<CuentaFuentesPage />} />
         <Route path="cuenta/logo" element={<CuentaLogoPage />} />
         <Route path="cuenta/banner-temporada" element={<CuentaBannerTemporadaPage />} />
+        <Route
+          path="cuenta/showroom"
+          element={
+            <RequireMcShowroomAccess>
+              <CuentaShowroomPage />
+            </RequireMcShowroomAccess>
+          }
+        />
         <Route path="cuenta/sobre-marca" element={<CuentaSobreMarcaPage />} />
+        <Route path="cuenta/barra-anuncio" element={<CuentaAnnouncementBarPage />} />
+        <Route path="cuenta/cabecera" element={<CuentaCabeceraPage />} />
         <Route path="cuenta/carritos-abandonados" element={<CarritosAbandonadosPage />} />
         <Route path="cuenta/tutoriales" element={<CuentaTutorialesPage />} />
         <Route path="pagos-pasarela" element={<PagosPasarelaPage />} />
         <Route path="pagos-pasarela/onepay" element={<OnepayPasarelaResumenPage />} />
+        <Route path="pagos-addi" element={<PagosAddiPage />} />
         <Route path="mi-saldo" element={<VentasSaldoPage />} />
         <Route path="mi-saldo/retirar" element={<OnepayRetiroFondosPage />} />
         <Route
@@ -573,7 +649,11 @@ function PlatformRoutes() {
           <Route index element={<PublicCatalogListPage />} />
           <Route path="p/:productId" element={<PublicProductDetailPage />} />
           <Route path="checkout" element={<PublicCheckoutPage />} />
+          <Route path="favoritos" element={<PublicFavoritesPage />} />
+          <Route path="lista/:wishlistId/gestionar" element={<PublicWishlistManagePage />} />
+          <Route path="lista/:wishlistId" element={<PublicWishlistPage />} />
           <Route path="politicas" element={<PublicPoliciesPage />} />
+          <Route path="coleccion" element={<PublicShowroomPage />} />
         </Route>
       </Route>
       <Route

@@ -3,6 +3,7 @@ import {
   IconChartBars,
   IconLink,
   IconLogo,
+  IconNetwork,
   IconPerson,
   IconPlayCircle,
   IconShipping,
@@ -12,6 +13,7 @@ import {
 import { PAGOS_PASARELA_RETURN_FROM_CUENTA } from '@/app/configuraciones/configSubpageNav'
 import type { ConfigMenuItem } from '@/app/configuraciones/types'
 import type { McTenant } from '@/types/mc'
+import { hasAddiFeatureAccess } from '@/lib/addiAccess'
 import { isCatalogPubliclyAccessible } from '@/lib/catalogPublish'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { formatStorePublicUrlLabel } from '@/lib/storePublicUrl'
@@ -57,6 +59,23 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       icon: <IconBankCard size={20} />,
       hint: checkoutHint,
     },
+    ...(hasAddiFeatureAccess(tenant)
+      ? [
+          {
+            id: 'pagos-addi',
+            title: 'Addi · Cuotas',
+            description: 'Paga a cuotas sin tarjeta',
+            to: '/app/pagos-addi',
+            size: 'normal' as const,
+            icon: <IconBankCard size={20} />,
+            hint: tenant.addiPaymentsEnabled
+              ? 'Activo en checkout'
+              : tenant.addiAllySlug
+                ? 'Credenciales guardadas'
+                : 'Master',
+          } satisfies ConfigMenuItem,
+        ]
+      : []),
     {
       id: 'whatsapp',
       title: 'WhatsApp',
@@ -74,6 +93,15 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       icon: <IconShipping size={20} />,
     },
     {
+      id: 'proveedores',
+      title: 'Proveedores',
+      description: 'Marketplace y dropship local',
+      to: '/app/proveedores',
+      size: 'wide',
+      icon: <IconNetwork size={20} />,
+      hint: tenant.esProveedorActivo ? 'También sos proveedor' : 'Importá sin stock',
+    },
+    {
       id: 'estilo',
       title: 'Estilo del catálogo',
       description: 'Plantilla y colores',
@@ -84,7 +112,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
     {
       id: 'fuentes',
       title: 'Tipografía',
-      description: 'Fuente de la tienda o del banner',
+      description: 'Fuente de la tienda, banner o barra de anuncio',
       to: '/app/cuenta/fuentes',
       size: 'normal',
       icon: (
@@ -111,6 +139,18 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       id: 'banner',
       title: 'Banner temporada',
       to: '/app/cuenta/banner-temporada',
+      size: 'compact',
+    },
+    {
+      id: 'barra-anuncio',
+      title: 'Barra anuncio',
+      to: '/app/cuenta/barra-anuncio',
+      size: 'compact',
+    },
+    {
+      id: 'cabecera',
+      title: 'Cabecera',
+      to: '/app/cuenta/cabecera',
       size: 'compact',
     },
     {
@@ -142,6 +182,13 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       title: 'Políticas',
       description: 'Cambios y devoluciones',
       to: '/app/cuenta/politicas',
+      size: 'normal',
+    },
+    {
+      id: 'resenas',
+      title: 'Reseñas',
+      description: 'Opiniones del catálogo',
+      to: '/app/cuenta/resenas',
       size: 'normal',
     },
     {

@@ -79,3 +79,15 @@ export function mcLiveSessionProductsCollection(tenantId: string, sessionId: str
 export function mcLiveChatCollection(tenantId: string, sessionId: string) {
   return `mc_tenants/${tenantId}/live_sessions/${sessionId}/chat` as const
 }
+
+export function mcShowroomWaitlistCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/showroom_waitlist` as const
+}
+
+export function mcProductReviewsCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/product_reviews` as const
+}
+
+export function mcWishlistsCollection(tenantId: string) {
+  return `mc_tenants/${tenantId}/wishlists` as const
+}

@@ -207,7 +207,7 @@ export function CatalogListToolbar({
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
-              className="mt-2 w-full rounded-full bg-[var(--cat-accent)] py-2.5 text-sm font-semibold text-[var(--cat-accent-text)]"
+              className="mt-2 w-full mc-pc-btn bg-[var(--cat-accent)] py-2.5 text-sm font-semibold text-[var(--cat-accent-text)]"
             >
               Ver {resultCount} {resultCount === 1 ? 'resultado' : 'resultados'}
             </button>

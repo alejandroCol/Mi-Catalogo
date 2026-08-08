@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import clsx from 'clsx'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { doc, updateDoc } from 'firebase/firestore'
@@ -12,7 +13,7 @@ import { productSaveErrorMessage } from '@/lib/mcSaveError'
 import { CatalogPresetPickerGrid } from '@/app/CatalogPresetPickerGrid'
 import { PublicCatalogThemePreview } from '@/app/PublicCatalogThemePreview'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
-import type { McCatalogThemePreset } from '@/types/mc'
+import type { McCatalogButtonShape, McCatalogThemePreset } from '@/types/mc'
 
 const HEX = /^#[0-9A-Fa-f]{6}$/
 
@@ -24,6 +25,7 @@ export function CuentaEstiloPage() {
   const { showSaveSuccess } = useSaveSuccess()
 
   const [preset, setPreset] = useState<McCatalogThemePreset>('morning')
+  const [buttonShape, setButtonShape] = useState<McCatalogButtonShape>('pill')
   const [cAccent, setCAccent] = useState('')
   const [cAccentText, setCAccentText] = useState('')
   const [cBg, setCBg] = useState('')
@@ -35,6 +37,7 @@ export function CuentaEstiloPage() {
     if (!tenant) return
     const p = tenant.catalogTheme?.preset ?? 'morning'
     setPreset(p)
+    setButtonShape(tenant.catalogTheme?.buttonShape === 'square' ? 'square' : 'pill')
     const cols = tenant.catalogTheme?.colors
     setCAccent(cols?.accent ?? '')
     setCAccentText(cols?.accentText ?? '')
@@ -58,7 +61,7 @@ export function CuentaEstiloPage() {
         ...(HEX.test(cMuted) ? { muted: cMuted } : {}),
       }
       await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), {
-        catalogTheme: buildCatalogThemeForSave(preset, colors, tenant.catalogTheme),
+        catalogTheme: buildCatalogThemeForSave(preset, colors, tenant.catalogTheme, buttonShape),
       })
       showSaveSuccess({
         title: 'Tema actualizado',
@@ -88,7 +91,7 @@ export function CuentaEstiloPage() {
         <ConfiguracionesBackLink to={returnTo} label={returnLabel} state={navState} />
         <h1 className="ios-large-title mt-3">Estilo del portal de venta</h1>
         <p className="ios-subhead mt-2 max-w-xl leading-relaxed text-[var(--cat-muted)]">
-          Definí cómo se ve tu catálogo: plantilla, colores y vista previa antes de publicar.
+          Definí cómo se ve tu catálogo: plantilla, botones, colores y vista previa antes de publicar.
         </p>
       </div>
 
@@ -118,9 +121,52 @@ export function CuentaEstiloPage() {
               Al tocar una plantilla se aplican sus colores por defecto; podés afinarlos abajo antes de guardar.
             </p>
           </div>
+
+          <div>
+            <p className="ios-footnote mb-2 font-medium text-[var(--cat-text)] opacity-80">Forma de los botones</p>
+            <div className="grid grid-cols-2 gap-2 sm:max-w-md">
+              {(
+                [
+                  { id: 'pill' as const, label: 'Redondos', hint: 'Como hoy' },
+                  { id: 'square' as const, label: 'Cuadrados', hint: 'Esquinas suaves' },
+                ] as const
+              ).map((opt) => {
+                const selected = buttonShape === opt.id
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setButtonShape(opt.id)}
+                    className={clsx(
+                      'flex flex-col items-start gap-2 border px-3 py-3 text-left transition',
+                      selected
+                        ? 'border-[var(--cat-text)] bg-[color-mix(in_srgb,var(--cat-text)_4%,white)]'
+                        : 'border-neutral-200/80 hover:border-neutral-300',
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        'inline-flex h-8 w-full max-w-[7.5rem] items-center justify-center bg-neutral-900 text-[11px] font-semibold text-white',
+                        opt.id === 'pill' ? 'rounded-full' : 'rounded-md',
+                      )}
+                    >
+                      Botón
+                    </span>
+                    <span>
+                      <span className="block text-[13px] font-medium text-[var(--cat-text)]">{opt.label}</span>
+                      <span className="mt-0.5 block text-[11px] text-[var(--cat-muted)]">{opt.hint}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <PublicCatalogThemePreview
             tenant={tenant}
             preset={preset}
+            buttonShape={buttonShape}
             cAccent={cAccent}
             cAccentText={cAccentText}
             cBg={cBg}

@@ -8,6 +8,7 @@ import { LandingRegisterButton } from '@/landing/components/LandingRegisterButto
 import { LandingWhatsAppButton } from '@/landing/components/LandingWhatsAppButton'
 import { faqPageContent, landingFaqItems, type LandingFaqItem } from '@/landing/faqContent'
 import { mcSupportWhatsappUrl } from '@/lib/mcSupportContact'
+import { applyMcPageSeo, MC_SEO, removeJsonLd, upsertJsonLd } from '@/seo/mcSeo'
 
 function FaqAccordionItem({
   item,
@@ -45,15 +46,21 @@ export function FaqPage() {
   const waHref = mcSupportWhatsappUrl()
 
   useEffect(() => {
-    document.title = 'Preguntas frecuentes — Mi Catálogo'
-    const meta = document.querySelector('meta[name="description"]')
-    if (meta) {
-      meta.setAttribute(
-        'content',
-        'Respuestas sobre planes, productos, personalización, pasarela de pagos y más. Creá tu tienda en Mi Catálogo.',
-      )
-    }
+    applyMcPageSeo(MC_SEO.faq)
+    upsertJsonLd('mc-faq-jsonld', {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: landingFaqItems.map((item) => ({
+        '@type': 'Question',
+        name: item.question,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: item.answer,
+        },
+      })),
+    })
     window.scrollTo(0, 0)
+    return () => removeJsonLd('mc-faq-jsonld')
   }, [])
 
   return (

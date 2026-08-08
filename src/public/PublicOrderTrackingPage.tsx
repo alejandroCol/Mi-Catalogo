@@ -70,7 +70,7 @@ export function PublicOrderTrackingPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-[var(--cat-accent)] py-3 text-sm font-semibold text-[var(--cat-accent-text)] transition hover:opacity-90 disabled:opacity-60"
+          className="w-full mc-pc-btn bg-[var(--cat-accent)] py-3 text-sm font-semibold text-[var(--cat-accent-text)] transition hover:opacity-90 disabled:opacity-60"
         >
           {loading ? 'Buscando…' : 'Ver estado del pedido'}
         </button>
@@ -107,6 +107,14 @@ export function PublicOrderTrackingPage() {
       ) : null}
 
       <p className="mt-10 text-center text-[12px] text-[var(--cat-muted)]">
+        ¿No tenés el N.º?{' '}
+        <Link
+          to={to('/mis-pedidos')}
+          className="font-medium text-[var(--cat-text)] underline underline-offset-4"
+        >
+          Buscar por email
+        </Link>
+        {' · '}
         <Link to={to('/')} className="font-medium text-[var(--cat-text)] underline underline-offset-4">
           Volver al catálogo
         </Link>

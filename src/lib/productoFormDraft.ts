@@ -39,6 +39,7 @@ export type QuickAddFormSnapshot = {
   marcarNovedad: boolean
   mostrarDescargaImagen: boolean
   mostrarBotonDocena: boolean
+  mostrarStockCatalogo: boolean
   descuento: ProductoDescuentoDraft
   variantes: VarianteDraftConArchivo[]
   skuMatrix: SkuDraft[]
@@ -114,7 +115,13 @@ export function quickAddFormHasDraftContent(form: QuickAddFormSnapshot): boolean
   if (form.categoriaIds.length > 0) return true
   if (form.variantes.length > 0) return true
   if (form.coloresZapatos.length > 0) return true
-  if (form.marcarNovedad || form.mostrarDescargaImagen || form.mostrarBotonDocena) return true
+  if (
+    form.marcarNovedad ||
+    form.mostrarDescargaImagen ||
+    form.mostrarBotonDocena ||
+    form.mostrarStockCatalogo
+  )
+    return true
   if (form.descuento.activo) return true
   if (formEsZapatos(form) && sumarStockColoresZapatos(form.coloresZapatos) > 0) return true
   if (formEsConTallas(form) && !formEsZapatos(form) && form.tallas.some((t) => Number(t.stock.replace(/\D/g, '')) > 0))
@@ -181,6 +188,7 @@ export function buildProductoPayloadFromQuickAddForm(
     ...(form.marcarNovedad ? { marcarNovedad: true } : {}),
     ...(form.mostrarDescargaImagen ? { mostrarDescargaImagen: true } : {}),
     ...(form.mostrarBotonDocena ? { mostrarBotonDocena: true } : {}),
+    ...(form.mostrarStockCatalogo ? { mostrarStockCatalogo: true } : {}),
     ...(descParsed.ok ? descParsed.fields : { descuentoActivo: false }),
     ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
     ...(form.categoriaIds.length > 0 ? { categoriaIds: form.categoriaIds } : {}),

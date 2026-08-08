@@ -536,6 +536,43 @@ export function IconSmartphone({ size, className }: McIconProps) {
   )
 }
 
+/** Red de proveedores / marketplace */
+export function IconNetwork({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <circle cx="6.5" cy="7" r="2.25" stroke="currentColor" strokeWidth={stroke} />
+      <circle cx="17.5" cy="6.5" r="2.25" stroke="currentColor" strokeWidth={stroke} />
+      <circle cx="12" cy="17.5" r="2.5" stroke="currentColor" strokeWidth={stroke} />
+      <path
+        d="M8.4 8.4 10.6 15.2M15.6 8.2 13.4 15.1M8.7 6.6h6.2"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+      />
+    </Svg>
+  )
+}
+
+/** Caja / bodega proveedor */
+export function IconWarehouse({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M3.5 10.5 12 4.5l8.5 6V19.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-9Z"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 20.5v-6h6v6"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  )
+}
+
 /** Cámara / OBS / RTMP externo */
 export function IconVideoCamera({ size, className }: McIconProps) {
   return (

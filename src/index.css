@@ -2263,8 +2263,8 @@
   }
   .mc-ix-stage {
     @apply relative z-10 mx-auto w-full flex-1;
-    min-height: min(52dvh, 420px);
-    perspective: 1600px;
+    min-height: min(62dvh, 520px);
+    perspective: 1400px;
     perspective-origin: 50% 46%;
     cursor: grab;
     touch-action: pan-y;
@@ -2317,7 +2317,7 @@
   .mc-ix-item {
     @apply absolute left-1/2 top-[46%] will-change-transform;
     transform-style: preserve-3d;
-    width: min(52vw, 210px);
+    width: min(78vw, 310px);
     touch-action: none;
     pointer-events: auto;
     cursor: grab;
@@ -2355,7 +2355,7 @@
     border-radius: inherit;
     background: var(--ix-photo-bg);
     pointer-events: none;
-    transform: translate3d(var(--ix-parx, 0px), var(--ix-pary, 0px), 18px) scale(1.08);
+    transform: translate3d(var(--ix-parx, 0px), var(--ix-pary, 0px), 28px) scale(1.1);
     will-change: transform;
     transition: transform 80ms linear;
   }

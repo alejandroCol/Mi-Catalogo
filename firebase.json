@@ -36,6 +36,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "accelerometer=(self), gyroscope=(self), magnetometer=(self)"
           }
         ]
       },
@@ -45,6 +49,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "accelerometer=(self), gyroscope=(self), magnetometer=(self)"
           }
         ]
       },

@@ -45,12 +45,14 @@ function itemTransform(
   tiltY: number,
 ): string {
   const abs = Math.abs(offset)
-  const spacing = narrow ? 72 : compact ? 62 : 78
+  const spacing = narrow ? 58 : compact ? 62 : 78
   const x = offset * spacing
-  const z = -abs * (narrow ? 70 : compact ? 100 : 160)
-  const rotateY = offset * (narrow ? -9 : -12) + tiltY
-  const rotateX = tiltX
-  const scale = Math.max(narrow ? 0.42 : 0.46, 1 - abs * (narrow ? 0.28 : 0.24))
+  const z = -abs * (narrow ? 110 : compact ? 100 : 160)
+  const rotateY = offset * (narrow ? -14 : -12) + tiltY * (narrow ? 1.45 : 1)
+  const rotateX = tiltX * (narrow ? 1.35 : 1)
+  const recede = Math.max(narrow ? 0.34 : 0.46, 1 - abs * (narrow ? 0.44 : 0.24))
+  const focus = abs < 0.22 ? (narrow ? 1.2 : compact ? 1.04 : 1.08) : 1
+  const scale = recede * focus
   return `translate(-50%, -50%) translateX(${x}%) translateZ(${z}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`
 }
 
@@ -96,9 +98,13 @@ export function InteractiveLandingHero({
   const lookRef = useRef({ x: 0, y: 0 })
   const wheelIdleRef = useRef(0)
   const gyroOnRef = useRef(false)
+  const gyroAskedRef = useRef(false)
   const expandedRef = useRef(false)
   const tiltRafRef = useRef(0)
+  const gyroBaseRef = useRef<{ beta: number; gamma: number } | null>(null)
+  const motionBaseRef = useRef<{ x: number; y: number } | null>(null)
   const gyroHandlerRef = useRef<((e: DeviceOrientationEvent) => void) | null>(null)
+  const motionHandlerRef = useRef<((e: DeviceMotionEvent) => void) | null>(null)
 
   expandedRef.current = expanded
 
@@ -107,10 +113,10 @@ export function InteractiveLandingHero({
     tiltRafRef.current = requestAnimationFrame(() => {
       tiltRafRef.current = 0
       const next = {
-        x: clamp(gyroRef.current.x + lookRef.current.x, -16, 16),
-        y: clamp(gyroRef.current.y + lookRef.current.y, -22, 22),
+        x: clamp(gyroRef.current.x + lookRef.current.x, -22, 22),
+        y: clamp(gyroRef.current.y + lookRef.current.y, -28, 28),
       }
-      if (Math.abs(next.x - tiltRef.current.x) < 0.08 && Math.abs(next.y - tiltRef.current.y) < 0.08) {
+      if (Math.abs(next.x - tiltRef.current.x) < 0.05 && Math.abs(next.y - tiltRef.current.y) < 0.05) {
         return
       }
       tiltRef.current = next
@@ -118,15 +124,60 @@ export function InteractiveLandingHero({
     })
   }
 
-  function applyGyro(e: DeviceOrientationEvent) {
+  function applyOrientation(e: DeviceOrientationEvent) {
     if (expandedRef.current) return
-    const gamma = e.gamma ?? 0
-    const beta = e.beta ?? 0
+    const gamma = e.gamma
+    const beta = e.beta
+    if (gamma == null || beta == null) return
+    if (!gyroBaseRef.current) gyroBaseRef.current = { beta, gamma }
+    const base = gyroBaseRef.current
     gyroRef.current = {
-      x: clamp((beta - 35) * -0.28, -14, 14),
-      y: clamp(gamma * 0.48, -20, 20),
+      x: clamp((beta - base.beta) * -0.72, -22, 22),
+      y: clamp((gamma - base.gamma) * 1.05, -28, 28),
     }
     publishTilt()
+  }
+
+  function applyMotion(e: DeviceMotionEvent) {
+    if (expandedRef.current) return
+    if (gyroBaseRef.current) return
+    const acc = e.accelerationIncludingGravity
+    if (!acc || acc.x == null || acc.y == null) return
+    if (!motionBaseRef.current) motionBaseRef.current = { x: acc.x, y: acc.y }
+    const base = motionBaseRef.current
+    gyroRef.current = {
+      x: clamp((acc.y - base.y) * 2.8, -22, 22),
+      y: clamp((acc.x - base.x) * 3.1, -28, 28),
+    }
+    publishTilt()
+  }
+
+  function attachMotionListeners() {
+    if (gyroOnRef.current) return
+    gyroHandlerRef.current = applyOrientation
+    motionHandlerRef.current = applyMotion
+    window.addEventListener('deviceorientation', applyOrientation, true)
+    window.addEventListener('deviceorientationabsolute', applyOrientation as EventListener, true)
+    window.addEventListener('devicemotion', applyMotion, true)
+    gyroOnRef.current = true
+  }
+
+  function enableGyroFromGesture() {
+    attachMotionListeners()
+    if (gyroAskedRef.current) return
+    const DOE = window.DeviceOrientationEvent as unknown as {
+      requestPermission?: () => Promise<string>
+    } | undefined
+    const DME = window.DeviceMotionEvent as unknown as {
+      requestPermission?: () => Promise<string>
+    } | undefined
+    const reqOri = typeof DOE?.requestPermission === 'function' ? DOE.requestPermission() : null
+    const reqMot = typeof DME?.requestPermission === 'function' ? DME.requestPermission() : null
+    if (!reqOri && !reqMot) return
+    gyroAskedRef.current = true
+    void Promise.all([reqOri, reqMot].filter(Boolean) as Promise<string>[]).catch(() => {
+      /* iOS denegó sensores */
+    })
   }
 
   const applyTrack = useCallback((value: number) => {
@@ -273,45 +324,29 @@ export function InteractiveLandingHero({
   }, [expanded])
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.DeviceOrientationEvent) return
-    const DOE = DeviceOrientationEvent as unknown as {
+    if (typeof window === 'undefined') return
+    const DOE = window.DeviceOrientationEvent as unknown as {
       requestPermission?: () => Promise<string>
     }
     if (typeof DOE.requestPermission === 'function') return
-    gyroHandlerRef.current = applyGyro
-    window.addEventListener('deviceorientation', applyGyro)
-    gyroOnRef.current = true
+    attachMotionListeners()
     return () => {
-      window.removeEventListener('deviceorientation', applyGyro)
-      gyroOnRef.current = false
+      /* cleanup global abajo */
     }
   }, [])
 
   useEffect(() => {
     return () => {
       if (gyroHandlerRef.current) {
-        window.removeEventListener('deviceorientation', gyroHandlerRef.current)
+        window.removeEventListener('deviceorientation', gyroHandlerRef.current, true)
+        window.removeEventListener('deviceorientationabsolute', gyroHandlerRef.current, true)
+      }
+      if (motionHandlerRef.current) {
+        window.removeEventListener('devicemotion', motionHandlerRef.current, true)
       }
       if (tiltRafRef.current) cancelAnimationFrame(tiltRafRef.current)
     }
   }, [])
-
-  async function enableGyroFromGesture() {
-    if (gyroOnRef.current) return
-    const DOE = DeviceOrientationEvent as unknown as {
-      requestPermission?: () => Promise<string>
-    }
-    if (typeof DOE.requestPermission !== 'function') return
-    try {
-      const res = await DOE.requestPermission()
-      if (res !== 'granted') return
-      gyroHandlerRef.current = applyGyro
-      window.addEventListener('deviceorientation', applyGyro)
-      gyroOnRef.current = true
-    } catch {
-      /* iOS denegó el giroscopio */
-    }
-  }
 
   function lookFromPoint(clientX: number, clientY: number) {
     const rect = stageRef.current?.getBoundingClientRect()
@@ -428,8 +463,9 @@ export function InteractiveLandingHero({
     setExpanded(true)
   }
 
-  function onPointerLeave() {
+  function onPointerLeave(e: PointerEvent) {
     if (dragRef.current) return
+    if (e.pointerType !== 'mouse') return
     lookRef.current = { x: 0, y: 0 }
     publishTilt()
   }
@@ -458,6 +494,7 @@ export function InteractiveLandingHero({
         className,
       )}
       aria-label="Colección interactiva"
+      onPointerDownCapture={enableGyroFromGesture}
     >
       <div className="mc-ix-hero__atmosphere" aria-hidden>
         <span className="mc-ix-hero__orb mc-ix-hero__orb--a" />
@@ -499,8 +536,8 @@ export function InteractiveLandingHero({
                 opacity: Math.max(0.38, 1 - abs * 0.28),
                 zIndex: 40 - Math.round(abs * 10),
                 filter: `brightness(${Math.max(0.82, 1 - abs * 0.12)})`,
-                ['--ix-parx' as string]: `${tilt.y * -1.1}px`,
-                ['--ix-pary' as string]: `${tilt.x * 1.15}px`,
+                ['--ix-parx' as string]: `${tilt.y * (narrow ? -2.6 : -1.1)}px`,
+                ['--ix-pary' as string]: `${tilt.x * (narrow ? 2.8 : 1.15)}px`,
               }}
             >
               <button

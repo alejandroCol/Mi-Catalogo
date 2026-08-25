@@ -1,0 +1,1 @@
+var e=`mc_proveedores`,t=`mc_marketplace_listings`;function n(){return e}function r(t){return`${e}/${t}/productos`}function i(t){return`${e}/${t}/ordenes`}function a(){return t}function o(e,t){return`${e}_${t}`}function s(e){return`mc_tenants/${e}/proveedor_links`}export{r as a,i,a as n,n as o,s as r,o as t};

@@ -154,6 +154,9 @@ const OnepayRetiroFondosPage = lazy(() =>
 const PlanUpgradePage = lazy(() =>
   import('@/app/PlanUpgradePage').then((m) => ({ default: m.PlanUpgradePage })),
 )
+const AdminWhatsNewPage = lazy(() =>
+  import('@/app/AdminWhatsNewPage').then((m) => ({ default: m.AdminWhatsNewPage })),
+)
 const AdminCatalogPreviewLayout = lazy(() =>
   import('@/app/AdminCatalogPreviewLayout').then((m) => ({ default: m.AdminCatalogPreviewLayout })),
 )
@@ -591,6 +594,7 @@ function PlatformRoutes() {
         <Route path="reportes" element={<CatalogReportesHubPage />} />
         <Route path="reportes/:reportId" element={<CatalogReporteDetailPage />} />
         <Route path="plan" element={<PlanUpgradePage />} />
+        <Route path="novedades" element={<AdminWhatsNewPage />} />
         <Route path="estadisticas" element={<EstadisticasPage />} />
         <Route path="cuenta" element={<CuentaPage />} />
         <Route path="cuenta/perfil" element={<CuentaPerfilPage />} />

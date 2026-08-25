@@ -27,6 +27,7 @@ export function LandingNav() {
     <header
       className={clsx(
         'mc-landing-nav',
+        'mc-landing-nav--with-promo',
         scrolled && 'mc-landing-nav--scrolled',
         menuOpen && 'mc-landing-nav--open',
       )}

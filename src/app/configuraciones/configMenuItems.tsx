@@ -14,6 +14,7 @@ import { PAGOS_PASARELA_RETURN_FROM_CUENTA } from '@/app/configuraciones/configS
 import type { ConfigMenuItem } from '@/app/configuraciones/types'
 import type { McTenant } from '@/types/mc'
 import { hasAddiFeatureAccess } from '@/lib/addiAccess'
+import { hasInteractiveLandingAccess } from '@/lib/billingAccess'
 import { isCatalogPubliclyAccessible } from '@/lib/catalogPublish'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { formatStorePublicUrlLabel } from '@/lib/storePublicUrl'
@@ -137,7 +138,7 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
     },
     {
       id: 'banner',
-      title: 'Banner temporada',
+      title: hasInteractiveLandingAccess(tenant) ? 'Landing al entrar' : 'Banner temporada',
       to: '/app/cuenta/banner-temporada',
       size: 'compact',
     },

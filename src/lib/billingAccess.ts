@@ -44,6 +44,11 @@ export function hasShowroomFeatureAccess(tenant: McTenant | null | undefined): b
   return hasLiveFeatureAccess(tenant)
 }
 
+/** Expert o Master con suscripción activa: landing interactiva (carrusel 3D). */
+export function hasInteractiveLandingAccess(tenant: McTenant | null | undefined): boolean {
+  return hasExpertFeatureAccess(tenant)
+}
+
 /** Cobro vencido pero aún en período de gracia (7 días). */
 export function isBillingPastDueInGrace(tenant: McTenant | null | undefined): boolean {
   if (!tenant || tenant.billingSubStatus !== 'past_due') return false

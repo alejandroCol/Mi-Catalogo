@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { createUserWithEmailAndPassword, deleteUser, updateProfile } from 'firebase/auth'
 import type { UserCredential } from 'firebase/auth'
 import { collection, deleteDoc, doc, getDoc, setDoc, writeBatch } from 'firebase/firestore'
@@ -36,6 +36,8 @@ const emailOk = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim())
 
 export function RegisterPage() {
   const nav = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const [step, setStep] = useState<StepId>('tienda')
   const [nombreTienda, setNombreTienda] = useState('')
   const [waPrefix, setWaPrefix] = useState(DEFAULT_WA_PREFIX)
@@ -51,6 +53,13 @@ export function RegisterPage() {
 
   const db = useMemo(() => (firebaseConfigured ? getDb() : null), [])
   const slugState = useRegisterStoreSlug(db, nombreTienda)
+
+  useEffect(() => {
+    const fromState = (location.state as { nombreTienda?: string } | null)?.nombreTienda?.trim()
+    const fromQuery = searchParams.get('tienda')?.trim()
+    const prefill = fromState || fromQuery
+    if (prefill) setNombreTienda(prefill)
+  }, [location.state, searchParams])
 
   useEffect(() => {
     if (!firebaseConfigured) {

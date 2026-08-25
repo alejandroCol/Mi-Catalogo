@@ -4,6 +4,7 @@ import { signOut } from 'firebase/auth'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { buildConfigMenuItems, ConfigTileGrid } from '@/app/configuraciones'
+import { AdminWhatsNewPromo } from '@/components/admin/AdminWhatsNewPromo'
 import { BillingPastDueBanner } from '@/components/billing/BillingPastDueBanner'
 import { PlanEleganceBadge } from '@/components/billing/PlanEleganceBadge'
 import { hasExpertFeatureAccess, ownerPlanEleganceLabel } from '@/lib/billingAccess'
@@ -53,8 +54,9 @@ export function CuentaPage() {
 
   return (
     <div className="mc-shell mc-config-page pb-4">
-      <header className="mc-config-page__head">
+      <header className="mc-config-page__head flex items-start justify-between gap-3">
         <h1 className="ios-large-title">Configuraciones</h1>
+        {tenant ? <AdminWhatsNewPromo tenant={tenant} className="mt-1 shrink-0" /> : null}
       </header>
 
       {expertPaused ? (

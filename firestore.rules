@@ -354,6 +354,10 @@ service cloud.firestore {
     function mcTenantOwnerPatchKeysMasterOnly() {
       return ['collectionShowroom'];
     }
+    /** Campos Expert o Master (landing interactiva legacy). */
+    function mcTenantOwnerPatchKeysPaidOnly() {
+      return ['interactiveLanding'];
+    }
     function mcTenantMasterFeatureActive(data) {
       return mcTenantIsMaster(data)
         && (
@@ -365,15 +369,21 @@ service cloud.firestore {
           )
         );
     }
-    /** Dueño puede tocar keys free; collectionShowroom solo si Master activo. */
+    /** Dueño puede tocar keys free; campos pagos según plan activo. */
     function mcTenantOwnerAffectedKeysOk() {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
       return keys.hasOnly(
-          mcTenantOwnerPatchKeysFree().concat(mcTenantOwnerPatchKeysMasterOnly())
+          mcTenantOwnerPatchKeysFree()
+            .concat(mcTenantOwnerPatchKeysMasterOnly())
+            .concat(mcTenantOwnerPatchKeysPaidOnly())
         )
         && (
           !keys.hasAny(mcTenantOwnerPatchKeysMasterOnly())
           || mcTenantMasterFeatureActive(resource.data)
+        )
+        && (
+          !keys.hasAny(mcTenantOwnerPatchKeysPaidOnly())
+          || mcTenantExpertPublishActive(resource.data)
         );
     }
     /** Campos de facturación inmutables en patches del dueño (free implícito = explícito). */

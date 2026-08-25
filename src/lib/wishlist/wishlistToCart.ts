@@ -38,7 +38,7 @@ export function productsToWishlistItems(products: McProducto[]): McWishlistItem[
 
 /** True si el amigo debe elegir variante/talla/combo en la ficha. */
 export function productoRequiereOpcionCompra(p: McProducto): boolean {
-  if (p.tipo === 'combo') return true
+  if (p.tipoProducto === 'combo') return true
   if ((p.variantes?.length ?? 0) > 0) return true
   if ((p.tallas?.length ?? 0) > 0) return true
   return false

@@ -1,15 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
+import clsx from 'clsx'
+import { collection, deleteField, doc, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore'
+import { deleteObject, ref } from 'firebase/storage'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
-import { deleteField, doc, updateDoc } from 'firebase/firestore'
-import { deleteObject, ref } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
+import { InteractiveLandingProductPicker } from '@/components/interactiveLanding/InteractiveLandingProductPicker'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
 import { ProductoFormSection } from '@/components/producto/ProductoFormSection'
 import { SeasonBannerMediaPicker } from '@/components/seasonBanner/SeasonBannerMediaPicker'
+import { hasInteractiveLandingAccess } from '@/lib/billingAccess'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
+import { productSaveErrorMessage } from '@/lib/mcSaveError'
 import { firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
-import { MC } from '@/lib/mcCollections'
+import {
+  INTERACTIVE_LANDING_LIMITS,
+  INTERACTIVE_LANDING_MOODS,
+  normalizeInteractiveLandingMood,
+  sanitizeInteractiveProductIds,
+} from '@/lib/interactiveLanding'
+import { MC, mcProductosCollection } from '@/lib/mcCollections'
 import {
   SEASON_BANNER_DEFAULTS,
   SEASON_BANNER_LIMITS,
@@ -22,8 +32,18 @@ import {
 } from '@/lib/seasonBanner'
 import { prepareSeasonBannerVideo } from '@/lib/seasonBannerVideo'
 import { uploadSeasonBannerFile } from '@/lib/uploadSeasonBannerFile'
+import { InteractiveLandingHero } from '@/public/InteractiveLandingHero'
 import { SeasonBannerHero } from '@/public/SeasonBannerHero'
-import type { McSeasonBanner, McSeasonBannerMediaType, McTenant } from '@/types/mc'
+import type {
+  McInteractiveLandingMood,
+  McProducto,
+  McSeasonBanner,
+  McSeasonBannerHeroMode,
+  McSeasonBannerMediaType,
+  McTenant,
+} from '@/types/mc'
+
+type LandingMode = 'banner' | 'interactive'
 
 function previewTenant(
   base: McTenant,
@@ -101,6 +121,12 @@ export function CuentaBannerTemporadaPage() {
   const [removeImagePending, setRemoveImagePending] = useState(false)
   const [removeVideoPending, setRemoveVideoPending] = useState(false)
   const [previewKey, setPreviewKey] = useState(0)
+  const [landingMode, setLandingMode] = useState<LandingMode>('banner')
+  const [interactiveMood, setInteractiveMood] = useState<McInteractiveLandingMood>('mist')
+  const [interactiveProductIds, setInteractiveProductIds] = useState<string[]>([])
+  const [products, setProducts] = useState<McProducto[]>([])
+  const [productsLoading, setProductsLoading] = useState(true)
+  const canInteractive = hasInteractiveLandingAccess(tenant)
 
   const fieldSetters = {
     eyebrow: setEyebrow,
@@ -123,6 +149,17 @@ export function CuentaBannerTemporadaPage() {
     setImageUrl(b?.imageUrl ?? null)
     setVideoUrl(b?.videoUrl ?? null)
     setPosterUrl(b?.posterUrl ?? null)
+    const bannerIx = b?.heroMode === 'interactive'
+    const legacyIx = tenant.interactiveLanding?.enabled === true
+    const ixOn = bannerIx || legacyIx
+    setLandingMode(ixOn && hasInteractiveLandingAccess(tenant) ? 'interactive' : 'banner')
+    setInteractiveMood(
+      normalizeInteractiveLandingMood(b?.interactiveMood ?? tenant.interactiveLanding?.mood),
+    )
+    setInteractiveProductIds(
+      sanitizeInteractiveProductIds(b?.interactiveProductIds ?? tenant.interactiveLanding?.productIds),
+    )
+    if (ixOn) setEnabled(true)
     setPendingImageFile(null)
     setPendingVideoFile(null)
     setPendingPosterFile(null)
@@ -144,6 +181,29 @@ export function CuentaBannerTemporadaPage() {
   }, [tenant])
 
   useEffect(() => {
+    if (!effectiveTenantId || !canInteractive) {
+      setProducts([])
+      setProductsLoading(false)
+      return
+    }
+    setProductsLoading(true)
+    const q = query(
+      collection(getDb(), mcProductosCollection(effectiveTenantId)),
+      where('activo', '==', true),
+      where('enCatalogo', '==', true),
+      orderBy('orden', 'asc'),
+    )
+    return onSnapshot(
+      q,
+      (snap) => {
+        setProducts(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<McProducto, 'id'>) })))
+        setProductsLoading(false)
+      },
+      () => setProductsLoading(false),
+    )
+  }, [effectiveTenantId, canInteractive])
+
+  useEffect(() => {
     return () => {
       if (localImagePreviewUrl) URL.revokeObjectURL(localImagePreviewUrl)
       if (localVideoPreviewUrl) URL.revokeObjectURL(localVideoPreviewUrl)
@@ -157,8 +217,8 @@ export function CuentaBannerTemporadaPage() {
 
   const previewTenantData = useMemo(() => {
     if (!tenant) return null
-    return previewTenant(tenant, {
-      enabled,
+    const base = previewTenant(tenant, {
+      enabled: landingMode === 'banner' ? enabled : false,
       mediaType,
       eyebrow,
       headline,
@@ -168,9 +228,23 @@ export function CuentaBannerTemporadaPage() {
       videoUrl: displayVideoUrl,
       posterUrl: displayPosterUrl,
     })
+    const heroMode: McSeasonBannerHeroMode = landingMode === 'interactive' ? 'interactive' : 'media'
+    return {
+      ...base,
+      seasonBanner: {
+        ...base.seasonBanner!,
+        enabled: landingMode === 'interactive' ? true : enabled,
+        heroMode,
+        interactiveProductIds,
+        interactiveMood,
+      },
+    }
   }, [
     tenant,
     enabled,
+    landingMode,
+    interactiveProductIds,
+    interactiveMood,
     mediaType,
     eyebrow,
     headline,
@@ -258,6 +332,45 @@ export function CuentaBannerTemporadaPage() {
     setBusy(true)
     setMsg(null)
     try {
+      if (landingMode === 'interactive') {
+        if (!canInteractive) {
+          setMsg('El modo interactivo requiere plan Expert o Master activo.')
+          return
+        }
+        if (enabled && interactiveProductIds.length < INTERACTIVE_LANDING_LIMITS.minProducts) {
+          setMsg(
+            `Elegí al menos ${INTERACTIVE_LANDING_LIMITS.minProducts} productos con foto de estudio.`,
+          )
+          return
+        }
+        const fields = sanitizeSeasonBannerFields({ eyebrow, headline, subheadline, ctaLabel })
+        const banner = buildSeasonBannerForSave(
+          enabled,
+          fields,
+          {
+            mediaType,
+            imageUrl: removeImagePending ? null : imageUrl,
+            videoUrl: removeVideoPending ? null : videoUrl,
+            posterUrl: removeVideoPending ? null : posterUrl,
+          },
+          tenant.seasonBanner,
+        )
+        banner.heroMode = 'interactive'
+        banner.interactiveProductIds = sanitizeInteractiveProductIds(interactiveProductIds)
+        banner.interactiveMood = interactiveMood
+        await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), {
+          seasonBanner: banner,
+        })
+        setPreviewKey((k) => k + 1)
+        showSaveSuccess({
+          title: enabled ? 'Modo interactivo publicado' : 'Modo interactivo desactivado',
+          message: enabled
+            ? 'Al entrar al catálogo se muestra el carrusel de productos.'
+            : 'El carrusel ya no aparece en el catálogo.',
+        })
+        return
+      }
+
       let resolvedImageUrl: string | null | undefined = removeImagePending ? null : imageUrl
       let resolvedVideoUrl: string | null | undefined = removeVideoPending ? null : videoUrl
       let resolvedPosterUrl: string | null | undefined = removeVideoPending ? null : posterUrl
@@ -337,6 +450,11 @@ export function CuentaBannerTemporadaPage() {
         },
         tenant.seasonBanner,
       )
+      banner.heroMode = 'media'
+      if (interactiveProductIds.length > 0) {
+        banner.interactiveProductIds = sanitizeInteractiveProductIds(interactiveProductIds)
+        banner.interactiveMood = interactiveMood
+      }
 
       if (mediaType === 'video') {
         await deleteStorageIfExists(seasonBannerImageStoragePath(effectiveTenantId))
@@ -361,8 +479,8 @@ export function CuentaBannerTemporadaPage() {
           ? 'Ya se muestra al entrar a tu catálogo público.'
           : 'El banner de temporada ya no aparece en el catálogo.',
       })
-    } catch {
-      setMsg('No se pudo guardar.')
+    } catch (err) {
+      setMsg(productSaveErrorMessage(err, 'No se pudo guardar. Intentá de nuevo.'))
     } finally {
       setBusy(false)
       setUploadingMedia(false)
@@ -376,9 +494,13 @@ export function CuentaBannerTemporadaPage() {
     <div className="mc-shell mc-config-subpage">
       <div>
         <ConfiguracionesBackLink to={returnTo} label={returnLabel} state={navState} />
-        <h1 className="ios-large-title mt-3">Banner de temporada</h1>
+        <h1 className="ios-large-title mt-3">
+          {canInteractive ? 'Landing al entrar' : 'Banner de temporada'}
+        </h1>
         <p className="ios-subhead mt-2 max-w-2xl leading-relaxed text-[var(--cat-muted)]">
-          Pantalla completa al entrar al catálogo. Elegí una foto o un video corto en loop.
+          {canInteractive
+            ? 'Elegí cómo se abre tu catálogo: un banner clásico o el modo interactivo con productos en 3D.'
+            : 'Pantalla completa al entrar al catálogo. Elegí una foto o un video corto en loop.'}
         </p>
       </div>
 
@@ -387,9 +509,51 @@ export function CuentaBannerTemporadaPage() {
       ) : (
         <>
           <div className="mc-card space-y-5">
+            {canInteractive ? (
+              <ProductoFormSection
+                title="Tipo de landing"
+                description="Solo se muestra una opción al entrar al catálogo."
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    disabled={formDisabled}
+                    onClick={() => setLandingMode('banner')}
+                    className={clsx(
+                      'rounded-2xl border p-4 text-left transition',
+                      landingMode === 'banner'
+                        ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_8%,transparent)]'
+                        : 'border-neutral-200/80 bg-[var(--cat-surface)] hover:border-neutral-300',
+                    )}
+                  >
+                    <p className="text-sm font-semibold text-[var(--cat-text)]">Banner clásico</p>
+                    <p className="mt-1 text-[12px] leading-relaxed text-[var(--cat-muted)]">
+                      Foto o video a pantalla completa, con textos de campaña.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={formDisabled}
+                    onClick={() => setLandingMode('interactive')}
+                    className={clsx(
+                      'rounded-2xl border p-4 text-left transition',
+                      landingMode === 'interactive'
+                        ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_8%,transparent)]'
+                        : 'border-neutral-200/80 bg-[var(--cat-surface)] hover:border-neutral-300',
+                    )}
+                  >
+                    <p className="text-sm font-semibold text-[var(--cat-text)]">Modo interactivo</p>
+                    <p className="mt-1 text-[12px] leading-relaxed text-[var(--cat-muted)]">
+                      Carrusel 3D con productos seleccionados y animación al deslizar.
+                    </p>
+                  </button>
+                </div>
+              </ProductoFormSection>
+            ) : null}
+
             <ProductoFormSection
               title="Visibilidad"
-              description="Controlá si el banner aparece al abrir tu catálogo público."
+              description="Controlá si esta landing aparece al abrir tu catálogo público."
             >
               <label className="flex cursor-pointer items-start gap-3">
                 <input
@@ -400,7 +564,9 @@ export function CuentaBannerTemporadaPage() {
                   onChange={(e) => setEnabled(e.target.checked)}
                 />
                 <span>
-                  <span className="ios-subhead font-medium text-[var(--cat-text)]">Mostrar banner al entrar</span>
+                  <span className="ios-subhead font-medium text-[var(--cat-text)]">
+                    Mostrar al entrar
+                  </span>
                   <span className="ios-footnote mt-1 block leading-relaxed text-[var(--cat-muted)]">
                     Si está desactivado, no se muestra aunque tengas contenido guardado.
                   </span>
@@ -408,53 +574,102 @@ export function CuentaBannerTemporadaPage() {
               </label>
             </ProductoFormSection>
 
-            <ProductoFormSection
-              title="Textos del banner"
-              description="Personalizá los mensajes que aparecen sobre el fondo."
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                {TEXT_FIELDS.map(([label, key, max, placeholder]) => (
-                  <div key={key} className={key === 'subheadline' ? 'sm:col-span-2' : ''}>
-                    <label className="ios-footnote font-medium text-mc-800">{label}</label>
-                    <input
-                      className="mc-input mt-1"
-                      value={fieldValues[key]}
-                      maxLength={max}
-                      disabled={formDisabled}
-                      placeholder={placeholder}
-                      onChange={(e) => fieldSetters[key](e.target.value)}
-                    />
+            {canInteractive && landingMode === 'interactive' ? (
+              <>
+                <ProductoFormSection
+                  title="Atmósfera"
+                  description="Fondos claros y pasteles, o una escena más oscura si preferís contraste."
+                >
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {INTERACTIVE_LANDING_MOODS.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        disabled={formDisabled}
+                        onClick={() => setInteractiveMood(m.id)}
+                        className={clsx(
+                          'rounded-2xl border p-3 text-left transition',
+                          interactiveMood === m.id
+                            ? 'border-[var(--cat-accent)] bg-[color-mix(in_srgb,var(--cat-accent)_8%,transparent)]'
+                            : 'border-neutral-200/80 hover:border-neutral-300',
+                        )}
+                      >
+                        <span
+                          className="mb-2 block h-10 w-full rounded-xl border border-black/5"
+                          style={{ background: m.swatch }}
+                        />
+                        <p className="text-[13px] font-semibold">{m.label}</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--cat-muted)]">
+                          {m.description}
+                        </p>
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </ProductoFormSection>
+                </ProductoFormSection>
 
-            <ProductoFormSection
-              title="Fondo del banner"
-              description="Foto estática o video corto. El video se optimiza automáticamente al subir."
-            >
-              <SeasonBannerMediaPicker
-                mediaType={mediaType}
-                imageUrl={displayImageUrl}
-                videoUrl={displayVideoUrl}
-                posterUrl={displayPosterUrl}
-                disabled={busy}
-                uploading={uploadingMedia}
-                processing={processingVideo}
-                processingLabel={processingLabel}
-                processingPercent={processingPercent}
-                error={videoError}
-                onMediaTypeChange={(type) => {
-                  setMediaType(type)
-                  setPreviewKey((k) => k + 1)
-                  setVideoError(null)
-                }}
-                onPickImage={onPickImage}
-                onPickVideo={(file) => void onPickVideo(file)}
-                onRemoveImage={quitarImagen}
-                onRemoveVideo={quitarVideo}
-              />
-            </ProductoFormSection>
+                <ProductoFormSection
+                  title="Productos del carrusel"
+                  description="Fotos de estudio (fondo blanco o claro). Las de ambiente no entran."
+                >
+                  <InteractiveLandingProductPicker
+                    products={products}
+                    selectedIds={interactiveProductIds}
+                    onChange={setInteractiveProductIds}
+                    loading={productsLoading}
+                  />
+                </ProductoFormSection>
+              </>
+            ) : (
+              <>
+                <ProductoFormSection
+                  title="Textos del banner"
+                  description="Personalizá los mensajes que aparecen sobre el fondo."
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {TEXT_FIELDS.map(([label, key, max, placeholder]) => (
+                      <div key={key} className={key === 'subheadline' ? 'sm:col-span-2' : ''}>
+                        <label className="ios-footnote font-medium text-mc-800">{label}</label>
+                        <input
+                          className="mc-input mt-1"
+                          value={fieldValues[key]}
+                          maxLength={max}
+                          disabled={formDisabled}
+                          placeholder={placeholder}
+                          onChange={(e) => fieldSetters[key](e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </ProductoFormSection>
+
+                <ProductoFormSection
+                  title="Fondo del banner"
+                  description="Foto estática o video corto. El video se optimiza automáticamente al subir."
+                >
+                  <SeasonBannerMediaPicker
+                    mediaType={mediaType}
+                    imageUrl={displayImageUrl}
+                    videoUrl={displayVideoUrl}
+                    posterUrl={displayPosterUrl}
+                    disabled={busy}
+                    uploading={uploadingMedia}
+                    processing={processingVideo}
+                    processingLabel={processingLabel}
+                    processingPercent={processingPercent}
+                    error={videoError}
+                    onMediaTypeChange={(type) => {
+                      setMediaType(type)
+                      setPreviewKey((k) => k + 1)
+                      setVideoError(null)
+                    }}
+                    onPickImage={onPickImage}
+                    onPickVideo={(file) => void onPickVideo(file)}
+                    onRemoveImage={quitarImagen}
+                    onRemoveVideo={quitarVideo}
+                  />
+                </ProductoFormSection>
+              </>
+            )}
 
             {msg && <p className="text-[15px] text-[var(--cat-text)] opacity-90">{msg}</p>}
             <button
@@ -463,7 +678,7 @@ export function CuentaBannerTemporadaPage() {
               disabled={formDisabled}
               onClick={() => void guardar()}
             >
-              Guardar banner
+              {canInteractive && landingMode === 'interactive' ? 'Guardar modo interactivo' : 'Guardar banner'}
             </button>
           </div>
 
@@ -471,7 +686,25 @@ export function CuentaBannerTemporadaPage() {
             <div className="space-y-3">
               <p className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">Vista previa</p>
               <div className="overflow-hidden rounded-2xl border border-neutral-200/60 bg-neutral-100/50">
-                <SeasonBannerHero key={previewKey} tenant={previewTenantData} preview />
+                {canInteractive && landingMode === 'interactive' ? (
+                  interactiveProductIds.length >= INTERACTIVE_LANDING_LIMITS.minProducts ? (
+                    <InteractiveLandingHero
+                      key={`${previewKey}-${interactiveMood}`}
+                      tenant={previewTenantData}
+                      products={products}
+                      preview
+                    />
+                  ) : (
+                    <div className="flex min-h-[320px] items-center justify-center bg-[#07080c] px-6 text-center">
+                      <p className="max-w-sm text-sm leading-relaxed text-white/60">
+                        Elegí al menos {INTERACTIVE_LANDING_LIMITS.minProducts} productos para ver el
+                        carrusel.
+                      </p>
+                    </div>
+                  )
+                ) : (
+                  <SeasonBannerHero key={previewKey} tenant={previewTenantData} preview />
+                )}
               </div>
             </div>
           )}

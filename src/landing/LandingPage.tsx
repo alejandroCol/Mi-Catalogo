@@ -1,26 +1,11 @@
-import { useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { isMcSuperAdminUser, resolveMcHomePath } from '@/lib/mcUserFromFirestore'
-import { LandingNav } from '@/landing/components/LandingNav'
-import { LandingHero } from '@/landing/components/LandingHero'
-import { LandingStoreShowcase } from '@/landing/components/LandingStoreShowcase'
-import { LandingZeroCost } from '@/landing/components/LandingZeroCost'
-import { LandingBentoFeatures } from '@/landing/components/LandingBentoFeatures'
-import { LandingHowItWorks } from '@/landing/components/LandingHowItWorks'
-import { LandingPosSection } from '@/landing/components/LandingPosSection'
-import { LandingFinalCta } from '@/landing/components/LandingFinalCta'
-import { LandingFooter } from '@/landing/components/LandingFooter'
-import { LandingMobileDock } from '@/landing/components/LandingMobileDock'
-import { LandingWhatsAppButton } from '@/landing/components/LandingWhatsAppButton'
-import { applyMcPageSeo, MC_SEO } from '@/seo/mcSeo'
+import { LandingNorrisPage } from '@/landing/norris/LandingNorrisPage'
 
+/** Landing pública — rama Norris: scroll cinemático estilo landonorris.com */
 export function LandingPage() {
   const { firebaseUser, profile, profileReady, loading, isImpersonating } = useMcAuth()
-
-  useEffect(() => {
-    applyMcPageSeo(MC_SEO.home)
-  }, [])
 
   if (!loading && profileReady && firebaseUser) {
     if (isImpersonating) {
@@ -31,21 +16,5 @@ export function LandingPage() {
     }
   }
 
-  return (
-    <div className="mc-landing">
-      <LandingNav />
-      <main>
-        <LandingHero />
-        <LandingStoreShowcase />
-        <LandingZeroCost />
-        <LandingBentoFeatures />
-        <LandingPosSection />
-        <LandingHowItWorks />
-        <LandingFinalCta />
-      </main>
-      <LandingFooter />
-      <LandingMobileDock />
-      <LandingWhatsAppButton />
-    </div>
-  )
+  return <LandingNorrisPage />
 }

@@ -51,12 +51,11 @@ export function CatalogCartShippingEstimator({
   className,
 }: Props) {
   const configured = isEnvioCheckoutConfigured(tenant)
-  const [open, setOpen] = useState(() => {
-    const s = loadSaved()
-    return Boolean(s.departamento && s.ciudad)
-  })
-  const [departamento, setDepartamento] = useState(() => loadSaved().departamento)
-  const [ciudad, setCiudad] = useState(() => loadSaved().ciudad)
+  const saved = loadSaved()
+  const [open, setOpen] = useState(() => Boolean(saved.departamento && saved.ciudad))
+  const [editing, setEditing] = useState(() => !(saved.departamento && saved.ciudad))
+  const [departamento, setDepartamento] = useState(() => saved.departamento)
+  const [ciudad, setCiudad] = useState(() => saved.ciudad)
 
   const quote = useEnvioCheckoutQuote({
     slug,
@@ -79,6 +78,7 @@ export function CatalogCartShippingEstimator({
 
   if (!configured) return null
 
+  const showForm = editing || !canEstimate
   const resultLabel =
     estimado && canEstimate
       ? estimado.loading
@@ -93,7 +93,10 @@ export function CatalogCartShippingEstimator({
       {!open ? (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true)
+            setEditing(!canEstimate)
+          }}
           className="group inline-flex items-center gap-1.5 text-[11px] text-[var(--cat-muted)] transition hover:text-[var(--cat-text)]"
         >
           <span className="underline decoration-[color-mix(in_srgb,var(--cat-muted)_40%,transparent)] underline-offset-4 group-hover:decoration-[var(--cat-text)]">
@@ -101,47 +104,64 @@ export function CatalogCartShippingEstimator({
           </span>
         </button>
       ) : (
-        <div className="mc-pc-ship-est-panel space-y-2.5 rounded-xl border border-[color-mix(in_srgb,var(--cat-muted)_12%,transparent)] bg-[color-mix(in_srgb,var(--cat-bg)_28%,var(--cat-surface)_72%)] px-3 py-2.5">
+        <div className="mc-pc-ship-est-panel space-y-2 rounded-xl border border-[color-mix(in_srgb,var(--cat-muted)_12%,transparent)] bg-[color-mix(in_srgb,var(--cat-bg)_28%,var(--cat-surface)_72%)] px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] font-medium text-[var(--cat-text)]">Calcular envío</p>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="text-[10px] text-[var(--cat-muted)] transition hover:text-[var(--cat-text)]"
-            >
-              Cerrar
-            </button>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div>
-              <label className="text-[10px] font-medium text-[var(--cat-muted)]">Departamento</label>
-              <DepartamentoCombobox
-                value={departamento}
-                onChange={(next) => {
-                  setDepartamento(next)
-                  setCiudad('')
-                  saveDestino({ departamento: next, ciudad: '' })
-                }}
-                inputClassName="mc-input mt-0.5 py-1.5 text-[12px]"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-medium text-[var(--cat-muted)]">Ciudad</label>
-              <MunicipioCombobox
-                departamento={departamento}
-                value={ciudad}
-                onChange={(next) => {
-                  setCiudad(next)
-                  saveDestino({ departamento, ciudad: next })
-                }}
-                inputClassName="mc-input mt-0.5 py-1.5 text-[12px]"
-                disabled={!departamento}
-              />
+            <p className="text-[11px] font-medium text-[var(--cat-text)]">
+              {showForm ? 'Calcular envío' : 'Envío'}
+            </p>
+            <div className="flex items-center gap-2.5">
+              {!showForm && canEstimate ? (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="text-[10px] font-medium text-[var(--cat-text)] underline decoration-[color-mix(in_srgb,var(--cat-muted)_40%,transparent)] underline-offset-2 transition hover:opacity-80"
+                >
+                  Editar
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-[10px] text-[var(--cat-muted)] transition hover:text-[var(--cat-text)]"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
 
-          {resultLabel ? (
+          {showForm ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <label className="text-[10px] font-medium text-[var(--cat-muted)]">Departamento</label>
+                <DepartamentoCombobox
+                  value={departamento}
+                  onChange={(next) => {
+                    setDepartamento(next)
+                    setCiudad('')
+                    setEditing(true)
+                    saveDestino({ departamento: next, ciudad: '' })
+                  }}
+                  inputClassName="mc-input mt-0.5 py-1.5 text-[12px]"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-medium text-[var(--cat-muted)]">Ciudad</label>
+                <MunicipioCombobox
+                  departamento={departamento}
+                  value={ciudad}
+                  onChange={(next) => {
+                    setCiudad(next)
+                    saveDestino({ departamento, ciudad: next })
+                    if (next.trim()) setEditing(false)
+                  }}
+                  inputClassName="mc-input mt-0.5 py-1.5 text-[12px]"
+                  disabled={!departamento}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {!showForm && resultLabel ? (
             <div className="text-[12px] leading-snug">
               <p className="font-medium tabular-nums text-[var(--cat-text)]">{resultLabel}</p>
               {canEstimate && estimado && !estimado.loading ? (
@@ -161,9 +181,10 @@ export function CatalogCartShippingEstimator({
                 <p className="mt-0.5 text-[10px] text-amber-800">{estimado.error}</p>
               ) : null}
             </div>
-          ) : (
+          ) : null}
+          {showForm && !canEstimate ? (
             <p className="text-[10px] text-[var(--cat-muted)]">Elegí departamento y ciudad para cotizar.</p>
-          )}
+          ) : null}
         </div>
       )}
     </div>

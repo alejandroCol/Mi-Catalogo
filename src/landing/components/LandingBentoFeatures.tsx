@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { bentoFeatures } from '@/landing/landingContent'
 import { LandingSection } from '@/landing/components/LandingSection'
+import { LandingReveal } from '@/landing/components/LandingReveal'
 
 function BentoIcon({ id }: { id: string }) {
   const paths: Record<string, string> = {
@@ -23,28 +24,32 @@ function BentoIcon({ id }: { id: string }) {
 export function LandingBentoFeatures() {
   return (
     <LandingSection id="beneficios" className="mc-landing-bento-section">
-      <div className="mc-landing-bento__head">
+      <LandingReveal className="mc-landing-bento__head">
         <p className="mc-landing-eyebrow">Todo incluido</p>
         <h2 className="mc-landing-title">
           Herramientas que necesitás
           <span className="mc-landing-title__accent"> para vender en serio</span>
         </h2>
-      </div>
+      </LandingReveal>
 
       <div className="mc-landing-bento">
-        {bentoFeatures.map((feature) => (
-          <article
+        {bentoFeatures.map((feature, i) => (
+          <LandingReveal
             key={feature.id}
+            as="article"
+            delay={i * 70}
+            variant="up"
             className={clsx(
               'mc-landing-bento__tile',
               `mc-landing-bento__tile--${feature.size}`,
               `mc-landing-bento__tile--${feature.accent}`,
             )}
           >
+            <span className="mc-landing-bento__label">{feature.label}</span>
             <BentoIcon id={feature.id} />
             <h3 className="mc-landing-bento__title">{feature.title}</h3>
             <p className="mc-landing-bento__desc">{feature.description}</p>
-          </article>
+          </LandingReveal>
         ))}
       </div>
     </LandingSection>

@@ -38,6 +38,7 @@ import { NewStoreReadyToShareCard } from '@/components/onboarding/NewStoreReadyT
 import { NewStoreSetupChecklist } from '@/components/onboarding/NewStoreSetupChecklist'
 import { OnboardingExpertRewardCard } from '@/components/onboarding/OnboardingExpertRewardCard'
 import { CompartirMiTiendaButton } from '@/components/dashboard/CompartirMiTiendaButton'
+import { AdminWhatsNewPromo } from '@/components/admin/AdminWhatsNewPromo'
 import { MobilePullToRefresh } from '@/components/MobilePullToRefresh'
 import { mcSupportWhatsappUrl } from '@/lib/mcSupportContact'
 import { useOnboardingRewardWindow } from '@/hooks/useOnboardingRewardWindow'
@@ -197,18 +198,27 @@ export function DashboardPage() {
     {showExpertPromoBanner && <NewStoreExpertBanner tenant={tenant} />}
     <div className="mc-shell space-y-6 sm:space-y-8">
       <section className="border border-neutral-200/50 bg-[var(--cat-surface)] px-5 py-6 sm:px-8 sm:py-8">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--cat-muted)]">Tu tienda</p>
-        <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-2">
-          <h1 className="min-w-0 text-[1.65rem] font-medium leading-[1.15] tracking-tighter text-[var(--cat-text)] sm:text-[2rem]">
-            {tenant.nombreTienda}
-          </h1>
-          <span
-            className={`inline-flex shrink-0 border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] sm:px-3 sm:py-1 sm:text-[11px] ${planBadgeClass}`}
-          >
-            {ownerPlanEleganceLabel(tenant, platformSettings)}
-          </span>
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--cat-muted)]">
+          Tu tienda
+        </p>
+        <div className="mt-2 flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[1.65rem] font-medium leading-[1.15] tracking-tighter text-[var(--cat-text)] sm:text-[2rem]">
+              {tenant.nombreTienda}
+            </h1>
+            <p className="mt-2 text-[13px] capitalize leading-relaxed text-[var(--cat-muted)]">
+              {hoyLabel}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-2 pt-0.5">
+            <span
+              className={`inline-flex border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] sm:px-3 sm:py-1 sm:text-[11px] ${planBadgeClass}`}
+            >
+              {ownerPlanEleganceLabel(tenant, platformSettings)}
+            </span>
+            <AdminWhatsNewPromo tenant={tenant} />
+          </div>
         </div>
-        <p className="mt-2 text-[13px] capitalize leading-relaxed text-[var(--cat-muted)]">{hoyLabel}</p>
       </section>
 
       {showNewStoreChecklist && (

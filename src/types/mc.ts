@@ -43,6 +43,9 @@ export interface McCatalogTheme {
 /** Tipo de fondo del banner de temporada. */
 export type McSeasonBannerMediaType = 'image' | 'video'
 
+/** Hero al entrar: banner editorial o carrusel interactivo (Expert o Master). */
+export type McSeasonBannerHeroMode = 'media' | 'interactive'
+
 /** Anuncio editorial fullscreen en el catálogo público (plan Expert). */
 export interface McSeasonBanner {
   enabled: boolean
@@ -62,10 +65,37 @@ export interface McSeasonBanner {
   mediaType?: McSeasonBannerMediaType
   /** Cambia al guardar; invalida cierre en sessionStorage del visitante. */
   updatedAt?: number
+  /** `interactive` = carrusel 3D (Expert o Master). Ausente o `media` = banner clásico. */
+  heroMode?: McSeasonBannerHeroMode
+  /** Productos del modo interactivo, en orden. */
+  interactiveProductIds?: string[]
+  interactiveMood?: McInteractiveLandingMood
 }
 
 /** Atmósfera visual del pasillo / showroom (solo plan Master). */
 export type McShowroomMood = 'midnight' | 'atelier' | 'runway' | 'gallery'
+
+/** Atmósfera del hero interactivo (carrusel 3D al entrar al catálogo). */
+export type McInteractiveLandingMood =
+  | 'mist'
+  | 'blush'
+  | 'sage'
+  | 'cream'
+  | 'midnight'
+  | 'atelier'
+  | 'noir'
+
+/**
+ * Landing interactiva: en lugar del banner, un carrusel 3D de productos seleccionados.
+ * Solo plan Master con suscripción activa.
+ */
+export interface McInteractiveLanding {
+  enabled: boolean
+  /** Productos en el carrusel, en el orden elegido. */
+  productIds?: string[]
+  mood?: McInteractiveLandingMood
+  updatedAtMs?: number
+}
 
 /** Organización del texto en el banner de entrada del showroom (home). */
 export type McShowroomHomeLayout = 'editorial' | 'center' | 'panel' | 'bottom'
@@ -237,6 +267,11 @@ export interface McTenant {
    * Experiencia inmersiva aparte del grid del catálogo.
    */
   collectionShowroom?: McCollectionShowroom
+  /**
+   * Hero interactivo al entrar al catálogo (Expert o Master).
+   * Si está activo, reemplaza al banner de temporada.
+   */
+  interactiveLanding?: McInteractiveLanding
   /** Contador de productos en inventario; se mantiene al crear/eliminar. */
   productCount?: number
   /** Perfil proveedor marketplace (`mc_proveedores/{id}`). */

@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
-import { IconChevronRight } from '@/icons/McIcons'
-import { LandingBrandLogo } from '@/landing/components/LandingBrandLogo'
-import { LandingFooter } from '@/landing/components/LandingFooter'
-import { LandingRegisterButton } from '@/landing/components/LandingRegisterButton'
+import { LandingNorrisBrandLogo } from '@/landing/norris/LandingNorrisBrandLogo'
+import { LandingNorrisHeroBackground } from '@/landing/norris/LandingNorrisHeroBackground'
+import { LandingNorrisFooter } from '@/landing/norris/LandingNorrisFooter'
 import { LandingWhatsAppButton } from '@/landing/components/LandingWhatsAppButton'
 import { faqPageContent, landingFaqItems, type LandingFaqItem } from '@/landing/faqContent'
 import { mcSupportWhatsappUrl } from '@/lib/mcSupportContact'
@@ -12,32 +11,32 @@ import { applyMcPageSeo, MC_SEO, removeJsonLd, upsertJsonLd } from '@/seo/mcSeo'
 
 function FaqAccordionItem({
   item,
+  index,
   open,
   onToggle,
 }: {
   item: LandingFaqItem
+  index: number
   open: boolean
   onToggle: () => void
 }) {
+  const num = String(index + 1).padStart(2, '0')
+
   return (
-    <div className={clsx('mc-landing-faq__item', open && 'mc-landing-faq__item--open')}>
-      <button
-        type="button"
-        className="mc-landing-faq__trigger"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <span className="mc-landing-faq__question">{item.question}</span>
-        <span className={clsx('mc-landing-faq__chevron', open && 'mc-landing-faq__chevron--open')} aria-hidden>
-          <IconChevronRight size={18} />
-        </span>
-      </button>
-      {open ? (
-        <div className="mc-landing-faq__answer">
-          <p>{item.answer}</p>
-        </div>
-      ) : null}
-    </div>
+    <article className={clsx('mc-norris-faq__item', open && 'mc-norris-faq__item--open')}>
+      <h2 className="mc-norris-faq__question">
+        <button type="button" className="mc-norris-faq__trigger" aria-expanded={open} onClick={onToggle}>
+          <span className="mc-norris-faq__index" aria-hidden>
+            {num}
+          </span>
+          <span className="mc-norris-faq__question-text">{item.question}</span>
+          <span className={clsx('mc-norris-faq__toggle', open && 'mc-norris-faq__toggle--open')} aria-hidden />
+        </button>
+      </h2>
+      <div className={clsx('mc-norris-faq__answer', !open && 'mc-norris-faq__answer--collapsed')}>
+        <p>{item.answer}</p>
+      </div>
+    </article>
   )
 }
 
@@ -59,45 +58,49 @@ export function FaqPage() {
         },
       })),
     })
+    document.documentElement.classList.add('mc-norris-scroll')
     window.scrollTo(0, 0)
-    return () => removeJsonLd('mc-faq-jsonld')
+    return () => {
+      document.documentElement.classList.remove('mc-norris-scroll')
+      removeJsonLd('mc-faq-jsonld')
+    }
   }, [])
 
   return (
-    <div className="mc-landing mc-landing--faq">
-      <header className="mc-landing-nav mc-landing-nav--scrolled">
-        <div className="mc-landing-container mc-landing-nav__inner">
-          <Link to="/" className="mc-landing-nav__brand" aria-label="mi catálogo — inicio">
-            <LandingBrandLogo />
+    <div className="mc-norris mc-norris-faq">
+      <header className="mc-norris-faq__nav">
+        <LandingNorrisBrandLogo />
+        <div className="mc-norris-faq__nav-actions">
+          <Link to="/" className="mc-norris-hero__login">
+            Inicio
           </Link>
-          <div className="mc-landing-nav__actions mc-landing-nav__actions--faq">
-            <Link to="/" className="mc-landing-nav__login">
-              Inicio
-            </Link>
-            <LandingRegisterButton variant="nav" />
-          </div>
+          <Link to="/registro" className="mc-norris-faq__nav-cta">
+            Crear tienda
+          </Link>
         </div>
       </header>
 
-      <main>
-        <section className="mc-landing-faq-hero">
-          <div className="mc-landing-container">
-            <p className="mc-landing-eyebrow">{faqPageContent.eyebrow}</p>
-            <h1 className="mc-landing-title">
+      <main className="mc-norris-faq__main">
+        <section className="mc-norris-faq__hero">
+          <LandingNorrisHeroBackground />
+          <div className="mc-norris-faq__hero-inner">
+            <p className="mc-norris-kicker mc-norris-kicker--store">{faqPageContent.eyebrow}</p>
+            <h1 className="mc-norris-faq__title">
               {faqPageContent.title}{' '}
-              <span className="mc-landing-title__accent">{faqPageContent.titleAccent}</span>
+              <span className="mc-norris-faq__title-accent">{faqPageContent.titleAccent}</span>
             </h1>
-            <p className="mc-landing-lead">{faqPageContent.lead}</p>
+            <p className="mc-norris-faq__lead">{faqPageContent.lead}</p>
           </div>
         </section>
 
-        <section className="mc-landing-faq-list-section" aria-label="Preguntas frecuentes">
-          <div className="mc-landing-container">
-            <div className="mc-landing-faq__list">
-              {landingFaqItems.map((item) => (
+        <section className="mc-norris-faq__list-section" aria-label="Preguntas frecuentes">
+          <div className="mc-norris-faq__list-wrap">
+            <div className="mc-norris-faq__list">
+              {landingFaqItems.map((item, i) => (
                 <FaqAccordionItem
                   key={item.id}
                   item={item}
+                  index={i}
                   open={openId === item.id}
                   onToggle={() => setOpenId((prev) => (prev === item.id ? null : item.id))}
                 />
@@ -106,28 +109,34 @@ export function FaqPage() {
           </div>
         </section>
 
-        <section className="mc-landing-faq-cta">
-          <div className="mc-landing-container mc-landing-faq-cta__inner">
-            <div>
-              <h2 className="mc-landing-faq-cta__title">{faqPageContent.ctaTitle}</h2>
-              <p className="mc-landing-faq-cta__lead">{faqPageContent.ctaLead}</p>
+        <section className="mc-norris-faq__cta">
+          <div className="mc-norris-faq__cta-clouds" aria-hidden>
+            <LandingNorrisHeroBackground />
+          </div>
+          <div className="mc-norris-faq__cta-inner">
+            <div className="mc-norris-faq__cta-copy">
+              <p className="mc-norris-kicker mc-norris-kicker--store">¿Listo para empezar?</p>
+              <h2 className="mc-norris-faq__cta-title">{faqPageContent.ctaTitle}</h2>
+              <p className="mc-norris-faq__cta-lead">{faqPageContent.ctaLead}</p>
             </div>
-            <div className="mc-landing-faq-cta__actions">
+            <div className="mc-norris-faq__cta-actions">
               <a
                 href={waHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mc-landing-btn-secondary mc-landing-faq-cta__wa"
+                className="mc-norris-hero__login mc-norris-faq__cta-wa"
               >
                 {faqPageContent.ctaWhatsApp}
               </a>
-              <LandingRegisterButton variant="primary" />
+              <Link to="/registro" className="mc-norris-faq__cta-primary">
+                {faqPageContent.ctaRegister}
+              </Link>
             </div>
           </div>
         </section>
       </main>
 
-      <LandingFooter />
+      <LandingNorrisFooter />
       <LandingWhatsAppButton offerFaqFirst={false} />
     </div>
   )

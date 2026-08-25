@@ -70,7 +70,7 @@ export async function mcCreateProductoBorrador(
   tenantId: string,
   data: Omit<McProducto, 'id'>,
   platformSettings?: McPlatformSettings | null,
-): Promise<{ id: string }> {
+): Promise<{ id: string; referencia: string }> {
   return mcCreateProducto(
     tenantId,
     {
@@ -163,7 +163,7 @@ export async function mcCreateCategoria(
 export async function mcUpdateCategoria(
   tenantId: string,
   categoriaId: string,
-  patch: Partial<Pick<McCategoria, 'nombre' | 'orden' | 'activa' | 'parentId' | 'imageUrl'>> & {
+  patch: Partial<Omit<McCategoria, 'imageUrl'>> & {
     imageUrl?: string | FieldValue
   },
 ) {

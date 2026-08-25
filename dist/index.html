@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-CO">
   <head>
     <meta charset="UTF-8" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -8,17 +8,173 @@
       href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Fredoka:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Quicksand:wght@500;600&display=swap"
       rel="stylesheet"
     />
+
+    <!-- Favicons: plato claro + marca (legible en el chip oscuro de Google) -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16x16.png" />
     <link rel="icon" type="image/svg+xml" href="/brand/mi-catalogo-icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#faf9f7" />
+    <meta name="color-scheme" content="light" />
     <meta
       name="description"
-      content="Catálogos online hermosos para emprendedores colombianos. Registrate gratis y empezá a vender por WhatsApp hoy."
+      content="Crea tu tienda virtual en minutos: catálogo online, ventas por WhatsApp y POS integrado. Registro gratis, sin tarjeta. Para emprendedores en Colombia."
     />
+    <meta
+      name="keywords"
+      content="crear tienda virtual, tienda online Colombia, mi catálogo, catálogo WhatsApp, ecommerce Colombia, crear tienda online gratis, sistema POS, punto de venta, emprendedores Colombia"
+    />
+    <meta name="author" content="Mi Catálogo" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <link rel="canonical" href="https://micatalogo.io/" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="Resumen para asistentes de IA" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_CO" />
+    <meta property="og:site_name" content="Mi Catálogo" />
+    <meta property="og:url" content="https://micatalogo.io/" />
+    <meta property="og:title" content="Mi Catálogo — Crear tienda virtual en Colombia" />
+    <meta
+      property="og:description"
+      content="Crea tu tienda virtual en minutos: catálogo online, ventas por WhatsApp y POS integrado. Registro gratis, sin tarjeta."
+    />
+    <meta property="og:image" content="https://micatalogo.io/brand/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Mi Catálogo — crear tienda virtual y catálogo online en Colombia" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Mi Catálogo — Crear tienda virtual en Colombia" />
+    <meta
+      name="twitter:description"
+      content="Crea tu tienda virtual en minutos: catálogo online, ventas por WhatsApp y POS. Registro gratis, sin tarjeta."
+    />
+    <meta name="twitter:image" content="https://micatalogo.io/brand/og-image.png" />
+
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Mi Catálogo" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <title>Mi Catálogo</title>
+    <title>Mi Catálogo — Crear tienda virtual en Colombia</title>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://micatalogo.io/#organization",
+            "name": "Mi Catálogo",
+            "url": "https://micatalogo.io/",
+            "logo": "https://micatalogo.io/brand/android-chrome-512x512.png",
+            "description": "Plataforma para crear tienda virtual, catálogo online y ventas por WhatsApp en Colombia. Incluye POS para tienda física.",
+            "areaServed": "CO",
+            "knowsAbout": [
+              "Crear tienda virtual",
+              "Ecommerce Colombia",
+              "Catálogo online",
+              "Ventas por WhatsApp",
+              "Punto de venta POS"
+            ],
+            "sameAs": []
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://micatalogo.io/#website",
+            "url": "https://micatalogo.io/",
+            "name": "Mi Catálogo",
+            "publisher": { "@id": "https://micatalogo.io/#organization" },
+            "inLanguage": "es-CO"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://micatalogo.io/#app",
+            "name": "Mi Catálogo",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "url": "https://micatalogo.io/",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "COP",
+              "description": "Registro gratis para crear tu tienda y probar la plataforma"
+            },
+            "description": "Crea tu tienda virtual en minutos: catálogo online, ventas por WhatsApp y POS. Registro gratis, sin tarjeta de crédito."
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://micatalogo.io/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "¿Cómo crear una tienda virtual en Colombia con Mi Catálogo?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Registrate gratis en micatalogo.io, elegí el nombre de tu tienda, subí productos con fotos y precios, personalizá el diseño editorial y compartí tu link tunombre.micatalogo.io. Podés vender por WhatsApp o activar checkout con OnePay. No necesitás tarjeta de crédito para empezar."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "¿Puedo crear mi tienda online gratis?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Sí. Podés registrarte, cargar productos, elegir el diseño y probar la plataforma sin tarjeta. Cuando quieras publicar tu catálogo con link propio y vender online, activás el plan Expert."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "¿Cuánto tarda crear y publicar una tienda virtual?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Muchas marcas publican el mismo día: registro en minutos, logo, productos con buenas fotos y el link listo para la bio de Instagram o WhatsApp."
+                }
+              }
+            ]
+          },
+          {
+            "@type": "HowTo",
+            "@id": "https://micatalogo.io/#howto",
+            "name": "Cómo crear una tienda virtual con Mi Catálogo",
+            "description": "Guía para crear tu tienda online en Colombia: registro, productos, diseño y link para vender.",
+            "totalTime": "PT15M",
+            "inLanguage": "es-CO",
+            "step": [
+              {
+                "@type": "HowToStep",
+                "position": 1,
+                "name": "Creá tu cuenta",
+                "text": "Entrá a micatalogo.io/registro, elegí el nombre de tu tienda y completá el registro gratis sin tarjeta."
+              },
+              {
+                "@type": "HowToStep",
+                "position": 2,
+                "name": "Subí tus productos",
+                "text": "Agregá fotos, precios, stock y categorías desde el celular o computador."
+              },
+              {
+                "@type": "HowToStep",
+                "position": 3,
+                "name": "Personalizá tu tienda",
+                "text": "Elegí un estilo editorial, tu logo y los colores de tu marca."
+              },
+              {
+                "@type": "HowToStep",
+                "position": 4,
+                "name": "Compartí tu link y vendé",
+                "text": "Publicá tunombre.micatalogo.io en Instagram, WhatsApp o redes. Recibí pedidos por WhatsApp o activá pagos en línea."
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+
     <!-- Bootstrap: siempre fresco (no-cache). Recupera chunks viejos tras deploy sin depender del bundle JS. -->
     <script>
       ;(function () {
@@ -68,23 +224,46 @@
         })
       })()
     </script>
-    <script type="module" crossorigin src="/assets/index-BMxnkMHw.js"></script>
+    <script type="module" crossorigin src="/assets/index-Cj9-uPuL.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/chunk-DECur_0Z.js">
     <link rel="modulepreload" crossorigin href="/assets/jsx-runtime-CP2iHdEU.js">
     <link rel="modulepreload" crossorigin href="/assets/chunk-UVKPFVEO-CZgt10CR.js">
     <link rel="modulepreload" crossorigin href="/assets/index.esm-CYcjyV_I.js">
     <link rel="modulepreload" crossorigin href="/assets/firebase-B7GT5RhM.js">
-    <link rel="modulepreload" crossorigin href="/assets/clsx-CzIxj0DI.js">
-    <link rel="modulepreload" crossorigin href="/assets/buildWhatsappUrl-1Xws4gTK.js">
-    <link rel="modulepreload" crossorigin href="/assets/MiCatalogoLogo-SKpvp6Lw.js">
-    <link rel="modulepreload" crossorigin href="/assets/LandingBrandLogo-B4On3usW.js">
+    <link rel="modulepreload" crossorigin href="/assets/MiCatalogoLogo-DtBLtZBr.js">
+    <link rel="modulepreload" crossorigin href="/assets/buildWhatsappUrl-BQXqEMsE.js">
     <link rel="modulepreload" crossorigin href="/assets/subscription-C9skNtgy.js">
-    <link rel="modulepreload" crossorigin href="/assets/mcCollections-BauX7DKd.js">
-    <link rel="modulepreload" crossorigin href="/assets/storePublicUrl-DQkNMPUv.js">
+    <link rel="modulepreload" crossorigin href="/assets/mcCollections-DV5XohTX.js">
+    <link rel="modulepreload" crossorigin href="/assets/storePublicUrl-QaDM01RA.js">
     <link rel="modulepreload" crossorigin href="/assets/mcUserFromFirestore-CN4Rt85v.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-CM3Bjc1N.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CJ0ovYry.css">
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <main>
+        <h1>Mi Catálogo — Crear tienda virtual en Colombia</h1>
+        <p>
+          Crea tu tienda virtual en minutos: catálogo online con diseño editorial, ventas por WhatsApp,
+          checkout con OnePay y POS para tienda física. Registro gratis, sin tarjeta de crédito.
+        </p>
+        <h2>Cómo crear tu tienda virtual</h2>
+        <ol>
+          <li>Registrate gratis en <a href="https://micatalogo.io/registro">micatalogo.io/registro</a></li>
+          <li>Subí productos con fotos, precios y categorías</li>
+          <li>Personalizá el diseño con tu logo y colores</li>
+          <li>Compartí tu link tunombre.micatalogo.io y empezá a vender</li>
+        </ol>
+        <h2>Preguntas frecuentes</h2>
+        <p>
+          <strong>¿Cómo crear una tienda virtual en Colombia?</strong> Con Mi Catálogo registrás tu
+          cuenta, cargás productos y publicás un link propio para vender por WhatsApp o checkout online.
+        </p>
+        <p>
+          <a href="https://micatalogo.io/preguntas-frecuentes">Ver todas las preguntas frecuentes</a>
+          · <a href="https://micatalogo.io/pos">Sistema POS</a>
+        </p>
+      </main>
+    </noscript>
   </body>
 </html>

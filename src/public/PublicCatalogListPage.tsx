@@ -42,9 +42,11 @@ import {
 } from '@/public/CatalogCategorySidebar'
 import { CatalogProductPrice, CatalogDiscountBadge } from '@/public/CatalogProductPrice'
 import { CatalogViewTabs, type CatalogViewTab } from '@/public/CatalogViewTabs'
+import { InteractiveLandingHero } from '@/public/InteractiveLandingHero'
 import { SeasonBannerHero } from '@/public/SeasonBannerHero'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
+import { isInteractiveLandingActive, isInteractiveLandingConfigured } from '@/lib/interactiveLanding'
 import { isSeasonBannerActive, MC_CATALOGO_PRODUCTOS_ID } from '@/lib/seasonBanner'
 import { ShowroomEntranceCard } from '@/public/showroom/ShowroomEntranceCard'
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
@@ -258,6 +260,7 @@ export function PublicCatalogListPage() {
   const { tenantId, tenant, loading, error } = useCatalogTenant()
   const [searchParams, setSearchParams] = useSearchParams()
   const [rows, setRows] = useState<(McProducto & { id: string })[]>([])
+  const [productsLoaded, setProductsLoaded] = useState(false)
   const { categorias: categoriasRaw } = usePublicCategorias(tenantId)
   const categoriasActivas = useMemo(
     () => categoriasPublicasVisibles(categoriasRaw),
@@ -285,6 +288,7 @@ export function PublicCatalogListPage() {
     )
     return onSnapshot(q, (snap) => {
       setRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<McProducto, 'id'>) })))
+      setProductsLoaded(true)
     })
   }, [tenantId])
 
@@ -467,7 +471,11 @@ export function PublicCatalogListPage() {
   const novedadBadgeFor = (p: McProducto & { id: string }) => isProductNovedad(p, novedadNow)
   const restoSectionTitle = sectionHeading(preset, 'resto')
   const noHeroBeforeSearch = preset === 'morning'
-  const showSeasonHero = isSeasonBannerActive(tenant)
+  const interactiveConfigured = isInteractiveLandingConfigured(tenant)
+  const showInteractiveHero = isInteractiveLandingActive(tenant, rows)
+  const showInteractivePlaceholder = interactiveConfigured && !productsLoaded && !showInteractiveHero
+  const showSeasonHero = !showInteractiveHero && !showInteractivePlaceholder && isSeasonBannerActive(tenant)
+  const showLandingHero = showInteractiveHero || showInteractivePlaceholder || showSeasonHero
   const catalogTitle = categoriaTituloCatalogo(selectedCategoriaId, categoriasActivas)
   const catalogSubtitle = categoriaSubtituloCatalogo(
     scopedRows.length,
@@ -478,8 +486,8 @@ export function PublicCatalogListPage() {
 
   const catalogMain = (
     <>
-      <div className={clsx(!showSeasonHero && (noHeroBeforeSearch ? 'space-y-0' : 'space-y-3 sm:space-y-4'))}>
-        {!showSeasonHero && !showCategoriasSidebar ? <CatalogIntro preset={preset} /> : null}
+      <div className={clsx(!showLandingHero && (noHeroBeforeSearch ? 'space-y-0' : 'space-y-3 sm:space-y-4'))}>
+        {!showLandingHero && !showCategoriasSidebar ? <CatalogIntro preset={preset} /> : null}
         {showCategoriasSidebar ? (
           <>
             <CatalogCategoryMobileBar
@@ -591,14 +599,20 @@ export function PublicCatalogListPage() {
   )
 
   return (
-    <div className={clsx(showSeasonHero && 'mc-catalog-list--season')}>
-      {showSeasonHero ? <SeasonBannerHero tenant={tenant} /> : null}
+    <div className={clsx(showLandingHero && 'mc-catalog-list--season')}>
+      {showInteractiveHero ? (
+        <InteractiveLandingHero tenant={tenant} products={rows} productPath={productPath} />
+      ) : showInteractivePlaceholder ? (
+        <div className="mc-ix-hero mc-ix-hero--mist" aria-hidden />
+      ) : showSeasonHero ? (
+        <SeasonBannerHero tenant={tenant} />
+      ) : null}
 
       <div
         id={MC_CATALOGO_PRODUCTOS_ID}
         className={clsx(
           'scroll-mt-[calc(3.25rem+0.5rem)] sm:scroll-mt-[calc(3.75rem+0.75rem)]',
-          showSeasonHero && 'pt-6 sm:pt-8',
+          showLandingHero && 'pt-6 sm:pt-8',
         )}
       >
         <ShowroomEntranceCard tenant={tenant} />

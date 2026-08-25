@@ -125,6 +125,15 @@ export function buildSeasonBannerForSave(
     mediaType: media.mediaType,
     updatedAt: Date.now(),
   }
+  if (previous?.heroMode === 'interactive' || previous?.heroMode === 'media') {
+    next.heroMode = previous.heroMode
+  }
+  if (previous?.interactiveProductIds?.length) {
+    next.interactiveProductIds = previous.interactiveProductIds
+  }
+  if (previous?.interactiveMood) {
+    next.interactiveMood = previous.interactiveMood
+  }
 
   if (media.mediaType === 'video') {
     const videoUrl = resolveMediaUrl(media.videoUrl, previous?.videoUrl)
@@ -179,6 +188,7 @@ export function resolveSeasonBanner(
 
 /** Banner activo si hay contenido mínimo configurado. */
 export function isSeasonBannerActive(tenant: McTenant | null | undefined): boolean {
+  if (tenant?.seasonBanner?.heroMode === 'interactive') return false
   const resolved = resolveSeasonBanner(tenant)
   if (!resolved) return false
   const hasMedia =

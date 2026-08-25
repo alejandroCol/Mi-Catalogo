@@ -5,9 +5,9 @@ export const MC_SITE_NAME = 'Mi Catálogo' as const
 
 export const MC_SEO = {
   home: {
-    title: 'Mi Catálogo — Tienda online y sistema POS',
+    title: 'Mi Catálogo — Crear tienda virtual en Colombia',
     description:
-      'Tienda online, catálogo WhatsApp y punto de venta en un solo lugar. Empezá gratis, sin tarjeta. Para emprendedores en Colombia.',
+      'Crea tu tienda virtual en minutos: catálogo online, ventas por WhatsApp y POS integrado. Registro gratis, sin tarjeta. Para emprendedores en Colombia.',
     path: '/',
     ogImagePath: '/brand/og-image.png',
   },

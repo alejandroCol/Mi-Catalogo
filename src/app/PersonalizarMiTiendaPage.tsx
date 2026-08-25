@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { PERSONALIZAR_SUBPAGE_NAV } from '@/app/configuraciones/configSubpageNav'
 import { useMcAuth } from '@/auth/McAuthContext'
-import { hasShowroomFeatureAccess } from '@/lib/billingAccess'
+import { hasInteractiveLandingAccess, hasShowroomFeatureAccess } from '@/lib/billingAccess'
 import { IconChevronRight, IconLogo, IconSwatches } from '@/icons/McIcons'
 
 type PersonalizarTile = {
@@ -136,6 +136,7 @@ const TILES: PersonalizarTile[] = [
 export function PersonalizarMiTiendaPage() {
   const { tenant } = useMcAuth()
   const masterShowroom = hasShowroomFeatureAccess(tenant)
+  const canInteractiveLanding = hasInteractiveLandingAccess(tenant)
 
   return (
     <div className="mc-shell mc-personalizar-page">
@@ -153,6 +154,11 @@ export function PersonalizarMiTiendaPage() {
       >
         {TILES.map((tile) => {
           const lockedShowroom = tile.id === 'showroom' && !masterShowroom
+          const bannerTitle = tile.id === 'banner' && canInteractiveLanding ? 'Landing al entrar' : tile.title
+          const bannerDescription =
+            tile.id === 'banner' && canInteractiveLanding
+              ? 'Banner clásico o modo interactivo con productos en 3D'
+              : tile.description
           return (
             <Link
               key={tile.id}
@@ -175,12 +181,12 @@ export function PersonalizarMiTiendaPage() {
               <div className="mt-4 flex items-end justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[16px] font-medium leading-snug tracking-tight text-[var(--cat-text)] sm:text-[17px]">
-                    {tile.title}
+                    {bannerTitle}
                   </p>
                   <p className="ios-footnote mt-1 line-clamp-2 leading-relaxed text-[var(--cat-muted)]">
                     {lockedShowroom
                       ? 'Disponible con plan Master. Activá Master para configurar el pasillo.'
-                      : tile.description}
+                      : bannerDescription}
                   </p>
                 </div>
                 <IconChevronRight

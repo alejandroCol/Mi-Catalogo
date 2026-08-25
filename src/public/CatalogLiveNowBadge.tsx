@@ -7,7 +7,7 @@ import { usePublicStore } from '@/public/PublicStoreContext'
 export function CatalogLiveNowBadge({ className }: { className?: string }) {
   const { tenantId } = useCatalogTenant()
   const { to } = usePublicStore()
-  const { session } = useActiveLiveSession(tenantId)
+  const { session } = useActiveLiveSession(tenantId ?? undefined)
 
   if (!session) return null
 

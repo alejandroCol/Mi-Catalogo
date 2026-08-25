@@ -1,1 +1,0 @@
-import{t as e}from"./PublicCatalogLayout-DdRfY12o.js";export{e as PublicCatalogLayout};

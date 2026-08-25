@@ -8108,15 +8108,13 @@ html.mc-norris-scroll {
   border: 1px solid rgba(255, 255, 255, 0.6);
   background: white;
   box-shadow: 0 32px 64px -28px rgba(28, 27, 31, 0.35);
-  will-change: transform, opacity, left, top, width;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 .mc-norris-store-card--morph {
-  transition:
-    transform 0.1s linear,
-    opacity 0.1s linear,
-    left 0.1s linear,
-    top 0.1s linear,
-    width 0.1s linear;
+  transition: none;
   pointer-events: none;
   border-radius: 1.05rem;
 }

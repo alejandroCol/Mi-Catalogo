@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { norrisPinnedStores } from '@/landing/norris/norrisContent'
-import { getStoreCardLayout } from '@/landing/norris/norrisStoreLayout'
+import type { StoreCardLayout } from '@/landing/norris/norrisStoreLayout'
 import { useNorrisStoreEnter } from '@/landing/norris/useNorrisStoreEnter'
 
 export function NorrisStoreCard({
@@ -12,26 +12,32 @@ export function NorrisStoreCard({
   eager,
 }: {
   store: (typeof norrisPinnedStores)[number]
-  layout: ReturnType<typeof getStoreCardLayout>
+  layout: StoreCardLayout
   index: number
   morph: number
   isActive: boolean
   eager?: boolean
 }) {
   const enter = useNorrisStoreEnter(index, morph)
-  const enterY = (1 - enter) * 42
-  const enterScale = 0.88 + enter * 0.12
-  const opacity = layout.opacity * (0.35 + enter * 0.65)
+  const peekEnter = morph < 0.08
+  const enterY = peekEnter ? Math.round((1 - enter) * 42) : 0
+  const enterScale = peekEnter ? 0.88 + enter * 0.12 : 1
+  const opacity = layout.opacity * (peekEnter ? 0.35 + enter * 0.65 : 1)
+
+  const transform =
+    enterY || enterScale !== 1
+      ? `${layout.transform} translate3d(0, ${enterY}px, 0) scale(${enterScale})`
+      : layout.transform
 
   return (
     <article
       className={clsx('mc-norris-store-card', 'mc-norris-store-card--morph', isActive && 'mc-norris-store-card--active')}
       style={{
         position: 'fixed',
-        left: layout.left,
-        top: layout.top,
+        left: 0,
+        top: 0,
         width: layout.width,
-        transform: `${layout.transform} translate3d(0, ${enterY}px, 0) scale(${enterScale})`,
+        transform,
         opacity,
         zIndex: layout.zIndex,
       }}

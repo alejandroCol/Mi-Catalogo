@@ -12,6 +12,10 @@ function smoothstep(t: number) {
   return t * t * (3 - 2 * t)
 }
 
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.innerWidth < 768
+}
+
 export type NorrisStoreScrollState = {
   morph: number
   carousel: number
@@ -38,8 +42,12 @@ export function useNorrisStoreScroll(
 
     let frame = 0
     const maxIndex = Math.max(storeCount - 1, 0)
+    let lastMorph = -1
+    let lastSlide = -1
+    let lastActive = -1
 
     const measure = () => {
+      const mobile = isMobileViewport()
       const vh = window.innerHeight
       const scrollY = window.scrollY
       const sectionTop = node.offsetTop
@@ -53,9 +61,9 @@ export function useNorrisStoreScroll(
       const sectionProgress = sectionScrolled / scrollable
 
       const morphFromSection = smoothstep(clamp(sectionProgress / 0.36, 0, 1))
-      const morph = Math.max(globalMorph, morphFromSection)
+      const morphRaw = Math.max(globalMorph, morphFromSection)
+      const morph = mobile ? Math.round(morphRaw * 500) / 500 : morphRaw
 
-      // Carrusel lineal — 1:1 con el scroll, sin easing que “salte”
       let carousel = 0
       let slideIndex = 0
       if (maxIndex > 0) {
@@ -63,12 +71,28 @@ export function useNorrisStoreScroll(
         const carouselT = clamp((sectionProgress - 0.36) / 0.64, 0, 1)
         carousel = carouselT * carouselReady
         slideIndex = carouselT * maxIndex * carouselReady
+        if (mobile) {
+          slideIndex = Math.round(slideIndex * 80) / 80
+        }
       }
 
       const activeIndex = Math.min(maxIndex, Math.round(slideIndex))
 
-      const stageEl = node.querySelector('.mc-norris-store-stage')
-      const stageRect = stageEl?.getBoundingClientRect() ?? null
+      // stageRect en mobile causa micro-saltos al medir cada frame con sticky
+      const stageRect =
+        mobile ? null : (node.querySelector('.mc-norris-store-stage')?.getBoundingClientRect() ?? null)
+
+      if (
+        Math.abs(morph - lastMorph) < 0.001 &&
+        Math.abs(slideIndex - lastSlide) < 0.008 &&
+        activeIndex === lastActive
+      ) {
+        return
+      }
+
+      lastMorph = morph
+      lastSlide = slideIndex
+      lastActive = activeIndex
 
       setState({ morph, carousel, slideIndex, activeIndex, stageRect })
     }

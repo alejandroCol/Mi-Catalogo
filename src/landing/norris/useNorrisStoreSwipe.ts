@@ -6,7 +6,7 @@ function clamp(v: number, min: number, max: number) {
 }
 
 const MOBILE_MQ = '(max-width: 767px)'
-const SWIPE_PX_PER_SLIDE = 88
+const SWIPE_PX_PER_SLIDE = 92
 
 export function useNorrisStoreSwipe(
   sectionRef: RefObject<HTMLElement | null>,
@@ -21,6 +21,8 @@ export function useNorrisStoreSwipe(
   const touchIndexRef = useRef<number | null>(null)
   const prevScrollIndex = useRef(scroll.slideIndex)
   const morphRef = useRef(scroll.morph)
+  const touchRaf = useRef(0)
+  const pendingTouchIndex = useRef<number | null>(null)
 
   scrollIndexRef.current = scroll.slideIndex
   touchIndexRef.current = touchIndex
@@ -45,6 +47,19 @@ export function useNorrisStoreSwipe(
     syncSwipeActive()
     mobile.addEventListener('change', syncSwipeActive)
 
+    const flushTouchIndex = () => {
+      touchRaf.current = 0
+      if (pendingTouchIndex.current === null) return
+      setTouchIndex(pendingTouchIndex.current)
+    }
+
+    const queueTouchIndex = (value: number) => {
+      pendingTouchIndex.current = Math.round(value * 80) / 80
+      if (!touchRaf.current) {
+        touchRaf.current = requestAnimationFrame(flushTouchIndex)
+      }
+    }
+
     let startX = 0
     let startY = 0
     let startIndex = 0
@@ -60,7 +75,7 @@ export function useNorrisStoreSwipe(
       startIndex = touchIndexRef.current ?? scrollIndexRef.current
       dragging = true
       horizontal = false
-      setTouchIndex(startIndex)
+      queueTouchIndex(startIndex)
     }
 
     const onTouchMove = (e: TouchEvent) => {
@@ -70,10 +85,11 @@ export function useNorrisStoreSwipe(
       const dy = e.touches[0].clientY - startY
 
       if (!horizontal) {
-        if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.1) {
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.15) {
           horizontal = true
-        } else if (Math.abs(dy) > 12) {
+        } else if (Math.abs(dy) > 14) {
           dragging = false
+          pendingTouchIndex.current = null
           setTouchIndex(null)
           return
         }
@@ -81,7 +97,7 @@ export function useNorrisStoreSwipe(
 
       if (horizontal) {
         e.preventDefault()
-        setTouchIndex(clamp(startIndex - dx / SWIPE_PX_PER_SLIDE, 0, maxIndex))
+        queueTouchIndex(clamp(startIndex - dx / SWIPE_PX_PER_SLIDE, 0, maxIndex))
       }
     }
 
@@ -90,8 +106,9 @@ export function useNorrisStoreSwipe(
       dragging = false
 
       if (horizontal && touchIndexRef.current !== null) {
-        setTouchIndex(Math.round(touchIndexRef.current))
+        queueTouchIndex(Math.round(touchIndexRef.current))
       } else if (!horizontal) {
+        pendingTouchIndex.current = null
         setTouchIndex(null)
       }
       horizontal = false
@@ -103,6 +120,7 @@ export function useNorrisStoreSwipe(
     target.addEventListener('touchcancel', finish)
 
     return () => {
+      if (touchRaf.current) cancelAnimationFrame(touchRaf.current)
       mobile.removeEventListener('change', syncSwipeActive)
       target.removeEventListener('touchstart', onTouchStart)
       target.removeEventListener('touchmove', onTouchMove)
@@ -121,7 +139,7 @@ export function useNorrisStoreSwipe(
       prevScrollIndex.current = scroll.slideIndex
       return
     }
-    if (Math.abs(scroll.slideIndex - prevScrollIndex.current) > 0.06) {
+    if (Math.abs(scroll.slideIndex - prevScrollIndex.current) > 0.2) {
       setTouchIndex(null)
     }
     prevScrollIndex.current = scroll.slideIndex

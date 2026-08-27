@@ -22,8 +22,8 @@ function PowerCloud({ className }: { className: string }) {
 }
 
 export function LandingNorrisPowerStage() {
-  const { ref, progress } = useNorrisSectionProgress(80)
-  const focus = easeOutCubic(clamp(progress / 0.32, 0, 1))
+  const { ref, progress } = useNorrisSectionProgress(160)
+  const focus = easeOutCubic(clamp((progress - 0.02) / 0.22, 0, 1))
 
   return (
     <section ref={ref} className="mc-norris-stage mc-norris-stage--power" aria-label="Funcionalidades">
@@ -39,8 +39,8 @@ export function LandingNorrisPowerStage() {
         <header
           className="mc-norris-power__head"
           style={{
-            opacity: 0.45 + focus * 0.55,
-            transform: `translateY(${(1 - focus) * 16}px)`,
+            opacity: 0.62 + focus * 0.38,
+            transform: `translateY(${(1 - focus) * 12}px)`,
           }}
         >
           <p className="mc-norris-kicker mc-norris-kicker--store">Más que un catálogo</p>
@@ -52,7 +52,7 @@ export function LandingNorrisPowerStage() {
         <div className="mc-norris-power__grid">
           {norrisPowerFeatures.map((feature, i) => {
             const stagger = i * 0.025
-            const reveal = easeOutCubic(clamp((progress - 0.1 - stagger) / 0.38, 0, 1))
+            const reveal = easeOutCubic(clamp((progress - 0.04 - stagger) / 0.32, 0, 1))
             const y = (1 - reveal) * 18
 
             return (

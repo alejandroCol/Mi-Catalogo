@@ -1,7 +1,8 @@
-import { deleteField } from 'firebase/firestore'
+import { deleteField, doc, updateDoc } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { compressImageForUpload } from '@/lib/compressImageForUpload'
-import { firebaseStorageConfigured, getStorageApp } from '@/lib/firebase'
+import { firebaseStorageConfigured, getDb, getStorageApp } from '@/lib/firebase'
+import { MC } from '@/lib/mcCollections'
 import { mcUpdateCategoria } from '@/lib/mcWrites'
 
 export const CATEGORIA_IMAGE_SPECS = {
@@ -13,20 +14,30 @@ export function categoriaImageStoragePath(tenantId: string, categoriaId: string)
   return `mc_tenants/${tenantId}/categorias/${categoriaId}.jpg`
 }
 
+export function categoriaTodosImageStoragePath(tenantId: string): string {
+  return `mc_tenants/${tenantId}/categorias/todos.jpg`
+}
+
+async function compressAndUploadCategoriaImage(path: string, file: File): Promise<string> {
+  const optimized = await compressImageForUpload(file, {
+    maxEdgePx: CATEGORIA_IMAGE_SPECS.compressionMaxEdgePx,
+    jpegQuality: CATEGORIA_IMAGE_SPECS.jpegQuality,
+  })
+  const pathRef = ref(getStorageApp(), path)
+  await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
+  return getDownloadURL(pathRef)
+}
+
 /** Comprime, sube y guarda `imageUrl` en la categoría. */
 export async function uploadCategoriaImage(
   tenantId: string,
   categoriaId: string,
   file: File,
 ): Promise<string> {
-  const optimized = await compressImageForUpload(file, {
-    maxEdgePx: CATEGORIA_IMAGE_SPECS.compressionMaxEdgePx,
-    jpegQuality: CATEGORIA_IMAGE_SPECS.jpegQuality,
-  })
-  const storage = getStorageApp()
-  const pathRef = ref(storage, categoriaImageStoragePath(tenantId, categoriaId))
-  await uploadBytes(pathRef, optimized, { contentType: 'image/jpeg' })
-  const url = await getDownloadURL(pathRef)
+  const url = await compressAndUploadCategoriaImage(
+    categoriaImageStoragePath(tenantId, categoriaId),
+    file,
+  )
   await mcUpdateCategoria(tenantId, categoriaId, { imageUrl: url })
   return url
 }
@@ -44,6 +55,27 @@ export async function removeCategoriaImage(
     }
   }
   await mcUpdateCategoria(tenantId, categoriaId, { imageUrl: deleteField() })
+}
+
+/** Foto del círculo «Todos» en el catálogo (campo del tenant). */
+export async function uploadCategoriaTodosImage(tenantId: string, file: File): Promise<string> {
+  const url = await compressAndUploadCategoriaImage(categoriaTodosImageStoragePath(tenantId), file)
+  await updateDoc(doc(getDb(), MC.tenants, tenantId), { categoriaTodosImageUrl: url })
+  return url
+}
+
+export async function removeCategoriaTodosImage(
+  tenantId: string,
+  existingUrl?: string | null,
+): Promise<void> {
+  if (firebaseStorageConfigured && existingUrl) {
+    try {
+      await deleteObject(ref(getStorageApp(), categoriaTodosImageStoragePath(tenantId)))
+    } catch {
+      /* ya ausente */
+    }
+  }
+  await updateDoc(doc(getDb(), MC.tenants, tenantId), { categoriaTodosImageUrl: deleteField() })
 }
 
 export function mapCategoriaImageError(err: unknown): string {

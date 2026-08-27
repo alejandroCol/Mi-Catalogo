@@ -8,6 +8,7 @@ import { productoPrecioVenta } from '@/lib/productoDescuento'
 import type { McProducto } from '@/types/mc'
 import { useCatalogFavorites } from '@/public/CatalogFavoritesContext'
 import { CatalogFavoriteButton } from '@/public/CatalogFavoriteButton'
+import { McPublicPageLoadingFallback } from '@/components/McPublicPageLoadingFallback'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { CreateWishlistPanel } from '@/public/wishlist/CreateWishlistPanel'
@@ -55,7 +56,7 @@ export function PublicFavoritesPage() {
     return favoriteIds.map((id) => map.get(id)).filter((p): p is McProducto & { id: string } => Boolean(p))
   }, [favoriteIds, rows])
 
-  if (loading) return <p className="py-12 text-center text-sm mc-pc-muted">Cargando…</p>
+  if (loading) return <McPublicPageLoadingFallback />
   if (error) return <p className="py-12 text-center text-sm text-red-600">{error}</p>
 
   return (

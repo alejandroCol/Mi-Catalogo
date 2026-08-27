@@ -88,7 +88,7 @@ service firebase.storage {
       allow write: if mcUserCanWriteSeasonBanner(tenantId, fileName);
     }
 
-    /** Teaser Drop Room / Showroom — imagen, video y poster (plan Master en app). */
+    /** Teaser Drop Room / Showroom — imagen, video y poster (plan Expert en app). */
     match /mc_tenants/{tenantId}/showroom/{fileName} {
       allow read: if true;
       allow write: if mcUserCanAccessTenant(tenantId)

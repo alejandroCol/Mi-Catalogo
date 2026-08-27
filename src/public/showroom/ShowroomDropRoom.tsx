@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { FirebaseError } from 'firebase/app'
 import { ShowroomCountdown } from '@/public/showroom/ShowroomCountdown'
-import { resolveShowroomCopy, resolveShowroomMediaType } from '@/lib/collectionShowroom'
+import { resolveShowroomCopy, resolveShowroomMediaType, showroomDisplayFontStyle } from '@/lib/collectionShowroom'
 import { showroomJoinWaitlist } from '@/lib/showroomApi'
 import type { McCollectionShowroom } from '@/types/mc'
 
@@ -72,6 +72,7 @@ export function ShowroomDropRoom({
     <div
       className={`mc-showroom-drop ${opening ? 'mc-showroom-drop--opening' : ''}`}
       data-mood={copy.mood}
+      style={showroomDisplayFontStyle(showroom)}
     >
       <div className="mc-showroom-drop__media" aria-hidden>
         {isVideo ? (
@@ -104,10 +105,11 @@ export function ShowroomDropRoom({
       </div>
 
       <div className="mc-showroom-drop__content">
-        <p className="mc-showroom-drop__eyebrow">{copy.teaserEyebrow}</p>
-        <h1 className="mc-showroom-drop__headline">{copy.teaserHeadline}</h1>
-        <p className="mc-showroom-drop__sub">{copy.teaserSubheadline}</p>
-        {storeName ? <p className="mc-showroom-drop__store">{storeName}</p> : null}
+        <div className="mc-showroom-drop__copy">
+          <p className="mc-showroom-drop__eyebrow">{copy.teaserEyebrow}</p>
+          <h1 className="mc-showroom-drop__headline">{copy.teaserHeadline}</h1>
+          {storeName ? <p className="mc-showroom-drop__store">{storeName}</p> : null}
+        </div>
 
         <ShowroomCountdown targetMs={dropAt} onComplete={onOpened} />
 

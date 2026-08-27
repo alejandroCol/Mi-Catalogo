@@ -7,7 +7,7 @@ export function StoreBrandAboutSection({ tenant }: { tenant: McTenant | null | u
 
   return (
     <section
-      className="border-t mc-pc-border bg-[color-mix(in_srgb,var(--cat-surface)_92%,var(--cat-bg)_8%)] py-10 sm:py-12"
+      className="mc-store-about border-t mc-pc-border bg-[color-mix(in_srgb,var(--cat-surface)_92%,var(--cat-bg)_8%)] py-10 sm:py-12"
       aria-labelledby="store-about-heading"
     >
       <div className="mc-public-catalog-inset mx-auto max-w-2xl">

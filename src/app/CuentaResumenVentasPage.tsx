@@ -36,8 +36,8 @@ export function CuentaResumenVentasPage() {
     <ConfiguracionesSubpageLayout title="Resumen de ventas">
       <div className="mc-card space-y-4">
         <p className="ios-footnote leading-relaxed text-[var(--cat-muted)]">
-          El segundo monto del inicio suma los <strong className="font-medium text-[var(--cat-text)]">Total COP</strong>{' '}
-          de pedidos en el período elegido.
+          El segundo monto del inicio suma el <strong className="font-medium text-[var(--cat-text)]">Total COP</strong>{' '}
+          de ventas del catálogo (sin pagos pendientes ni canceladas) y de pedidos manuales en el período elegido.
         </p>
         <div>
           <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">Período</label>

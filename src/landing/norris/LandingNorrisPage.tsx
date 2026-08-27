@@ -7,12 +7,14 @@ import { useNorrisStoreSwipe } from '@/landing/norris/useNorrisStoreSwipe'
 import { LandingNorrisHero } from '@/landing/norris/LandingNorrisHero'
 import { LandingNorrisStoreStage } from '@/landing/norris/LandingNorrisStoreStage'
 import { LandingNorrisPowerStage } from '@/landing/norris/LandingNorrisPowerStage'
-import { LandingNorrisSplitSections } from '@/landing/norris/LandingNorrisSplitSections'
+import { LandingNorrisSplitSections, NorrisSplitBlock } from '@/landing/norris/LandingNorrisSplitSections'
 import { LandingNorrisCloseStage } from '@/landing/norris/LandingNorrisCloseStage'
 import { LandingNorrisSeoFaq } from '@/landing/norris/LandingNorrisSeoFaq'
 import { LandingNorrisFooter } from '@/landing/norris/LandingNorrisFooter'
 import { LandingWhatsAppButton } from '@/landing/components/LandingWhatsAppButton'
-import { norrisPinnedStores } from '@/landing/norris/norrisContent'
+import { norrisPinnedStores, norrisSplitSections } from '@/landing/norris/norrisContent'
+
+const creaSection = norrisSplitSections[0]
 
 export function LandingNorrisPage() {
   const heroProgress = useNorrisHeroProgress()
@@ -41,8 +43,13 @@ export function LandingNorrisPage() {
           activeIndex={storeCarousel.activeIndex}
           swipeActive={storeCarousel.swipeActive}
         />
+        <NorrisSplitBlock
+          lineA={creaSection.lineA}
+          lineB={creaSection.lineB}
+          body={creaSection.body}
+        />
         <LandingNorrisPowerStage />
-        <LandingNorrisSplitSections />
+        <LandingNorrisSplitSections skipIds={['crea']} />
         <LandingNorrisCloseStage />
         <LandingNorrisSeoFaq />
       </main>

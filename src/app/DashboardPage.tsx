@@ -30,6 +30,7 @@ import {
   IconMagicBrush,
   IconNetwork,
   IconPlusCircle,
+  IconPosTerminal,
 } from '@/icons/McIcons'
 import { CheckoutEnvioRequiredModal } from '@/app/CheckoutEnvioRequiredModal'
 import { CheckoutVentasRequiredModal } from '@/app/CheckoutVentasRequiredModal'
@@ -259,41 +260,32 @@ export function DashboardPage() {
           <Link
             to="/app/cuenta/checkout-ventas/seleccion"
             state={DASHBOARD_RETURN_NAV}
-            className="group relative flex w-full overflow-hidden border border-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)] bg-gradient-to-br from-[var(--cat-surface)] via-[var(--cat-surface)] to-[color-mix(in_srgb,var(--cat-accent)_14%,var(--cat-surface))] px-5 py-6 text-left shadow-[0_1px_0_color-mix(in_srgb,var(--cat-text)_6%,transparent)] transition duration-300 hover:border-[color-mix(in_srgb,var(--cat-accent)_55%,transparent)] hover:shadow-[0_14px_40px_-28px_color-mix(in_srgb,var(--cat-text)_45%,transparent)] sm:px-7 sm:py-7"
+            className="mc-dash-tile group"
           >
-            <div
-              className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[color-mix(in_srgb,var(--cat-accent)_22%,transparent)] blur-2xl"
-              aria-hidden
-            />
-            <div className="relative flex w-full items-start gap-4">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center border border-[color-mix(in_srgb,var(--cat-text)_12%,transparent)] bg-[var(--cat-surface)] text-[var(--cat-text)] shadow-sm">
-                <IconBankCard size={22} />
+            <div className="relative flex w-full items-start gap-3.5">
+              <span className="mc-dash-tile-icon mc-dash-tile-icon--pay">
+                <IconBankCard size={20} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
-                  Nuevo · Cobros online
+                <p className="mc-dash-tile-kicker">
+                  <span className="mc-dash-tile-kicker-dot" aria-hidden />
+                  Cobros online
                 </p>
-                <p className="mt-1.5 text-[17px] font-medium leading-snug tracking-tight text-[var(--cat-text)]">
+                <p className="ios-headline mt-1 leading-snug">
                   Habilitar pagos con tarjeta, Nequi y PSE
                 </p>
-                <p className="mt-2 text-[13px] leading-relaxed text-[var(--cat-muted)]">
+                <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
                   Elegí cómo querés cobrar: pasarela con tarjeta, Nequi y PSE, pasarela Mi Catálogo o WhatsApp.
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {['Tarjeta', 'Nequi', 'PSE'].map((m) => (
-                    <span
-                      key={m}
-                      className="border border-[color-mix(in_srgb,var(--cat-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--cat-surface)_88%,var(--cat-accent))] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--cat-text)]"
-                    >
+                    <span key={m} className="mc-dash-tile-chip">
                       {m}
                     </span>
                   ))}
                 </div>
               </div>
-              <IconChevronRight
-                size={18}
-                className="relative shrink-0 text-[var(--cat-muted)] opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100"
-              />
+              <IconChevronRight size={16} className="mc-dash-tile-chevron mt-2" />
             </div>
           </Link>
         </section>
@@ -317,37 +309,30 @@ export function DashboardPage() {
       </section>
 
       <section aria-label="Visitas al catálogo">
-        <Link
-          to="/app/estadisticas"
-          className="group relative flex w-full overflow-hidden border border-neutral-200/55 bg-[var(--cat-surface)] px-5 py-6 text-left shadow-[0_1px_0_color-mix(in_srgb,var(--cat-text)_5%,transparent)] transition duration-200 hover:border-[color-mix(in_srgb,var(--cat-text)_14%,transparent)] hover:bg-neutral-50/40 sm:px-7 sm:py-7"
-        >
-          <div
-            className="pointer-events-none absolute -left-6 bottom-0 h-28 w-28 rounded-full bg-[color-mix(in_srgb,var(--cat-accent)_14%,transparent)] blur-2xl"
-            aria-hidden
-          />
-          <div className="relative flex w-full items-start gap-4">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center border border-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--cat-surface)_92%,var(--cat-accent))] text-[var(--cat-text)]">
-              <IconChartBars size={22} />
+        <Link to="/app/estadisticas" className="mc-dash-tile group">
+          <div className="relative flex w-full items-center gap-3.5">
+            <span className="mc-dash-tile-icon mc-dash-tile-icon--stats">
+              <IconChartBars size={20} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">
-                Estadísticas
+              <p className="ios-headline leading-snug">Visitas a tu catálogo</p>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
+                Actividad de hoy en tu tienda
               </p>
-              <p className="mt-1.5 text-[17px] font-medium leading-snug tracking-tight text-[var(--cat-text)]">
-                Visitas a tu catálogo
-              </p>
+            </div>
+            <div className="shrink-0 text-right">
               {visitsLoading ? (
-                <div className="mt-3 h-8 w-16 animate-pulse rounded-sm bg-neutral-100" />
+                <div className="ml-auto h-8 w-10 animate-pulse rounded-md bg-[#f3f0ea]" />
               ) : (
-                <p className="mt-2 text-[1.35rem] font-medium tabular-nums leading-none tracking-tight text-[var(--cat-text)]">
-                  {todayVisits ?? 0}{' '}
-                  <span className="text-[13px] font-normal text-[var(--cat-muted)]">hoy</span>
-                </p>
+                <>
+                  <p className="text-[1.65rem] font-semibold tabular-nums leading-none tracking-tighter text-[var(--cat-text)]">
+                    {todayVisits ?? 0}
+                  </p>
+                  <p className="mt-1 text-[11px] font-medium text-[var(--cat-muted)]">hoy</p>
+                </>
               )}
             </div>
-            <span className="relative mt-1 shrink-0 rounded-sm border border-neutral-200/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--cat-text)] transition group-hover:border-neutral-300">
-              Ver estadísticas
-            </span>
+            <IconChevronRight size={16} className="mc-dash-tile-chevron" />
           </div>
         </Link>
       </section>
@@ -361,48 +346,48 @@ export function DashboardPage() {
         <section aria-label="Dinero en pasarela">
           <Link
             to={checkoutModo === 'pasarela_micatalogo' ? '/app/mi-saldo' : '/app/pagos-pasarela/onepay'}
-            className="group flex w-full items-start gap-4 border border-neutral-200/55 bg-[var(--cat-surface)] px-5 py-6 text-left shadow-[0_1px_0_color-mix(in_srgb,var(--cat-text)_5%,transparent)] transition duration-200 hover:border-[color-mix(in_srgb,var(--cat-text)_14%,transparent)] hover:bg-neutral-50/40 sm:px-7 sm:py-7"
+            className="mc-dash-tile group"
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center border border-[color-mix(in_srgb,var(--cat-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--cat-surface)_90%,var(--cat-accent))] text-[var(--cat-text)]">
-              <IconBankCard size={22} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">
-                {checkoutModo === 'pasarela_micatalogo' ? 'Pasarela Mi Catálogo' : 'Pasarela OnePay'}
-              </p>
-              <p className="mt-1.5 text-[17px] font-medium leading-snug tracking-tight text-[var(--cat-text)]">
-                {checkoutModo === 'pasarela_micatalogo' ? 'Saldo de tus ventas' : 'Dinero en pasarela'}
-              </p>
-              {onepayBalancePreviewLoading ? (
-                <div className="mt-3 h-8 w-40 max-w-[70%] animate-pulse rounded-sm bg-neutral-100" />
-              ) : (
-                <p className="mt-2 break-words text-[1.35rem] font-medium tabular-nums leading-none tracking-tight text-[var(--cat-text)]">
-                  {onepayBalancePreview ?? 'Ver balance y cobros'}
+            <div className="relative flex w-full items-center gap-3.5">
+              <span className="mc-dash-tile-icon mc-dash-tile-icon--pay">
+                <IconBankCard size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="mc-dash-tile-kicker">
+                  {checkoutModo === 'pasarela_micatalogo' ? 'Pasarela Mi Catálogo' : 'Pasarela OnePay'}
                 </p>
-              )}
+                <p className="ios-headline mt-0.5 leading-snug">
+                  {checkoutModo === 'pasarela_micatalogo' ? 'Saldo de tus ventas' : 'Dinero en pasarela'}
+                </p>
+              </div>
+              <div className="min-w-0 max-w-[45%] shrink-0 text-right">
+                {onepayBalancePreviewLoading ? (
+                  <div className="ml-auto h-7 w-24 animate-pulse rounded-md bg-[#f3f0ea]" />
+                ) : (
+                  <p className="break-words text-[1.15rem] font-semibold tabular-nums leading-tight tracking-tight text-[var(--cat-text)]">
+                    {onepayBalancePreview ?? 'Ver cobros'}
+                  </p>
+                )}
+              </div>
+              <IconChevronRight size={16} className="mc-dash-tile-chevron" />
             </div>
-            <IconChevronRight
-              size={18}
-              className="relative mt-1 shrink-0 text-[var(--cat-muted)] opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100"
-            />
           </Link>
         </section>
       )}
 
-      <Link
-        to="/pos/admin"
-        className="group flex items-center gap-4 border border-[color-mix(in_srgb,var(--mc-landing-gold)_35%,white)] bg-gradient-to-br from-[color-mix(in_srgb,var(--mc-landing-gold)_10%,white)] via-white to-[#faf9f7] px-5 py-5 no-underline transition duration-200 ease-in-out hover:border-[color-mix(in_srgb,var(--mc-landing-gold)_55%,white)] hover:shadow-[0_8px_28px_-12px_rgba(197,163,103,0.3)]"
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[color-mix(in_srgb,var(--mc-landing-gold)_40%,white)] bg-[color-mix(in_srgb,var(--mc-landing-gold)_14%,white)] text-[var(--mc-landing-gold-dark)] shadow-[0_1px_3px_rgba(197,163,103,0.2)]">
-          <IconChartBars size={22} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-medium tracking-tight text-[var(--cat-text)]">Mi Catálogo POS</p>
-          <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
-            Punto de venta, caja, sedes y reportes
-          </p>
+      <Link to="/pos/admin" className="mc-dash-tile group">
+        <div className="relative flex w-full items-center gap-3.5">
+          <span className="mc-dash-tile-icon mc-dash-tile-icon--pos">
+            <IconPosTerminal size={20} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="ios-headline leading-snug">Mi Catálogo POS</p>
+            <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
+              Punto de venta, caja, sedes y reportes
+            </p>
+          </div>
+          <IconChevronRight size={16} className="mc-dash-tile-chevron" />
         </div>
-        <IconChevronRight size={17} className="shrink-0 text-[var(--cat-muted)] opacity-60 transition group-hover:opacity-100" />
       </Link>
 
       {masterLive ? (

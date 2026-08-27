@@ -374,7 +374,7 @@ export function PublicProductDetailPage() {
     return <p className="mc-pc-text">Configurá Firebase.</p>
   }
   if (loading) {
-    return <p className="text-center mc-pc-muted">Cargando…</p>
+    return <McPublicPageLoadingFallback />
   }
   if (error || !tenant) {
     return <p className="text-red-600">{error ?? 'No disponible'}</p>

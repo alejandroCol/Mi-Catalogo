@@ -14,7 +14,13 @@ export interface McCatalogThemeColors {
 }
 
 /** Familias tipográficas elegibles para personalizar la tienda. */
-export type McCatalogFontId = 'inter-tight' | 'playfair' | 'fredoka' | 'quicksand' | 'dm-serif'
+export type McCatalogFontId =
+  | 'inter-tight'
+  | 'playfair'
+  | 'fredoka'
+  | 'quicksand'
+  | 'dm-serif'
+  | 'syne'
 
 /**
  * Dónde aplicar la tipografía personalizada:
@@ -72,7 +78,7 @@ export interface McSeasonBanner {
   interactiveMood?: McInteractiveLandingMood
 }
 
-/** Atmósfera visual del pasillo / showroom (solo plan Master). */
+/** Atmósfera visual del pasillo / showroom (plan Expert o Master). */
 export type McShowroomMood = 'midnight' | 'atelier' | 'runway' | 'gallery'
 
 /** Atmósfera del hero interactivo (carrusel 3D al entrar al catálogo). */
@@ -102,7 +108,7 @@ export type McShowroomHomeLayout = 'editorial' | 'center' | 'panel' | 'bottom'
 
 /**
  * Drop Room + Pasillo / Showroom inmersivo para presentar una colección.
- * Solo plan Master con suscripción activa.
+ * Plan Expert o Master con suscripción activa.
  */
 export interface McCollectionShowroom {
   enabled: boolean
@@ -263,7 +269,7 @@ export interface McTenant {
   /** Banner fullscreen opcional al entrar al catálogo (solo Expert). */
   seasonBanner?: McSeasonBanner
   /**
-   * Drop Room + Pasillo / Showroom de colección (solo plan Master).
+   * Drop Room + Pasillo / Showroom de colección (plan Expert o Master).
    * Experiencia inmersiva aparte del grid del catálogo.
    */
   collectionShowroom?: McCollectionShowroom
@@ -340,6 +346,8 @@ export interface McTenant {
    * (usa `McCategoria.imageUrl` cuando exista).
    */
   mostrarCategoriasConImagenes?: boolean
+  /** Foto del círculo «Todos» cuando `mostrarCategoriasConImagenes`. */
+  categoriaTodosImageUrl?: string
   /** Mini barra promocional opcional arriba del header del catálogo. */
   announcementBar?: McAnnouncementBar
   /**
@@ -347,6 +355,16 @@ export interface McTenant {
    * Ausente o inválido → `brand-left` (logo a la izquierda).
    */
   headerLayout?: McCatalogHeaderLayoutId
+  /**
+   * Forma del logo cuando `headerLayout` es `logo-center`.
+   * Ausente o inválido → `original` (proporción del archivo).
+   */
+  headerLogoShape?: McCatalogHeaderLogoShape
+  /**
+   * Si false, la cabecera muestra solo el logo (más grande).
+   * Ausente → se muestra el nombre de la marca.
+   */
+  headerShowStoreName?: boolean
   /** Sección «Sobre mi marca» opcional al pie del catálogo. */
   storeAbout?: McStoreAbout
   /** Redes sociales opcionales en el pie del catálogo. */
@@ -490,6 +508,13 @@ export interface McAnnouncementBar {
  * - `logo-center`: secciones a la izquierda, marca al centro, iconos a la derecha.
  */
 export type McCatalogHeaderLayoutId = 'brand-left' | 'logo-center'
+
+/**
+ * Forma del logo centrado.
+ * - `round`: círculo recortado (como el estilo clásico).
+ * - `original`: proporción del archivo (wordmark / horizontal).
+ */
+export type McCatalogHeaderLogoShape = 'round' | 'original'
 
 /** Sección «Sobre mi marca» al pie del catálogo público. */
 export interface McStoreAbout {
@@ -722,7 +747,7 @@ export interface McProducto {
   mostrarDescargaImagen?: boolean
   /** Muestra el botón «Añadir 1 docena» en la ficha pública del producto. */
   mostrarBotonDocena?: boolean
-  /** Muestra la cantidad disponible en la ficha pública del producto. */
+  /** Muestra la cantidad disponible en el listado del catálogo y en la ficha del producto. */
   mostrarStockCatalogo?: boolean
   /** Descuento visible en catálogo (sobre precio base o variante). */
   descuentoActivo?: boolean
@@ -1044,6 +1069,11 @@ export interface McOrdenCatalogo {
   pagoOnePay?: boolean
   onepayViewToken?: string
   onepayPaymentId?: string | null
+  /** Millis cuando se devolvió el cobro OnePay al cancelar. */
+  onepayRefundedAt?: number
+  /** Cargos OnePay reembolsados (POST /charges/{id}/refund). */
+  onepayRefundChargeIds?: string[]
+  onepayRefundKind?: 'full_refund' | 'unpaid_cancelled' | 'already_refunded' | 'test_skipped'
   /** Pago con Addi (BNPL) confirmado vía callback. */
   pagoAddi?: boolean
   addiViewToken?: string

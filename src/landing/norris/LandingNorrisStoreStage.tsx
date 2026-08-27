@@ -23,8 +23,7 @@ export function LandingNorrisStoreStage({
   ...scroll
 }: Props) {
   const { morph } = scroll
-  const headReveal = smoothstep(clamp((morph - 0.12) / 0.28, 0, 1))
-  const headY = (1 - headReveal) * 20
+  const headReveal = smoothstep(clamp((morph - 0.28) / 0.32, 0, 1))
 
   return (
     <section
@@ -36,8 +35,7 @@ export function LandingNorrisStoreStage({
         <header
           className="mc-norris-store-head"
           style={{
-            opacity: 0.25 + headReveal * 0.75,
-            transform: `translateY(${headY}px)`,
+            opacity: headReveal,
           }}
         >
           <p className="mc-norris-kicker mc-norris-kicker--store">{norrisStoreSection.kicker}</p>

@@ -9,7 +9,7 @@ import {
 import { Link } from 'react-router-dom'
 import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext'
 import { formatCop } from '@/lib/formatCop'
-import { resolveShowroomCopy, resolveShowroomMediaType } from '@/lib/collectionShowroom'
+import { resolveShowroomCopy, resolveShowroomMediaType, showroomDisplayFontStyle } from '@/lib/collectionShowroom'
 import { productoPrecioVenta, productoPrecioVentaDesde } from '@/lib/productoDescuento'
 import { tallasValidas } from '@/lib/productoTallas'
 import {
@@ -539,6 +539,7 @@ export function ShowroomHallway({
     <div
       className={`mc-showroom-hall ${entered ? 'mc-showroom-hall--in' : ''}`}
       data-mood={copy.mood}
+      style={showroomDisplayFontStyle(showroom)}
     >
       <div className="mc-showroom-hall__progress" aria-hidden>
         <span style={{ transform: `scaleX(${progress})` }} />

@@ -189,8 +189,13 @@ export function ProductoCategoriasPicker({
 
       <p className="text-[12px] leading-relaxed text-mc-500">
         Elegí categoría o subcategoría.{' '}
-        <Link to={CATEGORIAS_PATH} className="font-medium text-mc-800 underline underline-offset-2">
-          Gestionar categorías
+        <Link
+          to={CATEGORIAS_PATH}
+          state={createCategoriasNav}
+          onClick={() => onBeforeCreateCategorias?.()}
+          className="font-medium text-mc-800 underline underline-offset-2"
+        >
+          {createCategoriasNav ? 'Crear o gestionar categorías' : 'Gestionar categorías'}
         </Link>
       </p>
     </div>

@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { hasShowroomFeatureAccess } from '@/lib/billingAccess'
 
-/** Solo plan Master activo puede configurar Drop Room + Pasillo. */
+/** Expert o Master activo puede configurar Drop Room + Pasillo. */
 export function RequireMcShowroomAccess({ children }: { children: React.ReactNode }) {
   const { tenant, loading } = useMcAuth()
 

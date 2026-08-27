@@ -1,5 +1,6 @@
+import type { CSSProperties } from 'react'
 import { hasShowroomFeatureAccess } from '@/lib/billingAccess'
-import { isValidFontId } from '@/lib/catalogFonts'
+import { catalogFontStack, isValidFontId } from '@/lib/catalogFonts'
 import type {
   McCatalogFontId,
   McCollectionShowroom,
@@ -278,7 +279,7 @@ export function resolveCollectionShowroom(
   return s
 }
 
-/** Visible en catálogo público solo si Master activo + showroom habilitado. */
+/** Visible en catálogo público si Expert/Master activo y showroom habilitado. */
 export function isCollectionShowroomPubliclyActive(
   tenant: McTenant | null | undefined,
 ): boolean {
@@ -321,6 +322,15 @@ export function resolveShowroomCopy(showroom: McCollectionShowroom) {
       ? showroom.mood
       : SHOWROOM_DEFAULTS.mood,
   }
+}
+
+/** Tipografía elegida en el banner: se aplica a toda la experiencia showroom. */
+export function showroomDisplayFontStyle(
+  showroom?: Pick<McCollectionShowroom, 'homeFontId'> | null,
+): CSSProperties {
+  return {
+    '--sr-display': catalogFontStack(normalizeShowroomHomeFontId(showroom?.homeFontId)),
+  } as CSSProperties
 }
 
 export function msToDatetimeLocalValue(ms?: number | null): string {

@@ -121,10 +121,9 @@ export const ADMIN_WHATS_NEW_ITEMS: AdminWhatsNewItem[] = [
     title: 'Drop Room + Pasillo',
     description: 'Colección con cuenta regresiva y recorrido inmersivo.',
     to: '/app/cuenta/showroom',
-    tag: 'Master',
+    tag: 'Expert',
     accent: 'dark',
     sinceVersion: '2026-08-21',
-    masterOnly: true,
   },
   {
     id: 'addi-cuotas',

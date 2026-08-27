@@ -4,6 +4,7 @@ import {
   CATALOG_FONT_LABELS,
   CATALOG_FONT_SAMPLES,
   CATALOG_FONT_TAGLINES,
+  catalogFontStack,
 } from '@/lib/catalogFonts'
 import type { McCatalogFontId } from '@/types/mc'
 
@@ -25,16 +26,7 @@ export function CatalogFontPickerGrid({
       {CATALOG_FONT_IDS.map((id) => {
         const selected = value === id
         const sample = CATALOG_FONT_SAMPLES[id]
-        const stack =
-          id === 'inter-tight'
-            ? "'Inter Tight', sans-serif"
-            : id === 'playfair'
-              ? "'Playfair Display', serif"
-              : id === 'fredoka'
-                ? "'Fredoka', sans-serif"
-                : id === 'quicksand'
-                  ? "'Quicksand', sans-serif"
-                  : "'DM Serif Display', serif"
+        const stack = catalogFontStack(id)
 
         return (
           <button

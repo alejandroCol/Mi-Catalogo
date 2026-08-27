@@ -49,6 +49,13 @@ export function revokeImagenDraftPreviews(items: ProductoImagenDraft[]) {
   }
 }
 
+/** Recrea object URLs tras un unmount (el editor las revoca al salir). */
+export function reviveImagenDraftPreviews(items: ProductoImagenDraft[]): ProductoImagenDraft[] {
+  return items.map((item) =>
+    item.kind === 'new' ? { ...item, previewUrl: URL.createObjectURL(item.file) } : item,
+  )
+}
+
 async function uploadNewImagen(
   storage: FirebaseStorage,
   tenantId: string,

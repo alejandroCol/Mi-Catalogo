@@ -1,0 +1,1 @@
+import{t as e}from"./PublicCatalogLayout-D_m3MKnx.js";export{e as PublicCatalogLayout};

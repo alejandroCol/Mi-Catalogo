@@ -5,6 +5,7 @@ import {
   isCollectionShowroomPubliclyActive,
   isShowroomDropLocked,
   resolveCollectionShowroom,
+  showroomDisplayFontStyle,
 } from '@/lib/collectionShowroom'
 import { getDb } from '@/lib/firebase'
 import { mcProductosCollection } from '@/lib/mcCollections'
@@ -69,7 +70,7 @@ export function PublicShowroomPage() {
 
   if (loading) {
     return (
-      <div className="mc-showroom-loading">
+      <div className="mc-showroom-loading" style={showroomDisplayFontStyle(showroom)}>
         <p>Abriendo el showroom…</p>
       </div>
     )
@@ -94,7 +95,7 @@ export function PublicShowroomPage() {
 
   if (!hallwayReady) {
     return (
-      <div className="mc-showroom-loading">
+      <div className="mc-showroom-loading" style={showroomDisplayFontStyle(showroom)}>
         <p>La colección todavía no tiene piezas en el pasillo.</p>
         <button type="button" className="mc-showroom-hall__back mt-4" onClick={exit}>
           ← Volver al catálogo

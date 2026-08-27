@@ -1,6 +1,6 @@
 import { getAuth } from 'firebase-admin/auth';
 import { markCarritoIniciadoAfterOrderPaid } from '../carritoIniciado.js';
-import { resolveEmailCatalogThemeColors, sendCatalogCustomerPurchaseConfirmationEmail, sendCatalogSalePaidEmail, } from '../catalogSaleEmail.js';
+import { catalogSaleOrderSliceFromData, resolveEmailCatalogThemeColors, sendCatalogCustomerPurchaseConfirmationEmail, sendCatalogSalePaidEmail, } from '../catalogSaleEmail.js';
 import { fulfillCatalogOrderInventory } from '../catalogInventoryFulfill.js';
 import { MC_RESEND_FROM } from '../mcResend.js';
 import { buildStorePublicUrl } from '../storePublicUrl.js';
@@ -25,7 +25,8 @@ export async function confirmCatalogOrderPaid(params) {
         console.error('[confirmCatalogOrderPaid] fulfill:', e);
     }
     const oSnap = await oref.get();
-    const o = (oSnap.data() || {});
+    const oRaw = (oSnap.data() || {});
+    const o = oRaw;
     const oCarritoId = typeof o.carritoIniciadoId === 'string' ? o.carritoIniciadoId.trim() : '';
     if (oCarritoId) {
         try {
@@ -64,9 +65,8 @@ export async function confirmCatalogOrderPaid(params) {
                 /* */
             }
         }
-        const lineasRaw = Array.isArray(o.lineas) ? o.lineas : [];
-        const lineas = lineasRaw;
-        const totalCop = typeof o.totalCop === 'number' ? o.totalCop : 0;
+        const sale = catalogSaleOrderSliceFromData(oRaw);
+        const pedidosUrl = `${origin}/app/pedidos?o=${encodeURIComponent(orderId)}`;
         const emailPatch = {};
         if (pendingOwner && toEmail) {
             const sent = await sendCatalogSalePaidEmail({
@@ -75,15 +75,9 @@ export async function confirmCatalogOrderPaid(params) {
                 to: toEmail,
                 nombreTienda,
                 orderId,
-                totalCop,
-                lineas,
                 themeColors,
-                clienteNombre: o.clienteNombre,
-                clienteTelefono: o.clienteTelefono,
-                clienteEmail: o.clienteEmail,
-                envioCiudad: o.envioCiudad,
-                envioDireccion: o.envioDireccion,
-                notaCliente: o.notaCliente,
+                pedidosUrl,
+                ...sale,
             });
             if (sent.ok)
                 emailPatch.ventaNotificacionEmailSentAt = Date.now();
@@ -97,15 +91,16 @@ export async function confirmCatalogOrderPaid(params) {
                 to: ce,
                 nombreTienda,
                 orderId,
-                totalCop,
-                lineas,
+                totalCop: sale.totalCop,
+                lineas: sale.lineas,
                 themeColors,
-                clienteNombre: o.clienteNombre,
-                clienteTelefono: o.clienteTelefono,
-                clienteEmail: o.clienteEmail,
-                envioCiudad: o.envioCiudad,
-                envioDireccion: o.envioDireccion,
-                notaCliente: o.notaCliente,
+                clienteNombre: sale.clienteNombre,
+                clienteTelefono: sale.clienteTelefono,
+                clienteEmail: sale.clienteEmail,
+                envioCiudad: sale.envioCiudad,
+                envioDireccion: sale.envioDireccion,
+                notaCliente: sale.notaCliente,
+                numeroReferencia: sale.numeroReferencia,
                 catalogUrl,
                 seguimientoUrl,
             });

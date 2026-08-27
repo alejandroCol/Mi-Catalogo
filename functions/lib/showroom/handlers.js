@@ -1,7 +1,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../firebaseAdmin.js';
-import { isMasterBillingPlan } from '../billingPlan.js';
+import { isPaidBillingPlan } from '../billingPlan.js';
 import { isTenantMembershipActive } from '../tenantMembership.js';
 import { resolvePublicTenantBySlug } from '../live/liveAuth.js';
 function normalizeEmail(raw) {
@@ -19,7 +19,7 @@ function isValidEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 /**
- * Lista de espera pública del Drop Room (plan Master).
+ * Lista de espera pública del Drop Room (plan Expert o Master).
  * No requiere auth; valida slug + showroom activo + drop aún cerrado.
  */
 export const mcShowroomJoinWaitlist = onCall({ invoker: 'public' }, async (request) => {
@@ -37,8 +37,8 @@ export const mcShowroomJoinWaitlist = onCall({ invoker: 'public' }, async (reque
     if (!tenantSnap.exists)
         throw new HttpsError('not-found', 'Tienda no encontrada.');
     const tenant = tenantSnap.data();
-    if (!isMasterBillingPlan(tenant.billingPlan) || !isTenantMembershipActive(tenant)) {
-        throw new HttpsError('failed-precondition', 'Esta experiencia requiere plan Master activo.');
+    if (!isPaidBillingPlan(tenant.billingPlan) || !isTenantMembershipActive(tenant)) {
+        throw new HttpsError('failed-precondition', 'Esta experiencia requiere plan Expert activo.');
     }
     const showroom = tenant.collectionShowroom;
     if (!showroom || showroom.enabled !== true) {

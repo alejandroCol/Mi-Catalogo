@@ -71,6 +71,10 @@ export function isOrdenCatalogoVentaValida(o: McOrdenCatalogo): boolean {
   return o.estado !== 'esperando_pago' && o.estado !== 'cancelado'
 }
 
+export function isOrdenCatalogoCancelada(o: Pick<McOrdenCatalogo, 'estado'>): boolean {
+  return o.estado === 'cancelado'
+}
+
 export function ordenComisionPasarelaCop(o: McOrdenCatalogo): number {
   if (!o.pagoOnePay) return 0
   return pasarelaTxFeePerPaymentCop(o.totalCop)
@@ -158,6 +162,52 @@ export function summarizeCatalogOrdersProfit(
     ticketPromedioCop: transacciones > 0 ? Math.round(ingresoBrutoCop / transacciones) : 0,
     lineasConCosto,
     lineasSinCosto,
+  }
+}
+
+export type CatalogCancellationsSummary = {
+  canceladas: number
+  montoCanceladoCop: number
+  devolucionesOnePay: number
+  montoDevueltoCop: number
+  pendientesDevolver: number
+  montoPendienteCop: number
+}
+
+export function summarizeCatalogCancellations(
+  orders: Pick<
+    McOrdenCatalogo,
+    'estado' | 'totalCop' | 'pagoOnePay' | 'onepayPaymentId' | 'onepayRefundedAt'
+  >[],
+): CatalogCancellationsSummary {
+  let canceladas = 0
+  let montoCanceladoCop = 0
+  let devolucionesOnePay = 0
+  let montoDevueltoCop = 0
+  let pendientesDevolver = 0
+  let montoPendienteCop = 0
+
+  for (const o of orders) {
+    if (!isOrdenCatalogoCancelada(o)) continue
+    const total = typeof o.totalCop === 'number' && Number.isFinite(o.totalCop) ? o.totalCop : 0
+    canceladas += 1
+    montoCanceladoCop += total
+    if (typeof o.onepayRefundedAt === 'number') {
+      devolucionesOnePay += 1
+      montoDevueltoCop += total
+    } else if (o.pagoOnePay === true && typeof o.onepayPaymentId === 'string' && o.onepayPaymentId.trim()) {
+      pendientesDevolver += 1
+      montoPendienteCop += total
+    }
+  }
+
+  return {
+    canceladas,
+    montoCanceladoCop,
+    devolucionesOnePay,
+    montoDevueltoCop,
+    pendientesDevolver,
+    montoPendienteCop,
   }
 }
 

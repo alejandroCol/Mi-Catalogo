@@ -7,6 +7,7 @@ import {
   parseCatalogListSearchParams,
 } from '@/lib/catalogListUrlState'
 import { applyStoreHomeSeo, clearStoreHomeSeo } from '@/lib/storePageSeo'
+import { McPublicPageLoadingFallback } from '@/components/McPublicPageLoadingFallback'
 import { CatalogFavoriteButton } from '@/public/CatalogFavoriteButton'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { isProductNovedad, NOVEDAD_DIAS_RECENTE } from '@/lib/catalogNovedad'
@@ -91,6 +92,16 @@ function CatalogIntro({ preset }: { preset: McCatalogThemePreset }) {
   return null
 }
 
+function catalogCardStockCaption(
+  p: McProducto,
+  productsLookup: ProductoLookup | undefined,
+  copy: { inStock: (n: number) => string; outOfStock: string },
+): string | null {
+  if (!p.mostrarStockCatalogo) return null
+  const n = productoStockEfectivo(p, productsLookup)
+  return n > 0 ? copy.inStock(n) : copy.outOfStock
+}
+
 function NovedadBadge({ className, floating }: { className?: string; floating?: boolean }) {
   return (
     <span
@@ -122,6 +133,10 @@ function ReyProductCard({
   const { density, aspect } = layout
   const pad = density === 'compact' ? 'p-2.5 sm:p-3' : 'p-3.5 sm:p-4'
   const ar = aspect === '3/4' ? 'aspect-[3/4]' : 'aspect-[4/5]'
+  const stockCaption = catalogCardStockCaption(p, productsLookup, {
+    inStock: (n) => `${n} en stock`,
+    outOfStock: 'Stock a consultar',
+  })
 
   return (
     <article
@@ -176,11 +191,9 @@ function ReyProductCard({
           {p.nombre}
         </h3>
         <CatalogProductPrice product={p} size="sm" showDesde className="mt-1.5" />
-        <p className="mt-1 text-[10px] leading-relaxed mc-pc-muted sm:text-[11px]">
-          {productoStockEfectivo(p, productsLookup) > 0
-            ? `${productoStockEfectivo(p, productsLookup)} en stock`
-            : 'Stock a consultar'}
-        </p>
+        {stockCaption ? (
+          <p className="mt-1 text-[10px] leading-relaxed mc-pc-muted sm:text-[11px]">{stockCaption}</p>
+        ) : null}
       </Link>
     </article>
   )
@@ -198,6 +211,10 @@ function ReyProductCardBold({
   productsLookup?: ProductoLookup
 }) {
   const img = p.imageUrl
+  const stockCaption = catalogCardStockCaption(p, productsLookup, {
+    inStock: (n) => `Stock ${n}`,
+    outOfStock: 'Consultar stock',
+  })
   return (
     <article className="group mc-pc-rey-card overflow-hidden rounded-2xl">
       <div className="relative aspect-[5/3] w-full min-h-[200px] sm:aspect-[2/1] sm:min-h-0">
@@ -238,11 +255,7 @@ function ReyProductCardBold({
           {p.nombre}
         </h3>
         <CatalogProductPrice product={p} size="md" showDesde className="mt-2 justify-center" />
-        <p className="mt-2 text-sm mc-pc-muted">
-          {productoStockEfectivo(p, productsLookup) > 0
-            ? `Stock ${productoStockEfectivo(p, productsLookup)}`
-            : 'Consultar stock'}
-        </p>
+        {stockCaption ? <p className="mt-2 text-sm mc-pc-muted">{stockCaption}</p> : null}
       </Link>
     </article>
   )
@@ -389,7 +402,7 @@ export function PublicCatalogListPage() {
     )
   }
   if (loading) {
-    return <p className="text-center mc-pc-muted">Cargando…</p>
+    return <McPublicPageLoadingFallback />
   }
   if (error || !tenant || !slug) {
     return <p className="text-center text-sm text-red-600">{error ?? 'No disponible'}</p>
@@ -496,6 +509,7 @@ export function PublicCatalogListPage() {
               onSelect={setSelectedCategoriaId}
               counts={categoryCounts}
               showWithImages={tenant?.mostrarCategoriasConImagenes === true}
+              todosImageUrl={tenant?.categoriaTodosImageUrl}
             />
             <CatalogCategoryHeader title={catalogTitle} subtitle={catalogSubtitle} />
           </>
@@ -624,6 +638,7 @@ export function PublicCatalogListPage() {
               onSelect={setSelectedCategoriaId}
               counts={categoryCounts}
               showWithImages={tenant?.mostrarCategoriasConImagenes === true}
+              todosImageUrl={tenant?.categoriaTodosImageUrl}
             />
             <div className="min-w-0 flex-1 space-y-8 sm:space-y-10">{catalogMain}</div>
           </div>

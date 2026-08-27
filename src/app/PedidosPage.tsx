@@ -11,7 +11,7 @@ import {
   query,
   updateDoc,
 } from 'firebase/firestore'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
@@ -26,6 +26,12 @@ import { mcEnsureSupplierPosForOrder } from '@/lib/mcProveedorWrites'
 import { IconChevronRight } from '@/icons/McIcons'
 import { MobilePullToRefresh } from '@/components/MobilePullToRefresh'
 import { ADMIN_SEGUIMIENTO_ESTADOS } from '@/lib/catalogOrderTracking'
+import {
+  ordenCatalogoPendienteReembolsoOnePay,
+  ordenCatalogoTieneCobroOnePay,
+} from '@/lib/catalogOrderCancel'
+import { cancelCatalogOrder } from '@/lib/cancelCatalogOrderApi'
+import { CancelarVentaConfirmModal } from '@/app/CancelarVentaConfirmModal'
 import type { McOrdenCatalogo, McOrdenCatalogoEstado, McPedido } from '@/types/mc'
 
 const ESTADOS_ORDEN: { value: McOrdenCatalogoEstado; label: string }[] = [
@@ -48,6 +54,8 @@ function previewLineas(o: McOrdenCatalogo) {
 
 export function PedidosPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
+  const [searchParams] = useSearchParams()
+  const orderFromQuery = searchParams.get('o')?.trim() || null
   const [platformSettings, setPlatformSettings] = useState<McPlatformSettings | null>(null)
   const [ventas, setVentas] = useState<(McOrdenCatalogo & { id: string })[]>([])
   const [manual, setManual] = useState<(McPedido & { id: string })[]>([])
@@ -59,6 +67,10 @@ export function PedidosPage() {
   const [expandedVentaId, setExpandedVentaId] = useState<string | null>(null)
   const [manualFormOpen, setManualFormOpen] = useState(false)
   const [listenKey, setListenKey] = useState(0)
+  const [pendingCancel, setPendingCancel] = useState<(McOrdenCatalogo & { id: string }) | null>(null)
+  const [cancelBusy, setCancelBusy] = useState(false)
+  const [cancelErr, setCancelErr] = useState<string | null>(null)
+  const scrolledOrderRef = useRef<string | null>(null)
 
   const reloadPlatformSettings = useCallback(async () => {
     if (!firebaseConfigured) return
@@ -92,6 +104,20 @@ export function PedidosPage() {
       u2()
     }
   }, [effectiveTenantId, listenKey])
+
+  useEffect(() => {
+    if (!orderFromQuery) return
+    if (!ventas.some((v) => v.id === orderFromQuery)) return
+    if (scrolledOrderRef.current === orderFromQuery) return
+    scrolledOrderRef.current = orderFromQuery
+    setExpandedVentaId(orderFromQuery)
+    requestAnimationFrame(() => {
+      document.getElementById(`pedido-${orderFromQuery}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+    })
+  }, [orderFromQuery, ventas])
 
   const refreshPedidos = useCallback(async () => {
     await reloadPlatformSettings()
@@ -203,11 +229,35 @@ export function PedidosPage() {
     await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(effectiveTenantId), orden.id), patch)
   }
 
+  function pedirCancelacion(orden: McOrdenCatalogo & { id: string }) {
+    setCancelErr(null)
+    setPendingCancel(orden)
+  }
+
+  async function confirmarCancelacion() {
+    if (!pendingCancel) return
+    setCancelBusy(true)
+    setCancelErr(null)
+    try {
+      await cancelCatalogOrder(pendingCancel.id)
+      setPendingCancel(null)
+    } catch (e) {
+      setCancelErr(e instanceof Error ? e.message : 'No se pudo cancelar la venta.')
+    } finally {
+      setCancelBusy(false)
+    }
+  }
+
   async function setEstadoOrden(
     orden: McOrdenCatalogo & { id: string },
     estado: McOrdenCatalogoEstado,
   ) {
     if (!effectiveTenantId) return
+    if (estado === 'cancelado') {
+      if (orden.estado === 'cancelado' && !ordenCatalogoPendienteReembolsoOnePay(orden)) return
+      pedirCancelacion(orden)
+      return
+    }
     if (estado === 'enviado' && !orden.trackingImageUrl) {
       window.alert('Subí la imagen de la guía de rastreo antes de marcar el pedido como Despachado.')
       return
@@ -219,7 +269,7 @@ export function PedidosPage() {
     if (estado === 'enviado') patch.seguimientoDespachoAt = now
     if (estado === 'entregado') patch.seguimientoEntregaAt = now
     await updateDoc(doc(getDb(), mcOrdenesCatalogoCollection(effectiveTenantId), orden.id), patch)
-    if (estado !== 'esperando_pago' && estado !== 'cancelado') {
+    if (estado !== 'esperando_pago') {
       void ensurePosForOrden({ ...orden, estado, ...patch } as McOrdenCatalogo & { id: string })
     }
   }
@@ -292,7 +342,7 @@ export function PedidosPage() {
                 const open = expandedVentaId === o.id
                 const clienteTxt = previewCliente(o)
                 return (
-                  <li key={o.id}>
+                  <li key={o.id} id={`pedido-${o.id}`}>
                     <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-2 sm:py-2">
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         <button
@@ -343,6 +393,9 @@ export function PedidosPage() {
                                       : 'Pendiente cobro'}
                               </span>
                             ) : null}
+                            {o.onepayRefundedAt ? (
+                              <span className="mc-prov-badge mc-prov-badge--ok">Reembolsado OnePay</span>
+                            ) : null}
                             {o.proveedorPoIds?.length ? (
                               <span className="mc-prov-badge mc-prov-badge--drop">
                                 Dropship · {o.proveedorPoIds.length} proveedor
@@ -360,6 +413,7 @@ export function PedidosPage() {
                           className="mc-input max-w-[9.5rem] py-1.5 text-[12px]"
                           value={o.estado}
                           aria-label="Estado del pedido"
+                          disabled={cancelBusy && pendingCancel?.id === o.id}
                           onChange={(e) => void setEstadoOrden(o, e.target.value as McOrdenCatalogoEstado)}
                         >
                           {ESTADOS_ORDEN.map((x) => (
@@ -399,6 +453,16 @@ export function PedidosPage() {
                             />
                           </label>
                         </div>
+                        {o.estado === 'cancelado' && ordenCatalogoPendienteReembolsoOnePay(o) ? (
+                          <button
+                            type="button"
+                            className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-medium text-red-800"
+                            disabled={cancelBusy}
+                            onClick={() => pedirCancelacion(o)}
+                          >
+                            Devolver en OnePay
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                     {open && (
@@ -641,6 +705,27 @@ export function PedidosPage() {
         )}
       </section>
     </div>
+    <CancelarVentaConfirmModal
+      open={pendingCancel != null}
+      busy={cancelBusy}
+      error={cancelErr}
+      totalCop={pendingCancel?.totalCop ?? 0}
+      referencia={pendingCancel?.numeroReferencia ?? null}
+      requiresOnePayRefund={pendingCancel ? ordenCatalogoPendienteReembolsoOnePay(pendingCancel) : false}
+      hasPendingOnePayCheckout={
+        pendingCancel
+          ? ordenCatalogoTieneCobroOnePay(pendingCancel) && !ordenCatalogoPendienteReembolsoOnePay(pendingCancel)
+          : false
+      }
+      paidWithAddi={pendingCancel?.pagoAddi === true}
+      alreadyCancelled={pendingCancel?.estado === 'cancelado'}
+      onConfirm={() => void confirmarCancelacion()}
+      onClose={() => {
+        if (cancelBusy) return
+        setPendingCancel(null)
+        setCancelErr(null)
+      }}
+    />
     </MobilePullToRefresh>
   )
 }

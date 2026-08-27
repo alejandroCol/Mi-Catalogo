@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
+import { McPublicPageLoadingFallback } from '@/components/McPublicPageLoadingFallback'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
@@ -66,9 +67,7 @@ export function PublicPoliciesPage() {
   }, [tenant])
 
   if (loading) {
-    return (
-      <div className="mc-public-catalog-inset py-16 text-center text-sm mc-pc-muted">Cargando…</div>
-    )
+    return <McPublicPageLoadingFallback />
   }
   if (error || !tenant || !slug) {
     return (

@@ -8,6 +8,7 @@ import { formatCop } from '@/lib/formatCop'
 import { mcProductosCollection } from '@/lib/mcCollections'
 import { productoPrecioVenta } from '@/lib/productoDescuento'
 import type { McProducto } from '@/types/mc'
+import { McPublicPageLoadingFallback } from '@/components/McPublicPageLoadingFallback'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import {
@@ -154,11 +155,7 @@ export function PublicWishlistPage() {
   }
 
   if (tenantLoading || loading) {
-    return (
-      <div className="mx-auto flex min-h-[50vh] max-w-5xl items-center justify-center px-4">
-        <p className="text-sm tracking-wide text-[var(--cat-muted)]">Preparando la lista…</p>
-      </div>
-    )
+    return <McPublicPageLoadingFallback />
   }
   if (tenantError) {
     return <p className="py-12 text-center text-sm text-red-600">{tenantError}</p>

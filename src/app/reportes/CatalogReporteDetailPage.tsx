@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { ReportChartPanel, ReportDualChartPanel } from '@/components/reports/ReportChartPanel'
+import { ReportCancellationsPanel } from '@/components/reports/ReportCancellationsPanel'
 import { ReportExportBar } from '@/components/reports/ReportExportBar'
 import { buildProfitKpis, ReportKpiGrid } from '@/components/reports/ReportKpiGrid'
 import { ReportShell, useReportRangeState } from '@/components/reports/ReportShell'
@@ -19,6 +20,7 @@ import { findCatalogReport } from '@/lib/reports/reportDefinitions'
 import {
   catalogLineProfit,
   isOrdenCatalogoVentaValida,
+  summarizeCatalogCancellations,
   summarizeCatalogOrdersProfit,
 } from '@/lib/reports/profitMetrics'
 import { reportFormatRangeLabel } from '@/lib/reports/reportDateRange'
@@ -57,6 +59,7 @@ export function CatalogReporteDetailPage() {
     () => summarizeCatalogOrdersProfit(ventasValidas, costMap),
     [ventasValidas, costMap],
   )
+  const cancellations = useMemo(() => summarizeCatalogCancellations(ordenes), [ordenes])
 
   const byDay = useMemo(() => aggregateCatalogByDay(ventasValidas), [ventasValidas])
   const byHour = useMemo(() => aggregateCatalogByHour(ventasValidas), [ventasValidas])
@@ -178,6 +181,7 @@ export function CatalogReporteDetailPage() {
               calcular el margen completo. Los productos existentes siguen funcionando sin cambios.
             </p>
           ) : null}
+          <ReportCancellationsPanel ordenes={ordenes} summary={cancellations} loading={loading} />
         </>
       )}
 

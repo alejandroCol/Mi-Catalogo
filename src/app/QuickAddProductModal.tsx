@@ -21,7 +21,7 @@ import {
   quickAddFormHasDraftContent,
   type QuickAddFormSnapshot,
 } from '@/lib/productoFormDraft'
-import { uploadProductoImagenes, uploadVarianteImagen, type ProductoImagenDraft } from '@/lib/productoImagenes'
+import { reviveImagenDraftPreviews, uploadProductoImagenes, uploadVarianteImagen, type ProductoImagenDraft } from '@/lib/productoImagenes'
 import {
   buildRopaStockPayload,
   ensureSkuDraftMatrix,
@@ -60,7 +60,12 @@ import { resolveProductoReferencia } from '@/lib/productoReferencia'
 import {
   categoriasNavFromProductForm,
   clearQuickAddDraft,
+  clearQuickAddMediaCache,
+  imagenesFromSerializedDraft,
+  loadQuickAddMediaCache,
   saveQuickAddDraft,
+  saveQuickAddMediaCache,
+  serializeImagenesForDraft,
   type QuickAddProductDraft,
 } from '@/lib/productFormCategoriaNav'
 
@@ -116,8 +121,16 @@ export function QuickAddProductModal({
     if (tipo === 'zapatos') return createCurvaZapatosDraft()
     return createCurvaTallasDraft()
   })
-  const [imagenes, setImagenes] = useState<ProductoImagenDraft[]>([])
-  const [coverId, setCoverId] = useState<string | null>(null)
+  const [imagenes, setImagenes] = useState<ProductoImagenDraft[]>(() => {
+    const media = loadQuickAddMediaCache()
+    if (media?.imagenes.length) return reviveImagenDraftPreviews(media.imagenes)
+    return imagenesFromSerializedDraft(initialDraft).items
+  })
+  const [coverId, setCoverId] = useState<string | null>(() => {
+    const media = loadQuickAddMediaCache()
+    if (media?.imagenes.length) return media.coverId
+    return imagenesFromSerializedDraft(initialDraft).coverId
+  })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [marcarNovedad, setMarcarNovedad] = useState(initialDraft?.marcarNovedad ?? false)
@@ -138,12 +151,20 @@ export function QuickAddProductModal({
         valor: '',
       },
   )
-  const [variantes, setVariantes] = useState<VarianteDraftConArchivo[]>(
-    () => initialDraft?.variantes ?? [],
-  )
-  const [coloresZapatos, setColoresZapatos] = useState<ColorZapatoDraft[]>(
-    () => initialDraft?.coloresZapatos ?? [],
-  )
+  const [variantes, setVariantes] = useState<VarianteDraftConArchivo[]>(() => {
+    const media = loadQuickAddMediaCache()
+    return media?.variantes ?? initialDraft?.variantes ?? []
+  })
+  const [coloresZapatos, setColoresZapatos] = useState<ColorZapatoDraft[]>(() => {
+    const media = loadQuickAddMediaCache()
+    if (media?.coloresZapatos.length) {
+      return media.coloresZapatos.map((c) => ({
+        ...c,
+        imagenes: reviveImagenDraftPreviews(c.imagenes),
+      }))
+    }
+    return initialDraft?.coloresZapatos ?? []
+  })
   const [imagenPrincipalColorId, setImagenPrincipalColorId] = useState<string | null>(
     () => initialDraft?.imagenPrincipalColorId ?? resolveImagenPrincipalColorId(initialDraft?.coloresZapatos ?? [], null),
   )
@@ -219,6 +240,7 @@ export function QuickAddProductModal({
     nombre,
     descripcion,
     precio,
+    precioCosto,
     stock,
     tallas,
     marcarNovedad,
@@ -232,6 +254,13 @@ export function QuickAddProductModal({
   ])
 
   const persistSessionDraft = useCallback(() => {
+    saveQuickAddMediaCache({
+      imagenes,
+      coverId,
+      variantes,
+      coloresZapatos,
+    })
+    const serializedImgs = serializeImagenesForDraft(imagenes, coverId)
     saveQuickAddDraft({
       step,
       tipoProducto,
@@ -253,6 +282,8 @@ export function QuickAddProductModal({
       coloresZapatos: serializeColoresZapatosForDraft(coloresZapatos),
       imagenPrincipalColorId,
       categoriaIds,
+      imagenes: serializedImgs.imagenes,
+      coverId: serializedImgs.coverId,
       ...(draftProductIdRef.current ? { draftProductId: draftProductIdRef.current } : {}),
       ...(referenciaAsignada || referenciaPreview
         ? { referencia: referenciaAsignada || referenciaPreview }
@@ -265,11 +296,14 @@ export function QuickAddProductModal({
     tallaModo,
     coloresZapatos,
     imagenPrincipalColorId,
+    imagenes,
+    coverId,
     nombre,
     referenciaAsignada,
     referenciaPreview,
     descripcion,
     precio,
+    precioCosto,
     stock,
     tallas,
     marcarNovedad,
@@ -278,6 +312,7 @@ export function QuickAddProductModal({
     mostrarStockCatalogo,
     descuento,
     variantes,
+    skuMatrix,
     categoriaIds,
   ])
 
@@ -352,6 +387,7 @@ export function QuickAddProductModal({
 
   function handlePublishSuccess() {
     clearQuickAddDraft()
+    clearQuickAddMediaCache()
     onClose()
   }
 
@@ -523,10 +559,10 @@ export function QuickAddProductModal({
               ...(esZapatosForm && principalColorId ? { imagenPrincipalColorId: principalColorId } : {}),
             }
           : {}),
-        ...(marcarNovedad ? { marcarNovedad: true } : {}),
-        ...(mostrarDescargaImagen ? { mostrarDescargaImagen: true } : {}),
-        ...(mostrarBotonDocena ? { mostrarBotonDocena: true } : {}),
-        ...(mostrarStockCatalogo ? { mostrarStockCatalogo: true } : {}),
+        marcarNovedad,
+        mostrarDescargaImagen,
+        mostrarBotonDocena,
+        mostrarStockCatalogo,
         ...descParsed.fields,
         ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
         ...(categoriaIds.length > 0 ? { categoriaIds } : {}),
@@ -558,10 +594,10 @@ export function QuickAddProductModal({
               ...(esZapatosForm && principalColorId ? { imagenPrincipalColorId: principalColorId } : {}),
             }
           : {}),
-            ...(marcarNovedad ? { marcarNovedad: true } : {}),
-            ...(mostrarDescargaImagen ? { mostrarDescargaImagen: true } : {}),
-            ...(mostrarBotonDocena ? { mostrarBotonDocena: true } : {}),
-            ...(mostrarStockCatalogo ? { mostrarStockCatalogo: true } : {}),
+            marcarNovedad,
+            mostrarDescargaImagen,
+            mostrarBotonDocena,
+            mostrarStockCatalogo,
             ...descParsed.fields,
             ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
             ...(categoriaIds.length > 0 ? { categoriaIds } : {}),
@@ -934,7 +970,7 @@ export function QuickAddProductModal({
                     onChange={setMostrarStockCatalogo}
                     disabled={busy}
                     title="Mostrar cantidad en stock"
-                    description="En la ficha pública se ve cuántas unidades hay disponibles."
+                    description="En el catálogo y la ficha del producto se ve cuántas unidades hay disponibles."
                   />
                 </div>
               </ProductoFormSection>

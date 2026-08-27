@@ -2,6 +2,7 @@ import { getAuth } from 'firebase-admin/auth'
 import type { Firestore } from 'firebase-admin/firestore'
 import { markCarritoIniciadoAfterOrderPaid } from '../carritoIniciado.js'
 import {
+  catalogSaleOrderSliceFromData,
   resolveEmailCatalogThemeColors,
   sendCatalogCustomerPurchaseConfirmationEmail,
   sendCatalogSalePaidEmail,
@@ -11,18 +12,11 @@ import { MC_RESEND_FROM } from '../mcResend.js'
 import { buildStorePublicUrl } from '../storePublicUrl.js'
 
 type OrderEmailSlice = {
-  totalCop?: number
   ventaNotificacionEmailSentAt?: number
   ventaClienteConfirmacionEmailSentAt?: number
-  lineas?: unknown
-  clienteNombre?: string
-  clienteTelefono?: string
-  clienteEmail?: string
-  envioCiudad?: string
-  envioDireccion?: string
-  notaCliente?: string
   carritoIniciadoId?: string
   cuponCodigo?: string
+  clienteEmail?: string
 }
 
 /**
@@ -55,7 +49,8 @@ export async function confirmCatalogOrderPaid(params: {
   }
 
   const oSnap = await oref.get()
-  const o = (oSnap.data() || {}) as OrderEmailSlice
+  const oRaw = (oSnap.data() || {}) as Record<string, unknown>
+  const o = oRaw as OrderEmailSlice
 
   const oCarritoId = typeof o.carritoIniciadoId === 'string' ? o.carritoIniciadoId.trim() : ''
   if (oCarritoId) {
@@ -112,13 +107,8 @@ export async function confirmCatalogOrderPaid(params: {
       }
     }
 
-    const lineasRaw = Array.isArray(o.lineas) ? o.lineas : []
-    const lineas = lineasRaw as {
-      nombre?: string
-      cantidad?: number
-      precioUnitarioCop?: number
-    }[]
-    const totalCop = typeof o.totalCop === 'number' ? o.totalCop : 0
+    const sale = catalogSaleOrderSliceFromData(oRaw)
+    const pedidosUrl = `${origin}/app/pedidos?o=${encodeURIComponent(orderId)}`
     const emailPatch: {
       ventaNotificacionEmailSentAt?: number
       ventaClienteConfirmacionEmailSentAt?: number
@@ -131,15 +121,9 @@ export async function confirmCatalogOrderPaid(params: {
         to: toEmail,
         nombreTienda,
         orderId,
-        totalCop,
-        lineas,
         themeColors,
-        clienteNombre: o.clienteNombre,
-        clienteTelefono: o.clienteTelefono,
-        clienteEmail: o.clienteEmail,
-        envioCiudad: o.envioCiudad,
-        envioDireccion: o.envioDireccion,
-        notaCliente: o.notaCliente,
+        pedidosUrl,
+        ...sale,
       })
       if (sent.ok) emailPatch.ventaNotificacionEmailSentAt = Date.now()
       else console.error('[confirmCatalogOrderPaid] Resend dueño:', sent.error)
@@ -152,15 +136,16 @@ export async function confirmCatalogOrderPaid(params: {
         to: ce,
         nombreTienda,
         orderId,
-        totalCop,
-        lineas,
+        totalCop: sale.totalCop,
+        lineas: sale.lineas,
         themeColors,
-        clienteNombre: o.clienteNombre,
-        clienteTelefono: o.clienteTelefono,
-        clienteEmail: o.clienteEmail,
-        envioCiudad: o.envioCiudad,
-        envioDireccion: o.envioDireccion,
-        notaCliente: o.notaCliente,
+        clienteNombre: sale.clienteNombre,
+        clienteTelefono: sale.clienteTelefono,
+        clienteEmail: sale.clienteEmail,
+        envioCiudad: sale.envioCiudad,
+        envioDireccion: sale.envioDireccion,
+        notaCliente: sale.notaCliente,
+        numeroReferencia: sale.numeroReferencia,
         catalogUrl,
         seguimientoUrl,
       })

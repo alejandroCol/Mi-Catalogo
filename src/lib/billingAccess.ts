@@ -39,9 +39,9 @@ export function hasLiveFeatureAccess(tenant: McTenant | null | undefined): boole
   return hasActivePaidSubscription(tenant)
 }
 
-/** Solo Master con suscripción activa: Drop Room + Pasillo / Showroom. */
+/** Expert o Master con suscripción activa: Drop Room + Pasillo / Showroom. */
 export function hasShowroomFeatureAccess(tenant: McTenant | null | undefined): boolean {
-  return hasLiveFeatureAccess(tenant)
+  return hasExpertFeatureAccess(tenant)
 }
 
 /** Expert o Master con suscripción activa: landing interactiva (carrusel 3D). */

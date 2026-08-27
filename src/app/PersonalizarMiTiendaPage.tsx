@@ -32,7 +32,7 @@ const TILES: PersonalizarTile[] = [
   {
     id: 'showroom',
     title: 'Drop Room + Pasillo',
-    description: 'Colección inmersiva con cuenta regresiva y recorrido tipo boutique (Master)',
+    description: 'Colección inmersiva con cuenta regresiva y recorrido tipo boutique',
     to: '/app/cuenta/showroom',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
@@ -135,7 +135,7 @@ const TILES: PersonalizarTile[] = [
 
 export function PersonalizarMiTiendaPage() {
   const { tenant } = useMcAuth()
-  const masterShowroom = hasShowroomFeatureAccess(tenant)
+  const expertShowroom = hasShowroomFeatureAccess(tenant)
   const canInteractiveLanding = hasInteractiveLandingAccess(tenant)
 
   return (
@@ -153,7 +153,7 @@ export function PersonalizarMiTiendaPage() {
         aria-label="Personalizar tienda"
       >
         {TILES.map((tile) => {
-          const lockedShowroom = tile.id === 'showroom' && !masterShowroom
+          const lockedShowroom = tile.id === 'showroom' && !expertShowroom
           const bannerTitle = tile.id === 'banner' && canInteractiveLanding ? 'Landing al entrar' : tile.title
           const bannerDescription =
             tile.id === 'banner' && canInteractiveLanding
@@ -172,11 +172,6 @@ export function PersonalizarMiTiendaPage() {
                 <span className="mc-personalizar-tile__icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[var(--cat-text)]">
                   {tile.icon}
                 </span>
-                {tile.id === 'showroom' ? (
-                  <span className="rounded-full border border-[color-mix(in_srgb,#c5a367_40%,transparent)] bg-[color-mix(in_srgb,#c5a367_12%,white)] px-2 py-0.5 text-[10px] font-semibold tracking-wide text-[#8b6d42]">
-                    MASTER
-                  </span>
-                ) : null}
               </div>
               <div className="mt-4 flex items-end justify-between gap-3">
                 <div className="min-w-0">
@@ -185,7 +180,7 @@ export function PersonalizarMiTiendaPage() {
                   </p>
                   <p className="ios-footnote mt-1 line-clamp-2 leading-relaxed text-[var(--cat-muted)]">
                     {lockedShowroom
-                      ? 'Disponible con plan Master. Activá Master para configurar el pasillo.'
+                      ? 'Disponible con plan Expert. Activá Expert para configurar el pasillo.'
                       : bannerDescription}
                   </p>
                 </div>

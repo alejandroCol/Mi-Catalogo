@@ -388,6 +388,31 @@ export function IconChartBars({ size, className }: McIconProps) {
   )
 }
 
+/** POS / caja: terminal de cobro */
+export function IconPosTerminal({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <rect
+        x="5.25"
+        y="3.5"
+        width="13.5"
+        height="11.5"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth={stroke}
+      />
+      <path d="M8 7h8M8 10h5.5" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <path
+        d="M7.5 15v1.75A2.75 2.75 0 0 0 10.25 19.5h3.5A2.75 2.75 0 0 0 16.5 16.75V15"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <path d="M10 17.25h4" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+    </Svg>
+  )
+}
+
 /** Buscar */
 export function IconMagnifier({ size, className }: McIconProps) {
   return (

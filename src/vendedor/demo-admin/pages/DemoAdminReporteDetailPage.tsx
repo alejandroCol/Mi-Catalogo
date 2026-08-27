@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { ReportChartPanel, ReportDualChartPanel } from '@/components/reports/ReportChartPanel'
+import { ReportCancellationsPanel } from '@/components/reports/ReportCancellationsPanel'
 import { ReportExportBar } from '@/components/reports/ReportExportBar'
 import { buildProfitKpis, ReportKpiGrid } from '@/components/reports/ReportKpiGrid'
 import { ReportShell, useReportRangeState } from '@/components/reports/ReportShell'
@@ -15,6 +16,7 @@ import { findCatalogReport } from '@/lib/reports/reportDefinitions'
 import {
   catalogLineProfit,
   isOrdenCatalogoVentaValida,
+  summarizeCatalogCancellations,
   summarizeCatalogOrdersProfit,
   type ProductCostLookup,
 } from '@/lib/reports/profitMetrics'
@@ -68,6 +70,7 @@ export function DemoAdminReporteDetailPage() {
     () => summarizeCatalogOrdersProfit(ventasValidas, costMap),
     [ventasValidas, costMap],
   )
+  const cancellations = useMemo(() => summarizeCatalogCancellations(ordenes), [ordenes])
 
   const byDay = useMemo(() => aggregateCatalogByDay(ventasValidas), [ventasValidas])
   const byHour = useMemo(() => aggregateCatalogByHour(ventasValidas), [ventasValidas])
@@ -187,6 +190,7 @@ export function DemoAdminReporteDetailPage() {
               type="bar"
             />
           </div>
+          <ReportCancellationsPanel ordenes={ordenes} summary={cancellations} />
         </>
       )}
 

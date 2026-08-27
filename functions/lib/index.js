@@ -8,7 +8,7 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import express from 'express';
 import { markCarritoIniciadoAfterOrderPaid } from './carritoIniciado.js';
 import { resolveCheckoutEnvioCop } from './shipping/resolveCheckoutEnvio.js';
-import { resolveEmailCatalogThemeColors, sendCatalogCustomerPurchaseConfirmationEmail, sendCatalogSalePaidEmail, } from './catalogSaleEmail.js';
+import { catalogSaleOrderSliceFromData, resolveEmailCatalogThemeColors, sendCatalogCustomerPurchaseConfirmationEmail, sendCatalogSalePaidEmail, } from './catalogSaleEmail.js';
 import { AUTH_VERIFY_COOLDOWN_MS, sendVerificationEmailWithResend } from './authVerificationEmail.js';
 import { mcSendCarritoRecuperacionEmailHandler } from './carritoRecuperacionEmail.js';
 import { buildStorePublicUrl, isReservedStoreSlug } from './storePublicUrl.js';
@@ -2343,9 +2343,8 @@ webhookApp.post('/', express.json({
                             /* usuario inexistente */
                         }
                     }
-                    const lineasRaw = Array.isArray(o.lineas) ? o.lineas : [];
-                    const lineas = lineasRaw;
-                    const totalCop = typeof o.totalCop === 'number' ? o.totalCop : 0;
+                    const sale = catalogSaleOrderSliceFromData(o, isPlatform ? 'Pasarela Mi Catálogo' : 'Pago en línea');
+                    const pedidosUrl = `${origin}/app/pedidos?o=${encodeURIComponent(orderId)}`;
                     const emailPatch = {};
                     if (pendingOwner && toEmail) {
                         const sent = await sendCatalogSalePaidEmail({
@@ -2354,15 +2353,9 @@ webhookApp.post('/', express.json({
                             to: toEmail,
                             nombreTienda,
                             orderId,
-                            totalCop,
-                            lineas,
                             themeColors,
-                            clienteNombre: o.clienteNombre,
-                            clienteTelefono: o.clienteTelefono,
-                            clienteEmail: o.clienteEmail,
-                            envioCiudad: o.envioCiudad,
-                            envioDireccion: o.envioDireccion,
-                            notaCliente: o.notaCliente,
+                            pedidosUrl,
+                            ...sale,
                         });
                         if (sent.ok) {
                             emailPatch.ventaNotificacionEmailSentAt = Date.now();
@@ -2378,15 +2371,16 @@ webhookApp.post('/', express.json({
                             to: ce,
                             nombreTienda,
                             orderId,
-                            totalCop,
-                            lineas,
+                            totalCop: sale.totalCop,
+                            lineas: sale.lineas,
                             themeColors,
-                            clienteNombre: o.clienteNombre,
-                            clienteTelefono: o.clienteTelefono,
-                            clienteEmail: o.clienteEmail,
-                            envioCiudad: o.envioCiudad,
-                            envioDireccion: o.envioDireccion,
-                            notaCliente: o.notaCliente,
+                            clienteNombre: sale.clienteNombre,
+                            clienteTelefono: sale.clienteTelefono,
+                            clienteEmail: sale.clienteEmail,
+                            envioCiudad: sale.envioCiudad,
+                            envioDireccion: sale.envioDireccion,
+                            notaCliente: sale.notaCliente,
+                            numeroReferencia: sale.numeroReferencia,
                             catalogUrl,
                             seguimientoUrl,
                         });
@@ -2434,6 +2428,7 @@ export { mcSeedReportDemoData } from './reportDemoSeed.js';
 export { mcCatalogPublish, mcCatalogUnpublish, mcBackfillCatalogPublishGrandfather, } from './catalogPublishHandlers.js';
 export { mcChangeStoreSlug } from './storeIdentityHandlers.js';
 export { mcLiveCreateSession, mcLiveUpdateProducts, mcLiveStartSession, mcLiveEndSession, mcLivePinProduct, mcLiveSendChat, mcLiveJoinViewer, mcLiveRecordPurchase, mcLiveMuxWebhook, mcLiveGetBrowserBroadcastConfig, mcLiveStartBrowserBroadcast, mcLiveStartBrowserBroadcastEgress, mcLiveHostDisconnect, } from './live/handlers.js';
+export { mcCancelCatalogOrder } from './cancelCatalogOrder.js';
 export { mcShowroomJoinWaitlist } from './showroom/handlers.js';
 export { mcAddiLinkMerchant, mcAddiUnlinkMerchant, mcAddiSetEnabled, mcAddiStartCatalogCheckout, mcAddiCheckoutStatus, mcAddiCatalogWebhook, } from './addi/handlers.js';
 export { mcBillingGetSdkContext, mcBillingEnsureCustomer, mcBillingAddCard, mcBillingAddNequi, mcBillingListNequiBanks, mcBillingValidateNequi, mcBillingCheckNequiReady, mcBillingCompleteActivation, mcBillingPaymentMethods, mcBillingGetSubscriptionState, mcBillingListPaymentHistoryCallable, mcBillingCancelAutoRenewCallable, mcBillingSetDefaultPaymentMethod, mcBillingValidateDiscountCode, mcBillingCron, };

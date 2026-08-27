@@ -13,6 +13,7 @@ import { parseStoreSlugFromHostname, resolveAppSurface } from '@/lib/storePublic
 import { LandingPage } from '@/landing/LandingPage'
 import { LegacyCatalogGateway } from '@/public/LegacyCatalogGateway'
 import { PublicStoreProvider } from '@/public/PublicStoreContext'
+import { McPublicPageLoadingFallback } from '@/components/McPublicPageLoadingFallback'
 import { McPageLoadingFallback } from '@/components/McPageLoadingFallback'
 import { RequireMcPosAccess } from '@/pos/RequireMcPosAccess'
 import { RequireMcPosAdmin } from '@/pos/RequireMcPosAdmin'
@@ -481,6 +482,11 @@ const PosVendorMovimientosPage = lazy(() =>
 )
 
 function RouteFallback() {
+  const storeHost =
+    typeof window !== 'undefined' &&
+    resolveAppSurface() === 'store' &&
+    Boolean(parseStoreSlugFromHostname(window.location.hostname))
+  if (storeHost) return <McPublicPageLoadingFallback />
   return <McPageLoadingFallback />
 }
 

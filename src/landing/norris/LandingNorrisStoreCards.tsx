@@ -6,11 +6,15 @@ import { NorrisStoreCard } from '@/landing/norris/NorrisStoreCard'
 
 type Props = NorrisStoreScrollState
 
-export function LandingNorrisStoreCards({ morph, slideIndex, stageRect, activeIndex }: Props) {
+export function LandingNorrisStoreCards({ morph, slideIndex, storeSlot, activeIndex, cardsVisible }: Props) {
   const portalRoot = typeof document !== 'undefined' ? document.querySelector('.mc-norris') : null
 
+  if (!cardsVisible) {
+    return null
+  }
+
   const nodes = norrisPinnedStores.map((store, i) => {
-    const layout = getStoreCardLayout(i, morph, slideIndex, stageRect)
+    const layout = getStoreCardLayout(i, morph, slideIndex, storeSlot)
     const card = (
       <NorrisStoreCard
         key={store.id}
@@ -30,22 +34,5 @@ export function LandingNorrisStoreCards({ morph, slideIndex, stageRect, activeIn
     return card
   })
 
-  const fade =
-    morph < 0.45 && portalRoot
-      ? createPortal(
-          <div
-            className="mc-norris-store-peek-fade"
-            style={{ opacity: Math.max(0, 1 - morph * 2.8) }}
-            aria-hidden
-          />,
-          portalRoot,
-        )
-      : null
-
-  return (
-    <>
-      {fade}
-      {nodes}
-    </>
-  )
+  return <>{nodes}</>
 }

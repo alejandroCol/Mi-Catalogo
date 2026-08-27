@@ -34,12 +34,15 @@ import { categoriaEtiquetaProducto } from '@/lib/catalogCategorias'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 import {
   clearQuickAddDraft,
+  clearQuickAddMediaCache,
   INVENTARIO_PATH,
   loadQuickAddDraft,
   mergeCategoriaId,
+  serializeImagenesForDraft,
   type InventarioResumeState,
   type QuickAddProductDraft,
 } from '@/lib/productFormCategoriaNav'
+import { imagenDraftFromProducto } from '@/lib/productoImagenes'
 
 export function InventarioPage() {
   const { tenant, effectiveTenantId } = useMcAuth()
@@ -116,6 +119,15 @@ export function InventarioPage() {
         if (newCategoriaId) {
           draft.categoriaIds = mergeCategoriaId(draft.categoriaIds, newCategoriaId)
         }
+        if (!draft.imagenes?.length && draft.draftProductId) {
+          const product = rows.find((p) => p.id === draft.draftProductId)
+          if (product) {
+            const fromProd = imagenDraftFromProducto(product)
+            const serialized = serializeImagenesForDraft(fromProd.items, fromProd.coverId)
+            draft.imagenes = serialized.imagenes
+            draft.coverId = serialized.coverId
+          }
+        }
         setQuickAddDraft(draft)
         setModalOpen(true)
       }
@@ -180,7 +192,12 @@ export function InventarioPage() {
     }
     setLimitHint(null)
     const sessionDraft = loadQuickAddDraft()
-    setQuickAddDraft(sessionDraft?.step === 'form' ? sessionDraft : null)
+    if (sessionDraft?.step === 'form') {
+      setQuickAddDraft(sessionDraft)
+    } else {
+      clearQuickAddMediaCache()
+      setQuickAddDraft(null)
+    }
     setModalOpen(true)
   }
 

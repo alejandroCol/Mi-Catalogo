@@ -26,6 +26,7 @@ const FONT_STACKS: Record<McCatalogFontId, string> = {
   fredoka: "'Fredoka', 'Segoe UI Rounded', 'Hiragino Maru Gothic ProN', ui-rounded, system-ui, sans-serif",
   quicksand: "'Quicksand', ui-sans-serif, system-ui, sans-serif",
   'dm-serif': "'DM Serif Display', Georgia, 'Times New Roman', serif",
+  syne: "'Syne', ui-sans-serif, system-ui, sans-serif",
 }
 
 export const CATALOG_FONT_IDS: McCatalogFontId[] = [
@@ -34,6 +35,7 @@ export const CATALOG_FONT_IDS: McCatalogFontId[] = [
   'fredoka',
   'quicksand',
   'dm-serif',
+  'syne',
 ]
 
 export const CATALOG_FONT_LABELS: Record<McCatalogFontId, string> = {
@@ -42,6 +44,7 @@ export const CATALOG_FONT_LABELS: Record<McCatalogFontId, string> = {
   fredoka: 'Divertida',
   quicksand: 'Suave',
   'dm-serif': 'Clásica',
+  syne: 'Pasarela',
 }
 
 export const CATALOG_FONT_TAGLINES: Record<McCatalogFontId, string> = {
@@ -50,6 +53,7 @@ export const CATALOG_FONT_TAGLINES: Record<McCatalogFontId, string> = {
   fredoka: 'Niños, juguetes y color',
   quicksand: 'Boutique, loungewear y detalles',
   'dm-serif': 'Tradicional, elegante y atemporal',
+  syne: 'Drops, fashion y llamados a la acción',
 }
 
 /** Texto de muestra en el selector (título + descripción). */
@@ -59,6 +63,7 @@ export const CATALOG_FONT_SAMPLES: Record<McCatalogFontId, { title: string; body
   fredoka: { title: 'Tu tienda', body: '¡Diversión para todos!' },
   quicksand: { title: 'Tu tienda', body: 'Comodidad y estilo' },
   'dm-serif': { title: 'Tu tienda', body: 'Calidad que perdura' },
+  syne: { title: 'Tu tienda', body: 'El drop empieza ahora' },
 }
 
 export function catalogFontStack(id: McCatalogFontId): string {

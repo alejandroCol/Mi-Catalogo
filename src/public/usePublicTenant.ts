@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
+import { cacheCatalogBrandLogo } from '@/lib/catalogBrandLogoCache'
+import { catalogHeaderLogoIsRound } from '@/lib/catalogHeaderLayout'
 import { isCatalogPubliclyAccessible } from '@/lib/catalogPublish'
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 
@@ -53,6 +55,7 @@ export function usePublicTenant(slug: string | undefined) {
         }
         setTenantId(tid)
         setTenant(t)
+        cacheCatalogBrandLogo(slug, t.storeLogoUrl, catalogHeaderLogoIsRound(t))
         setPlatformSettings(ps.exists() ? (ps.data() as McPlatformSettings) : {})
         setError(null)
       } catch (err) {

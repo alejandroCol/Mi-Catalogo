@@ -19,15 +19,10 @@ export function NorrisStoreCard({
   eager?: boolean
 }) {
   const enter = useNorrisStoreEnter(index, morph)
-  const peekEnter = morph < 0.08
-  const enterY = peekEnter ? Math.round((1 - enter) * 42) : 0
-  const enterScale = peekEnter ? 0.88 + enter * 0.12 : 1
-  const opacity = layout.opacity * (peekEnter ? 0.35 + enter * 0.65 : 1)
+  const atLoad = morph < 0.02
+  const enterY = atLoad ? Math.round((1 - enter) * 28) : 0
 
-  const transform =
-    enterY || enterScale !== 1
-      ? `${layout.transform} translate3d(0, ${enterY}px, 0) scale(${enterScale})`
-      : layout.transform
+  const transform = `${layout.transform} translate3d(0, ${enterY}px, 0)`
 
   return (
     <article
@@ -38,8 +33,9 @@ export function NorrisStoreCard({
         top: 0,
         width: layout.width,
         transform,
-        opacity,
+        opacity: layout.opacity,
         zIndex: layout.zIndex,
+        pointerEvents: 'none',
       }}
     >
       <img

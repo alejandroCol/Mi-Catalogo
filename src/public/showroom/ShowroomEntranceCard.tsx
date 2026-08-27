@@ -1,15 +1,16 @@
-import type { CSSProperties } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
-import { catalogFontStack } from '@/lib/catalogFonts'
 import {
   isCollectionShowroomPubliclyActive,
   isShowroomDropLocked,
   resolveCollectionShowroom,
   resolveShowroomCopy,
   resolveShowroomMediaType,
+  showroomDisplayFontStyle,
 } from '@/lib/collectionShowroom'
 import { usePublicStore } from '@/public/PublicStoreContext'
+import { ShowroomCountdown } from '@/public/showroom/ShowroomCountdown'
 import type { McCollectionShowroom, McTenant } from '@/types/mc'
 
 type EntranceViewProps = {
@@ -30,7 +31,10 @@ export function ShowroomEntranceView({
   to,
 }: EntranceViewProps) {
   const copy = resolveShowroomCopy(showroom)
-  const locked = lockedProp ?? isShowroomDropLocked(showroom)
+  const [forceOpen, setForceOpen] = useState(false)
+  const locked = (lockedProp ?? isShowroomDropLocked(showroom)) && !forceOpen
+  const dropAtMs = typeof showroom.dropAtMs === 'number' ? showroom.dropAtMs : null
+  const showBannerCountdown = locked && dropAtMs != null
   const mediaType = resolveShowroomMediaType(showroom)
   const image =
     mediaType === 'video'
@@ -41,10 +45,10 @@ export function ShowroomEntranceView({
   const eyebrow = locked ? copy.teaserEyebrow : copy.homeEyebrow
   const title = locked ? copy.teaserHeadline : copy.homeHeadline
   const sub = locked ? copy.teaserSubheadline : copy.homeSubheadline
-  const cta = locked ? 'Ver cuenta regresiva' : copy.homeCtaLabel
+  const cta = copy.homeCtaLabel
   const layout = copy.homeLayout
   const fullWidth = copy.homeFullWidth
-  const fontStack = catalogFontStack(copy.homeFontId)
+  const fontStyle = showroomDisplayFontStyle(showroom)
 
   const body = (
     <>
@@ -68,10 +72,20 @@ export function ShowroomEntranceView({
           </div>
           <h2 className="mc-showroom-entrance__title">{title}</h2>
           {sub ? <p className="mc-showroom-entrance__sub">{sub}</p> : null}
-          <p className="mc-showroom-entrance__cta">
-            <span>{cta}</span>
-            <span className="mc-showroom-entrance__cta-line" aria-hidden />
-          </p>
+          {showBannerCountdown ? (
+            <div className="mc-showroom-entrance__timer">
+              <ShowroomCountdown
+                targetMs={dropAtMs}
+                variant="banner"
+                onComplete={() => setForceOpen(true)}
+              />
+            </div>
+          ) : (
+            <p className="mc-showroom-entrance__cta">
+              <span>{cta}</span>
+              <span className="mc-showroom-entrance__cta-line" aria-hidden />
+            </p>
+          )}
         </div>
       </div>
     </>
@@ -82,10 +96,11 @@ export function ShowroomEntranceView({
     `mc-showroom-entrance--${layout}`,
     fullWidth && 'mc-showroom-entrance--full',
     preview && 'mc-showroom-entrance--preview',
+    showBannerCountdown && 'mc-showroom-entrance--locked',
     className,
   )
 
-  const style = { '--sr-home-display': fontStack } as CSSProperties
+  const style = fontStyle
 
   if (preview || !to) {
     return (

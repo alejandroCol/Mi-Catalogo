@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { useCallback, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import clsx from 'clsx'
 import {
   CatalogoSimpleCartProvider,
@@ -18,7 +18,11 @@ import {
   resolvePublicCatalogTheme,
 } from '@/lib/catalogTheme'
 import { resolveAnnouncementBar } from '@/lib/announcementBar'
-import { resolveCatalogHeaderLayout } from '@/lib/catalogHeaderLayout'
+import {
+  catalogHeaderLogoIsRound,
+  catalogHeaderShowsStoreName,
+  resolveCatalogHeaderLayout,
+} from '@/lib/catalogHeaderLayout'
 import { storeAboutVisible, storeSocialFooterVisible } from '@/lib/storeBrandFooter'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 import { CatalogAnnouncementBar } from '@/public/CatalogAnnouncementBar'
@@ -31,6 +35,9 @@ import { usePublicCatalogVisitTracking } from '@/public/usePublicCatalogAnalytic
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { McCatalogModal } from '@/public/McCatalogModal'
 import { McOutletBoundary } from '@/components/McOutletBoundary'
+import { McPublicPageLoadingFallback } from '@/components/McPublicPageLoadingFallback'
+import { CatalogBrandPulseProvider } from '@/public/CatalogBrandPulseLoader'
+import { cacheCatalogBrandLogo } from '@/lib/catalogBrandLogoCache'
 import { CatalogFavoritesProvider, useCatalogFavorites } from '@/public/CatalogFavoritesContext'
 import { CatalogCartShippingEstimator } from '@/public/CatalogCartShippingEstimator'
 import { CatalogLiveNowBadge } from '@/public/CatalogLiveNowBadge'
@@ -44,7 +51,7 @@ function CartChrome() {
   const isLiveRoute = pathname.includes('/live/')
   const isShowroomRoute = pathname.includes('/coleccion')
   const isImmersiveRoute = isLiveRoute || isShowroomRoute
-  const { tenant, platformSettings, isPreview } = useCatalogTenant()
+  const { tenant, platformSettings, isPreview, loading: tenantLoading } = useCatalogTenant()
   const {
     lines,
     totalPiezas,
@@ -85,7 +92,7 @@ function CartChrome() {
     <>
       {isImmersiveRoute ? (
         <McOutletBoundary variant="public">
-          <Outlet />
+          {tenantLoading && !tenant ? <McPublicPageLoadingFallback /> : <Outlet />}
         </McOutletBoundary>
       ) : (
         <>
@@ -120,13 +127,13 @@ function CartChrome() {
           </div>
         ) : null}
         <McOutletBoundary variant="public">
-          <Outlet />
+          {tenantLoading && !tenant ? <McPublicPageLoadingFallback /> : <Outlet />}
         </McOutletBoundary>
       </main>
 
       {tenant && storeAboutVisible(tenant) ? <StoreBrandAboutSection tenant={tenant} /> : null}
 
-      <footer className="mt-auto border-t mc-pc-border py-6 sm:py-8">
+      <footer className="mc-public-catalog-footer mt-auto border-t mc-pc-border py-6 sm:py-8">
         <div className="mc-public-catalog-inset flex flex-col items-center gap-5">
           {tenant && storeSocialFooterVisible(tenant) ? (
             <StoreBrandSocialLinks tenant={tenant} />
@@ -429,11 +436,17 @@ export function PublicCatalogLayout() {
   const { preset } = resolvePublicCatalogTheme(tenant)
   const hasAnnouncementBar = resolveAnnouncementBar(tenant) != null
   const headerLayout = resolveCatalogHeaderLayout(tenant)
+  const headerLogoOnly = Boolean(tenant?.storeLogoUrl) && !catalogHeaderShowsStoreName(tenant)
   const pageStyle = {
     ...publicCatalogCssVars(tenant),
     ...(hasAnnouncementBar ? { ['--mc-pc-announcement-h']: '2rem' } : {}),
-    ['--mc-pc-header-h']: headerLayout === 'logo-center' ? '4rem' : '3.75rem',
+    ['--mc-pc-header-h']:
+      headerLayout === 'logo-center' || headerLogoOnly ? '4rem' : '3.75rem',
   } as CSSProperties
+
+  useEffect(() => {
+    if (slug && tenant) cacheCatalogBrandLogo(slug, tenant.storeLogoUrl, catalogHeaderLogoIsRound(tenant))
+  }, [slug, tenant?.id, tenant?.storeLogoUrl, tenant?.headerLayout, tenant?.headerLogoShape])
 
   return (
     <div
@@ -446,7 +459,9 @@ export function PublicCatalogLayout() {
       <CatalogFavoritesProvider key={slug ?? 'noslug'} slug={slug}>
         <CatalogoSimpleCartProvider storageKey={key}>
           <CartAddAnimationProvider>
-            <CartChrome />
+            <CatalogBrandPulseProvider tenant={tenant} slug={slug}>
+              <CartChrome />
+            </CatalogBrandPulseProvider>
           </CartAddAnimationProvider>
         </CatalogoSimpleCartProvider>
       </CatalogFavoritesProvider>

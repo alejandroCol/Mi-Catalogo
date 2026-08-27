@@ -65,33 +65,24 @@ export function DemoAdminDashboardPage() {
       </section>
 
       <section aria-label="Visitas al catálogo">
-        <Link
-          to={demoAdminPath(demo.id, 'estadisticas')}
-          className="group relative flex w-full overflow-hidden border border-neutral-200/55 bg-[var(--cat-surface)] px-5 py-6 text-left shadow-[0_1px_0_color-mix(in_srgb,var(--cat-text)_5%,transparent)] transition duration-200 hover:border-[color-mix(in_srgb,var(--cat-text)_14%,transparent)] hover:bg-neutral-50/40 sm:px-7 sm:py-7 no-underline"
-        >
-          <div
-            className="pointer-events-none absolute -left-6 bottom-0 h-28 w-28 rounded-full bg-[color-mix(in_srgb,var(--cat-accent)_14%,transparent)] blur-2xl"
-            aria-hidden
-          />
-          <div className="relative flex w-full items-start gap-4">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center border border-[color-mix(in_srgb,var(--cat-accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--cat-surface)_92%,var(--cat-accent))] text-[var(--cat-text)]">
-              <IconChartBars size={22} />
+        <Link to={demoAdminPath(demo.id, 'estadisticas')} className="mc-dash-tile group">
+          <div className="relative flex w-full items-center gap-3.5">
+            <span className="mc-dash-tile-icon mc-dash-tile-icon--stats">
+              <IconChartBars size={20} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">
-                Estadísticas
-              </p>
-              <p className="mt-1.5 text-[17px] font-medium leading-snug tracking-tight text-[var(--cat-text)]">
-                Visitas a tu catálogo
-              </p>
-              <p className="mt-2 text-[1.35rem] font-medium tabular-nums leading-none tracking-tight text-[var(--cat-text)]">
-                {todayVisits}{' '}
-                <span className="text-[13px] font-normal text-[var(--cat-muted)]">hoy</span>
+              <p className="ios-headline leading-snug">Visitas a tu catálogo</p>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cat-muted)]">
+                Actividad de hoy en tu tienda
               </p>
             </div>
-            <span className="relative mt-1 shrink-0 rounded-sm border border-neutral-200/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--cat-text)] transition group-hover:border-neutral-300">
-              Ver estadísticas
-            </span>
+            <div className="shrink-0 text-right">
+              <p className="text-[1.65rem] font-semibold tabular-nums leading-none tracking-tighter text-[var(--cat-text)]">
+                {todayVisits}
+              </p>
+              <p className="mt-1 text-[11px] font-medium text-[var(--cat-muted)]">hoy</p>
+            </div>
+            <IconChevronRight size={16} className="mc-dash-tile-chevron" />
           </div>
         </Link>
       </section>

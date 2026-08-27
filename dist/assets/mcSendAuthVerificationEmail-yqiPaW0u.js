@@ -1,0 +1,1 @@
+import{F as e}from"./index.esm-Be_K1Z9B.js";import{a as t,g as n}from"./firebase-CrD-9sRK.js";async function r(){try{return await n(t(),`mcSendEmailVerification`)({}),{ok:!0}}catch(t){return t instanceof e?{ok:!1,code:t.code,message:t.message||t.code}:{ok:!1,code:`unknown`,message:t instanceof Error?t.message:`Error al solicitar el correo.`}}}export{r as t};

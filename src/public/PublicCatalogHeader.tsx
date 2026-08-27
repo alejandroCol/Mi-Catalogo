@@ -1,6 +1,13 @@
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { formatCop } from '@/lib/formatCop'
+import {
+  catalogHeaderCenterLogoClassName,
+  catalogHeaderClassicLogoClassName,
+  catalogHeaderShowsStoreName,
+  catalogHeaderStoreLabel,
+  resolveCatalogHeaderLogoShape,
+} from '@/lib/catalogHeaderLayout'
 import type { McCatalogHeaderLayoutId } from '@/types/mc'
 import type { McTenant } from '@/types/mc'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
@@ -119,6 +126,10 @@ function BrandLeftHeader(props: PublicCatalogHeaderProps) {
     onNavClick,
   } = props
 
+  const showName = catalogHeaderShowsStoreName(tenant)
+  const storeLabel = catalogHeaderStoreLabel(tenant)
+  const logoOnly = Boolean(tenant?.storeLogoUrl) && !showName
+
   const navLink = (active: boolean) =>
     clsx(
       'rounded-full px-3 py-1.5 text-[13px] font-medium transition',
@@ -128,21 +139,29 @@ function BrandLeftHeader(props: PublicCatalogHeaderProps) {
     )
 
   return (
-    <div className="mc-public-catalog-inset flex h-[3.25rem] items-center justify-between gap-2 sm:h-[3.75rem] sm:gap-4">
+    <div
+      className={clsx(
+        'mc-public-catalog-inset flex items-center justify-between gap-2 sm:gap-4',
+        logoOnly ? 'h-[3.5rem] sm:h-[4rem]' : 'h-[3.25rem] sm:h-[3.75rem]',
+      )}
+    >
       <Link
         to={pathBase || '/'}
         className="flex min-w-0 items-center gap-2.5 transition hover:opacity-80 sm:gap-3"
+        aria-label={showName ? undefined : storeLabel}
       >
         {tenant?.storeLogoUrl ? (
           <img
             src={tenant.storeLogoUrl}
-            alt=""
-            className="h-8 w-8 shrink-0 rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] object-cover shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:h-9 sm:w-9"
+            alt={showName ? '' : storeLabel}
+            className={catalogHeaderClassicLogoClassName(logoOnly)}
           />
         ) : null}
-        <span className="mc-pc-display min-w-0 truncate text-[15px] font-semibold tracking-tight text-[var(--cat-text)] sm:text-base">
-          {tenant?.nombreTienda ?? 'Catálogo'}
-        </span>
+        {showName ? (
+          <span className="mc-pc-display min-w-0 truncate text-[15px] font-semibold tracking-tight text-[var(--cat-text)] sm:text-base">
+            {storeLabel}
+          </span>
+        ) : null}
       </Link>
 
       <nav
@@ -248,6 +267,9 @@ function LogoCenterHeader(props: PublicCatalogHeaderProps) {
     )
 
   const isHome = pathname === pathBase || pathname === '/' || pathname === `${pathBase}/`
+  const showName = catalogHeaderShowsStoreName(tenant)
+  const storeLabel = catalogHeaderStoreLabel(tenant)
+  const logoOnly = Boolean(tenant?.storeLogoUrl) && !showName
 
   return (
     <div className="mc-public-catalog-inset grid h-[3.5rem] grid-cols-[1fr_auto_1fr] items-center gap-2 sm:h-[4rem] sm:gap-3">
@@ -288,25 +310,34 @@ function LogoCenterHeader(props: PublicCatalogHeaderProps) {
 
       <Link
         to={pathBase || '/'}
-        className="mc-pc-header-brand-center col-start-2 flex min-w-0 max-w-[min(100%,14rem)] flex-col items-center justify-center gap-0.5 justify-self-center px-1 text-center transition hover:opacity-80 sm:max-w-[18rem]"
+        className={clsx(
+          'mc-pc-header-brand-center col-start-2 flex min-w-0 max-w-[min(100%,14rem)] items-center justify-center justify-self-center px-1 text-center transition hover:opacity-80 sm:max-w-[18rem]',
+          showName ? 'flex-col gap-0.5' : 'flex-row',
+        )}
+        aria-label={showName ? undefined : storeLabel}
       >
         {tenant?.storeLogoUrl ? (
           <img
             src={tenant.storeLogoUrl}
-            alt=""
-            className="h-7 w-auto max-w-[7.5rem] object-contain sm:h-8 sm:max-w-[9rem]"
+            alt={showName ? '' : storeLabel}
+            className={catalogHeaderCenterLogoClassName(
+              resolveCatalogHeaderLogoShape(tenant),
+              logoOnly,
+            )}
           />
         ) : null}
-        <span
-          className={clsx(
-            'mc-pc-display min-w-0 truncate font-semibold tracking-[0.12em] text-[var(--cat-text)]',
-            tenant?.storeLogoUrl
-              ? 'text-[10px] uppercase opacity-80 sm:text-[11px]'
-              : 'text-[14px] uppercase sm:text-[15px]',
-          )}
-        >
-          {tenant?.nombreTienda ?? 'Catálogo'}
-        </span>
+        {showName ? (
+          <span
+            className={clsx(
+              'mc-pc-display min-w-0 truncate font-semibold tracking-[0.12em] text-[var(--cat-text)]',
+              tenant?.storeLogoUrl
+                ? 'text-[10px] uppercase opacity-80 sm:text-[11px]'
+                : 'text-[14px] uppercase sm:text-[15px]',
+            )}
+          >
+            {storeLabel}
+          </span>
+        ) : null}
       </Link>
 
       <div className="flex shrink-0 items-center justify-self-end gap-0.5 sm:gap-1">

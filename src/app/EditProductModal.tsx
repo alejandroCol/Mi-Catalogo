@@ -687,7 +687,7 @@ export function EditProductModal({
                 onChange={setMostrarStockCatalogo}
                 disabled={busy}
                 title="Mostrar cantidad en stock"
-                description="En la ficha pública se ve cuántas unidades hay disponibles."
+                description="En el catálogo y la ficha del producto se ve cuántas unidades hay disponibles."
               />
             </div>
           </ProductoFormSection>

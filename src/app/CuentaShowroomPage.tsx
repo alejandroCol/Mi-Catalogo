@@ -20,6 +20,7 @@ import {
   SHOWROOM_MOODS,
   buildCollectionShowroomForSave,
   datetimeLocalValueToMs,
+  isShowroomDropLocked,
   msToDatetimeLocalValue,
   normalizeShowroomHomeFontId,
   normalizeShowroomHomeFullWidth,
@@ -394,7 +395,7 @@ export function CuentaShowroomPage() {
           : 'El Drop Room y el pasillo ya no aparecen en tu tienda.',
       })
     } catch {
-      setMsg('No se pudo guardar. Verificá que tu plan Master esté activo.')
+      setMsg('No se pudo guardar. Verificá que tu plan Expert esté activo.')
     } finally {
       setBusy(false)
       setUploadingMedia(false)
@@ -408,7 +409,7 @@ export function CuentaShowroomPage() {
         <ConfiguracionesBackLink to={returnTo} label={returnLabel} state={navState} />
         <h1 className="ios-large-title mt-3">Drop Room + Pasillo</h1>
         <p className="ios-subhead mt-2 max-w-2xl leading-relaxed text-[var(--cat-muted)]">
-          Experiencia Master: sala cerrada con cuenta regresiva y un pasillo inmersivo para presentar
+          Experiencia Expert: sala cerrada con cuenta regresiva y un pasillo inmersivo para presentar
           la colección. Pensado para celular.
         </p>
       </div>
@@ -428,7 +429,7 @@ export function CuentaShowroomPage() {
                 onChange={setEnabled}
                 disabled={formDisabled}
                 label="Mostrar Drop Room / Pasillo"
-                description="Solo tiendas Master. Si está apagado, nadie ve la experiencia."
+                description="Si está apagado, nadie ve la experiencia en el catálogo."
               />
             </ProductoFormSection>
 
@@ -541,7 +542,10 @@ export function CuentaShowroomPage() {
 
                 <div>
                   <p className="ios-footnote mb-2 font-medium text-[var(--cat-text)] opacity-80">
-                    Fuente del título
+                    Fuente del showroom
+                  </p>
+                  <p className="mb-2 text-[12px] leading-relaxed text-[var(--cat-muted)]">
+                    Se usa en el banner, el Drop Room y el pasillo.
                   </p>
                   <CatalogFontPickerGrid
                     value={homeFontId}
@@ -557,7 +561,7 @@ export function CuentaShowroomPage() {
                   <div className="overflow-hidden bg-neutral-950">
                     <ShowroomEntranceView
                       showroom={entrancePreviewShowroom}
-                      locked={false}
+                      locked={isShowroomDropLocked(entrancePreviewShowroom)}
                       preview
                     />
                   </div>

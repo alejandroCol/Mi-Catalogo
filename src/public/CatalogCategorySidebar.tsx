@@ -13,6 +13,8 @@ type Props = {
   counts: { todos: number; byId: Record<string, number> }
   /** Círculo + nombre debajo (moderno). */
   showWithImages?: boolean
+  /** Foto del círculo «Todos» (opcional). */
+  todosImageUrl?: string | null
 }
 
 function IconGridSmall({ className }: { className?: string }) {
@@ -45,15 +47,18 @@ function CategoryAvatar({
   active: boolean
   size?: 'md' | 'sm'
 }) {
-  const dim = size === 'sm' ? 'h-12 w-12 sm:h-14 sm:w-14' : 'h-[4.25rem] w-[4.25rem] sm:h-[4.75rem] sm:w-[4.75rem]'
+  const dim =
+    size === 'sm'
+      ? 'h-6 w-6 sm:h-7 sm:w-7'
+      : 'h-[2.125rem] w-[2.125rem] sm:h-[2.375rem] sm:w-[2.375rem]'
   return (
     <span
       className={clsx(
         'relative block overflow-hidden rounded-full transition duration-300',
         dim,
         active
-          ? 'ring-[2.5px] ring-[var(--cat-text)] ring-offset-2 ring-offset-[var(--cat-bg)] shadow-[0_8px_24px_-10px_rgba(0,0,0,0.35)] scale-[1.03]'
-          : 'ring-1 ring-[color-mix(in_srgb,var(--cat-muted)_22%,transparent)] shadow-[0_4px_14px_-8px_rgba(0,0,0,0.28)] group-hover:ring-[color-mix(in_srgb,var(--cat-text)_28%,transparent)] group-hover:shadow-[0_8px_20px_-10px_rgba(0,0,0,0.28)]',
+          ? 'ring-2 ring-[var(--cat-text)] ring-offset-1 ring-offset-[var(--cat-bg)] shadow-[0_4px_12px_-6px_rgba(0,0,0,0.3)]'
+          : 'ring-1 ring-[color-mix(in_srgb,var(--cat-muted)_22%,transparent)] shadow-[0_2px_8px_-6px_rgba(0,0,0,0.22)] group-hover:ring-[color-mix(in_srgb,var(--cat-text)_28%,transparent)]',
       )}
     >
       {imageUrl ? (
@@ -62,7 +67,7 @@ function CategoryAvatar({
         <span
           className={clsx(
             'flex h-full w-full items-center justify-center font-semibold',
-            size === 'sm' ? 'text-[13px]' : 'text-[15px]',
+            size === 'sm' ? 'text-[10px]' : 'text-[11px]',
             active
               ? 'bg-[var(--cat-text)] text-[var(--cat-bg)]'
               : 'bg-[color-mix(in_srgb,var(--cat-muted)_10%,var(--cat-surface)_90%)] text-[var(--cat-text)]',
@@ -94,14 +99,14 @@ function CategoryImageItem({
       type="button"
       onClick={onClick}
       className={clsx(
-        'mc-cat-image-item group flex w-[4.75rem] shrink-0 flex-col items-center gap-2 text-center transition sm:w-[5.25rem]',
-        size === 'sm' && 'w-[3.75rem] sm:w-[4.25rem]',
+        'mc-cat-image-item group flex shrink-0 flex-col items-center gap-1.5 text-center transition',
+        size === 'sm' ? 'w-[2.75rem] sm:w-[3.25rem]' : 'w-[3.25rem] sm:w-[3.75rem]',
       )}
     >
       <CategoryAvatar imageUrl={imageUrl} letter={letter} active={active} size={size} />
       <span
         className={clsx(
-          'line-clamp-2 w-full px-0.5 text-[11px] font-medium leading-snug tracking-tight transition sm:text-[12px]',
+          'line-clamp-2 w-full px-0.5 text-[10px] font-medium leading-snug tracking-tight transition sm:text-[11px]',
           active ? 'text-[var(--cat-text)]' : 'text-[var(--cat-muted)] group-hover:text-[var(--cat-text)]',
         )}
       >
@@ -214,30 +219,32 @@ export function CatalogCategorySidebar({
   onSelect,
   counts,
   showWithImages = false,
+  todosImageUrl = null,
 }: Props) {
   const tree = buildCategoriaTree(categorias)
   if (tree.length === 0) return null
 
   if (showWithImages) {
     return (
-      <aside className="mc-cat-sidebar hidden w-[132px] shrink-0 md:block xl:w-[148px]">
+      <aside className="mc-cat-sidebar hidden w-[100px] shrink-0 md:block xl:w-[108px]">
         <nav
           aria-label="Categorías del catálogo"
           className="sticky top-[calc(var(--mc-pc-announcement-h,0px)+var(--mc-pc-header-h,3.75rem)+1.5rem)]"
         >
-          <p className="mb-4 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
+          <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">
             Explorar
           </p>
-          <ul className="flex flex-col items-center gap-5">
+          <ul className="flex flex-col items-center gap-3">
             <li>
               <CategoryImageItem
                 active={selectedId == null}
                 label="Todos"
+                imageUrl={todosImageUrl}
                 onClick={() => onSelect(null)}
               />
             </li>
             {tree.map((node) => (
-              <li key={node.id} className="flex flex-col items-center gap-3">
+              <li key={node.id} className="flex flex-col items-center gap-2">
                 <CategoryImageItem
                   active={selectedId === node.id}
                   label={node.nombre}
@@ -245,7 +252,7 @@ export function CatalogCategorySidebar({
                   onClick={() => onSelect(node.id)}
                 />
                 {node.children.length > 0 ? (
-                  <ul className="flex flex-col items-center gap-3 border-t border-[color-mix(in_srgb,var(--cat-muted)_14%,transparent)] pt-3">
+                  <ul className="flex flex-col items-center gap-2 border-t border-[color-mix(in_srgb,var(--cat-muted)_14%,transparent)] pt-2">
                     {node.children.map((sub) => (
                       <li key={sub.id}>
                         <CategoryImageItem
@@ -352,6 +359,7 @@ export function CatalogCategoryMobileBar({
   onSelect,
   counts,
   showWithImages = false,
+  todosImageUrl = null,
 }: Props) {
   const tree = buildCategoriaTree(categorias)
   if (tree.length === 0) return null
@@ -359,10 +367,11 @@ export function CatalogCategoryMobileBar({
   if (showWithImages) {
     return (
       <div className="mc-cat-mobile-bar -mx-1 mb-5 md:hidden">
-        <div className="flex gap-3.5 overflow-x-auto px-1 pb-1 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex gap-2.5 overflow-x-auto px-1 pb-1 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <CategoryImageItem
             active={selectedId == null}
             label="Todos"
+            imageUrl={todosImageUrl}
             onClick={() => onSelect(null)}
           />
           {tree.map((node) => (
@@ -376,7 +385,7 @@ export function CatalogCategoryMobileBar({
           ))}
         </div>
         {tree.some((n) => n.children.length > 0) ? (
-          <div className="mt-3 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="mt-2.5 flex gap-2.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {tree.flatMap((node) =>
               node.children.map((sub) => (
                 <CategoryImageItem

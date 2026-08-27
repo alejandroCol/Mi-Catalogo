@@ -14,6 +14,7 @@ import {
   wishlistItemPendingQty,
   type WishlistPublicView,
 } from '@/lib/wishlist'
+import { McPublicPageLoadingFallback } from '@/components/McPublicPageLoadingFallback'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { CreateWishlistPanel } from '@/public/wishlist/CreateWishlistPanel'
@@ -123,7 +124,7 @@ export function PublicWishlistManagePage() {
   }
 
   if (tenantLoading || loading) {
-    return <p className="py-16 text-center text-sm text-[var(--cat-muted)]">Cargando…</p>
+    return <McPublicPageLoadingFallback />
   }
 
   if (error && !canManage) {

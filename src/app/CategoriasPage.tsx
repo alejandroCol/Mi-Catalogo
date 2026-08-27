@@ -18,7 +18,9 @@ import {
 import {
   mapCategoriaImageError,
   removeCategoriaImage,
+  removeCategoriaTodosImage,
   uploadCategoriaImage,
+  uploadCategoriaTodosImage,
 } from '@/lib/categoriaImage'
 import { firebaseConfigured, getDb } from '@/lib/firebase'
 import { MC, mcCategoriasCollection, mcProductosCollection } from '@/lib/mcCollections'
@@ -27,7 +29,10 @@ import {
   mcDeleteCategoria,
   mcUpdateCategoria,
 } from '@/lib/mcWrites'
-import { clearQuickAddDraft, type CategoriasPageNavState } from '@/lib/productFormCategoriaNav'
+import {
+  type CategoriasPageNavState,
+  type InventarioResumeState,
+} from '@/lib/productFormCategoriaNav'
 import type { McCategoria, McProducto } from '@/types/mc'
 import { IconChevronLeft, IconPlus, IconTrash } from '@/icons/McIcons'
 
@@ -353,6 +358,7 @@ export function CategoriasPage() {
   const [editNombre, setEditNombre] = useState('')
   const [busy, setBusy] = useState(false)
   const [imageBusyId, setImageBusyId] = useState<string | null>(null)
+  const [todosImageBusy, setTodosImageBusy] = useState(false)
   const [showWithImages, setShowWithImages] = useState(false)
   const [toggleBusy, setToggleBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -484,6 +490,34 @@ export function CategoriasPage() {
     }
   }
 
+  async function pickTodosImage(file: File) {
+    if (!effectiveTenantId) return
+    setTodosImageBusy(true)
+    setErr(null)
+    try {
+      await uploadCategoriaTodosImage(effectiveTenantId, file)
+      showSaveSuccess({ message: 'Foto de «Todos» actualizada.' })
+    } catch (e) {
+      setErr(mapCategoriaImageError(e))
+    } finally {
+      setTodosImageBusy(false)
+    }
+  }
+
+  async function clearTodosImage() {
+    if (!effectiveTenantId) return
+    setTodosImageBusy(true)
+    setErr(null)
+    try {
+      await removeCategoriaTodosImage(effectiveTenantId, tenant?.categoriaTodosImageUrl)
+      showSaveSuccess({ message: 'Foto de «Todos» quitada.' })
+    } catch (e) {
+      setErr(mapCategoriaImageError(e))
+    } finally {
+      setTodosImageBusy(false)
+    }
+  }
+
   async function setMostrarConImagenes(next: boolean) {
     if (!effectiveTenantId) return
     setShowWithImages(next)
@@ -599,10 +633,11 @@ export function CategoriasPage() {
     <div className="mc-shell">
       <Link
         to={backTo}
-        state={navState ?? undefined}
-        onClick={() => {
-          if (navState?.productFormContext?.mode === 'add') clearQuickAddDraft()
-        }}
+        state={
+          navState?.productFormContext
+            ? ({ reopenProductForm: navState.productFormContext } satisfies InventarioResumeState)
+            : undefined
+        }
         className="inline-flex items-center gap-1 text-[13px] font-medium text-mc-600 transition hover:text-mc-900"
       >
         <IconChevronLeft size={18} />
@@ -645,7 +680,7 @@ export function CategoriasPage() {
 
       {err ? <p className="mt-4 text-[13px] text-red-800">{err}</p> : null}
 
-      <div className="mc-card mt-6 space-y-1">
+      <div className="mc-card mt-6 space-y-4">
         <McToggleSwitch
           id="mc-categorias-con-imagenes"
           checked={showWithImages}
@@ -654,6 +689,22 @@ export function CategoriasPage() {
           label="Mostrar categorías con imágenes"
           description="En la tienda se ven círculos con foto y el nombre abajo. Si está apagado, se usan los chips de texto."
         />
+        {showWithImages ? (
+          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/50 p-4">
+            <p className="ios-subhead font-medium text-[var(--cat-text)]">Foto de «Todos»</p>
+            <p className="ios-footnote mt-1 mb-3 leading-relaxed text-[var(--cat-muted)]">
+              Es el primer círculo del catálogo. Si no subís una foto, se muestra la letra T.
+            </p>
+            <CategoriaImagePicker
+              previewUrl={tenant?.categoriaTodosImageUrl ?? null}
+              fallbackLetter="T"
+              disabled={toggleBusy || !effectiveTenantId}
+              uploading={todosImageBusy}
+              onPick={(file) => void pickTodosImage(file)}
+              onRemove={tenant?.categoriaTodosImageUrl ? () => void clearTodosImage() : undefined}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-8">

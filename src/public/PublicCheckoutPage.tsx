@@ -18,6 +18,7 @@ import { MC_ENVIO_CHECKOUT_ETIQUETA } from '@/lib/envioCotizacion'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { useEnvioCheckoutQuote } from '@/hooks/useEnvioCheckoutQuote'
 import type { McCuponTienda, McOrdenCatalogoLinea } from '@/types/mc'
+import { McPublicPageLoadingFallback } from '@/components/McPublicPageLoadingFallback'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { buildStorePublicPath } from '@/lib/storePublicUrl'
@@ -922,9 +923,7 @@ export function PublicCheckoutPage() {
   }
 
   if (loading) {
-    return (
-      <div className="mc-public-catalog-inset py-16 text-center text-sm leading-relaxed mc-pc-muted">Cargando…</div>
-    )
+    return <McPublicPageLoadingFallback />
   }
 
   if (error || !tenantId || !tenant) {
@@ -936,11 +935,7 @@ export function PublicCheckoutPage() {
   }
 
   if (giftLoading) {
-    return (
-      <div className="mc-public-catalog-inset py-16 text-center text-sm leading-relaxed mc-pc-muted">
-        Cargando lista de regalos…
-      </div>
-    )
+    return <McPublicPageLoadingFallback />
   }
 
   if (giftWishlistId && giftError) {

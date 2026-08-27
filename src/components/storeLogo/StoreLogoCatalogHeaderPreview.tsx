@@ -1,5 +1,12 @@
 import clsx from 'clsx'
-import { resolveCatalogHeaderLayout } from '@/lib/catalogHeaderLayout'
+import {
+  catalogHeaderCenterLogoClassName,
+  catalogHeaderClassicLogoClassName,
+  catalogHeaderShowsStoreName,
+  catalogHeaderStoreLabel,
+  resolveCatalogHeaderLayout,
+  resolveCatalogHeaderLogoShape,
+} from '@/lib/catalogHeaderLayout'
 import { publicCatalogCssVars, publicCatalogPresetClass, resolvePublicCatalogTheme } from '@/lib/catalogTheme'
 import type { McTenant } from '@/types/mc'
 
@@ -11,6 +18,11 @@ type Props = {
 export function StoreLogoCatalogHeaderPreview({ tenant, logoUrl }: Props) {
   const { preset } = resolvePublicCatalogTheme(tenant)
   const layout = resolveCatalogHeaderLayout(tenant)
+  const logoShape = resolveCatalogHeaderLogoShape(tenant)
+  const previewTenant = { ...tenant, storeLogoUrl: logoUrl }
+  const showName = catalogHeaderShowsStoreName(previewTenant)
+  const storeLabel = catalogHeaderStoreLabel(previewTenant)
+  const logoOnly = !showName
 
   return (
     <div className="rounded-xl border border-neutral-200/80 bg-gradient-to-b from-white to-neutral-50/80 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
@@ -29,8 +41,14 @@ export function StoreLogoCatalogHeaderPreview({ tenant, logoUrl }: Props) {
           <p className="ios-footnote font-semibold text-mc-900">Vista previa en tu catálogo</p>
           <p className="mt-1 text-[12px] leading-relaxed text-mc-600">
             {layout === 'logo-center'
-              ? 'Así verán tus clientes el logo centrado en la cabecera.'
-              : 'Así verán tus clientes el logo junto al nombre de tu tienda en la cabecera.'}
+              ? showName
+                ? logoShape === 'round'
+                  ? 'Así verán tus clientes el logo redondo centrado en la cabecera.'
+                  : 'Así verán tus clientes el logo centrado en su forma original.'
+                : 'Así verán tus clientes el logo centrado, sin el nombre de la marca.'
+              : showName
+                ? 'Así verán tus clientes el logo junto al nombre de tu tienda en la cabecera.'
+                : 'Así verán tus clientes el logo más grande, sin el nombre de la marca.'}
           </p>
         </div>
       </div>
@@ -52,12 +70,14 @@ export function StoreLogoCatalogHeaderPreview({ tenant, logoUrl }: Props) {
               <div className="flex flex-col items-center gap-0.5 justify-self-center">
                 <img
                   src={logoUrl}
-                  alt=""
-                  className="h-7 w-auto max-w-[5.5rem] object-contain sm:h-8"
+                  alt={showName ? '' : storeLabel}
+                  className={catalogHeaderCenterLogoClassName(logoShape, logoOnly)}
                 />
-                <span className="mc-pc-display max-w-full truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-text)] opacity-80">
-                  {tenant.nombreTienda}
-                </span>
+                {showName ? (
+                  <span className="mc-pc-display max-w-full truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-text)] opacity-80">
+                    {storeLabel}
+                  </span>
+                ) : null}
               </div>
               <div className="flex items-center justify-end gap-1.5 opacity-40">
                 <span className="h-3.5 w-3.5 rounded-full border border-[var(--cat-muted)]" />
@@ -65,15 +85,22 @@ export function StoreLogoCatalogHeaderPreview({ tenant, logoUrl }: Props) {
               </div>
             </div>
           ) : (
-            <div className="flex h-[3.25rem] items-center gap-2.5 px-4 sm:h-[3.75rem] sm:gap-3">
+            <div
+              className={clsx(
+                'flex items-center gap-2.5 px-4 sm:gap-3',
+                logoOnly ? 'h-[3.5rem] sm:h-[4rem]' : 'h-[3.25rem] sm:h-[3.75rem]',
+              )}
+            >
               <img
                 src={logoUrl}
-                alt=""
-                className="h-8 w-8 shrink-0 rounded-full border border-[color-mix(in_srgb,var(--cat-muted)_18%,transparent)] object-cover shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:h-9 sm:w-9"
+                alt={showName ? '' : storeLabel}
+                className={catalogHeaderClassicLogoClassName(logoOnly)}
               />
-              <span className="mc-pc-display min-w-0 truncate text-[15px] font-semibold tracking-tight text-[var(--cat-text)] sm:text-base">
-                {tenant.nombreTienda}
-              </span>
+              {showName ? (
+                <span className="mc-pc-display min-w-0 truncate text-[15px] font-semibold tracking-tight text-[var(--cat-text)] sm:text-base">
+                  {storeLabel}
+                </span>
+              ) : null}
             </div>
           )}
         </div>

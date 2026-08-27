@@ -9,6 +9,7 @@ import express from 'express'
 import { markCarritoIniciadoAfterOrderPaid } from './carritoIniciado.js'
 import { resolveCheckoutEnvioCop } from './shipping/resolveCheckoutEnvio.js'
 import {
+  catalogSaleOrderSliceFromData,
   resolveEmailCatalogThemeColors,
   sendCatalogCustomerPurchaseConfirmationEmail,
   sendCatalogSalePaidEmail,
@@ -3070,14 +3071,8 @@ webhookApp.post(
               }
             }
 
-            const lineasRaw = Array.isArray(o.lineas) ? o.lineas : []
-            const lineas = lineasRaw as {
-              nombre?: string
-              cantidad?: number
-              precioUnitarioCop?: number
-            }[]
-            const totalCop = typeof o.totalCop === 'number' ? o.totalCop : 0
-
+            const sale = catalogSaleOrderSliceFromData(o as Record<string, unknown>, isPlatform ? 'Pasarela Mi Catálogo' : 'Pago en línea')
+            const pedidosUrl = `${origin}/app/pedidos?o=${encodeURIComponent(orderId)}`
             const emailPatch: { ventaNotificacionEmailSentAt?: number; ventaClienteConfirmacionEmailSentAt?: number } =
               {}
 
@@ -3088,15 +3083,9 @@ webhookApp.post(
                 to: toEmail,
                 nombreTienda,
                 orderId,
-                totalCop,
-                lineas,
                 themeColors,
-                clienteNombre: o.clienteNombre,
-                clienteTelefono: o.clienteTelefono,
-                clienteEmail: o.clienteEmail,
-                envioCiudad: o.envioCiudad,
-                envioDireccion: o.envioDireccion,
-                notaCliente: o.notaCliente,
+                pedidosUrl,
+                ...sale,
               })
               if (sent.ok) {
                 emailPatch.ventaNotificacionEmailSentAt = Date.now()
@@ -3112,15 +3101,16 @@ webhookApp.post(
                 to: ce,
                 nombreTienda,
                 orderId,
-                totalCop,
-                lineas,
+                totalCop: sale.totalCop,
+                lineas: sale.lineas,
                 themeColors,
-                clienteNombre: o.clienteNombre,
-                clienteTelefono: o.clienteTelefono,
-                clienteEmail: o.clienteEmail,
-                envioCiudad: o.envioCiudad,
-                envioDireccion: o.envioDireccion,
-                notaCliente: o.notaCliente,
+                clienteNombre: sale.clienteNombre,
+                clienteTelefono: sale.clienteTelefono,
+                clienteEmail: sale.clienteEmail,
+                envioCiudad: sale.envioCiudad,
+                envioDireccion: sale.envioDireccion,
+                notaCliente: sale.notaCliente,
+                numeroReferencia: sale.numeroReferencia,
                 catalogUrl,
                 seguimientoUrl,
               })
@@ -3198,6 +3188,7 @@ export {
   mcLiveStartBrowserBroadcastEgress,
   mcLiveHostDisconnect,
 } from './live/handlers.js'
+export { mcCancelCatalogOrder } from './cancelCatalogOrder.js'
 export { mcShowroomJoinWaitlist } from './showroom/handlers.js'
 
 export {

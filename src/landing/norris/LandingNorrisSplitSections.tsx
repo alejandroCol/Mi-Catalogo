@@ -5,7 +5,7 @@ function smoothstep(t: number) {
   return t * t * (3 - 2 * t)
 }
 
-function SplitBlock({
+export function NorrisSplitBlock({
   lineA,
   lineB,
   body,
@@ -64,18 +64,26 @@ function SplitBlock({
   )
 }
 
-export function LandingNorrisSplitSections() {
+type SplitSectionsProps = {
+  skipIds?: string[]
+}
+
+export function LandingNorrisSplitSections({ skipIds = [] }: SplitSectionsProps) {
+  const skip = new Set(skipIds)
+
   return (
     <>
-      {norrisSplitSections.map((section, i) => (
-        <SplitBlock
-          key={section.id}
-          lineA={section.lineA}
-          lineB={section.lineB}
-          body={section.body}
-          invert={i % 2 === 1}
-        />
-      ))}
+      {norrisSplitSections
+        .filter((section) => !skip.has(section.id))
+        .map((section, i) => (
+          <NorrisSplitBlock
+            key={section.id}
+            lineA={section.lineA}
+            lineB={section.lineB}
+            body={section.body}
+            invert={i % 2 === 1}
+          />
+        ))}
     </>
   )
 }

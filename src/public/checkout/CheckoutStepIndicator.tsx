@@ -8,16 +8,25 @@ import {
 
 type Props = {
   current: CheckoutStepId
+  steps?: readonly CheckoutStepId[]
+  stepMeta?: typeof CHECKOUT_STEP_META
   onStepClick?: (step: CheckoutStepId) => void
 }
 
-export function CheckoutStepIndicator({ current, onStepClick }: Props) {
-  const currentIdx = checkoutStepIndex(current)
+export function CheckoutStepIndicator({
+  current,
+  steps = CHECKOUT_STEPS,
+  stepMeta = CHECKOUT_STEP_META,
+  onStepClick,
+}: Props) {
+  if (steps.length <= 1) return null
+
+  const currentIdx = checkoutStepIndex(current, steps)
 
   return (
     <nav aria-label="Pasos del checkout" className="w-full">
       <ol className="flex items-start justify-between gap-1 sm:gap-2">
-        {CHECKOUT_STEPS.map((stepId, i) => {
+        {steps.map((stepId, i) => {
           const isCurrent = stepId === current
           const isDone = i < currentIdx
           const isClickable = onStepClick && isDone && !isCurrent
@@ -59,7 +68,7 @@ export function CheckoutStepIndicator({ current, onStepClick }: Props) {
                     isCurrent ? 'text-[var(--cat-text)]' : 'text-[var(--cat-muted)]',
                   )}
                 >
-                  {CHECKOUT_STEP_META[stepId].short}
+                  {stepMeta[stepId].short}
                 </span>
               </span>
             </>
@@ -70,9 +79,9 @@ export function CheckoutStepIndicator({ current, onStepClick }: Props) {
               key={stepId}
               className={clsx(
                 'relative flex min-w-0 flex-1 flex-col items-center',
-                i < CHECKOUT_STEPS.length - 1 &&
+                i < steps.length - 1 &&
                   'after:absolute after:left-[calc(50%+1.125rem)] after:top-4 after:h-px after:w-[calc(100%-2.25rem)] after:content-[""] sm:after:top-[1.125rem]',
-                i < CHECKOUT_STEPS.length - 1 &&
+                i < steps.length - 1 &&
                   (i < currentIdx
                     ? 'after:bg-[color-mix(in_srgb,var(--cat-accent)_45%,var(--cat-muted)_55%)]'
                     : 'after:bg-[color-mix(in_srgb,var(--cat-muted)_25%,transparent)]'),
@@ -95,7 +104,7 @@ export function CheckoutStepIndicator({ current, onStepClick }: Props) {
         })}
       </ol>
       <p className="mt-3 text-center text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--cat-muted)] sm:hidden">
-        Paso {currentIdx + 1} de {CHECKOUT_STEPS.length} · {CHECKOUT_STEP_META[current].short}
+        Paso {currentIdx + 1} de {steps.length} · {stepMeta[current].short}
       </p>
     </nav>
   )

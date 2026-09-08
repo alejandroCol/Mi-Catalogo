@@ -10,6 +10,7 @@ import {
   useCartAddAnimation,
 } from '@/public/cart-animation/CartAddAnimationContext'
 import { buildPedidoWhatsappTextSimple, whatsappUrlFromNumber } from '@/catalog-local/buildWhatsappUrl'
+import { resolveCheckoutFlowProfile } from '@/lib/checkoutFlowProfile'
 import { cartLineKey } from '@/catalog-local/cartLineKey'
 import { formatCop } from '@/lib/formatCop'
 import {
@@ -28,6 +29,7 @@ import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
 import { CatalogAnnouncementBar } from '@/public/CatalogAnnouncementBar'
 import { CatalogPreviewBanner } from '@/public/CatalogPreviewBanner'
 import { PublicCatalogHeader } from '@/public/PublicCatalogHeader'
+import { CatalogWhatsappFab } from '@/public/CatalogWhatsappFab'
 import { StoreBrandAboutSection } from '@/public/StoreBrandAboutSection'
 import { StoreBrandSocialLinks } from '@/public/StoreBrandSocialLinks'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
@@ -81,7 +83,9 @@ function CartChrome() {
   const announcementBar = resolveAnnouncementBar(tenant)
   const headerLayout = resolveCatalogHeaderLayout(tenant)
 
+  const checkoutFlow = resolveCheckoutFlowProfile(tenant)
   const waUrl =
+    checkoutFlow.showCartWhatsappShortcut &&
     tenant?.whatsappNumero &&
     whatsappUrlFromNumber(
       tenant.whatsappNumero,
@@ -179,6 +183,8 @@ function CartChrome() {
         </div>
       </footer>
 
+      {tenant && !enCheckout && !cartOpen ? <CatalogWhatsappFab tenant={tenant} /> : null}
+
       <McCatalogModal
         open={cartOpen}
         title={cartTab === 'wishlist' ? 'Lista de regalos' : 'Tu pedido'}
@@ -214,7 +220,9 @@ function CartChrome() {
                     onClick={() => setCartOpen(false)}
                     className="mc-pc-btn inline-flex min-w-0 flex-1 items-center justify-center bg-[var(--cat-accent)] px-4 py-2.5 text-sm font-semibold text-[var(--cat-accent-text)] transition duration-200 ease-in-out hover:opacity-90"
                   >
-                    Comprar en línea · {formatCop(subtotalCop)}
+                    {checkoutFlow.cartPrimaryKind === 'whatsapp'
+                      ? checkoutFlow.cartPrimaryLabel
+                      : `${checkoutFlow.cartPrimaryLabel} · ${formatCop(subtotalCop)}`}
                   </Link>
                 </div>
               ) : (
@@ -231,7 +239,7 @@ function CartChrome() {
                   El checkout se habilita cuando publiques tu tienda.
                 </p>
               ) : null}
-              {!isPreview && waUrl ? (
+              {checkoutFlow.showCartWhatsappShortcut && !isPreview && waUrl ? (
                 <a
                   href={waUrl}
                   target="_blank"
@@ -240,7 +248,7 @@ function CartChrome() {
                 >
                   WhatsApp
                 </a>
-              ) : !isPreview ? (
+              ) : checkoutFlow.showCartWhatsappShortcut && !isPreview ? (
                 <span className="text-center text-xs leading-relaxed mc-pc-muted">
                   La tienda aún no configuró WhatsApp.
                 </span>
@@ -418,6 +426,7 @@ function CartChrome() {
                 platformSettings={platformSettings}
                 subtotalCop={subtotalCop}
                 totalPiezas={totalPiezas}
+                lineas={lines.map((l) => ({ productId: l.productId, cantidad: l.cantidad }))}
               />
             ) : null}
           </>

@@ -1,0 +1,1 @@
+function e(e){return e===1?`artículo`:`artículos`}function t(t){return`${t} ${e(t)}`}export{t as n,e as t};

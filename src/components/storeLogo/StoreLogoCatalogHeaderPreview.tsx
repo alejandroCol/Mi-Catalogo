@@ -64,8 +64,13 @@ export function StoreLogoCatalogHeaderPreview({ tenant, logoUrl }: Props) {
           {layout === 'logo-center' ? (
             <div className="grid h-[3.5rem] grid-cols-3 items-center gap-2 px-4 sm:h-[4rem]">
               <div className="flex items-center gap-1.5 opacity-40">
-                <span className="h-1 w-6 rounded-full bg-[var(--cat-muted)]" />
-                <span className="h-1 w-6 rounded-full bg-[var(--cat-muted)]" />
+                <span className="flex flex-col justify-center gap-[3px] sm:hidden" aria-hidden>
+                  <span className="h-px w-3.5 bg-[var(--cat-muted)]" />
+                  <span className="h-px w-3.5 bg-[var(--cat-muted)]" />
+                  <span className="h-px w-3.5 bg-[var(--cat-muted)]" />
+                </span>
+                <span className="hidden h-1 w-6 rounded-full bg-[var(--cat-muted)] sm:block" />
+                <span className="hidden h-1 w-6 rounded-full bg-[var(--cat-muted)] sm:block" />
               </div>
               <div className="flex flex-col items-center gap-0.5 justify-self-center">
                 <img

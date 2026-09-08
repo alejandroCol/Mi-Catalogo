@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { formatCop } from '@/lib/formatCop'
 import { isEnvioCheckoutConfigured } from '@/lib/checkoutShipping'
+import { isEnvioSinEnvioActive } from '@/lib/envioSinEnvio'
 import { useEnvioCheckoutQuote } from '@/hooks/useEnvioCheckoutQuote'
 import { DepartamentoCombobox } from '@/public/DepartamentoCombobox'
 import { MunicipioCombobox } from '@/public/MunicipioCombobox'
@@ -39,6 +40,7 @@ type Props = {
   platformSettings: McPlatformSettings | null | undefined
   subtotalCop: number
   totalPiezas: number
+  lineas?: { productId: string; cantidad: number }[]
   className?: string
 }
 
@@ -48,9 +50,10 @@ export function CatalogCartShippingEstimator({
   platformSettings,
   subtotalCop,
   totalPiezas,
+  lineas,
   className,
 }: Props) {
-  const configured = isEnvioCheckoutConfigured(tenant)
+  const configured = isEnvioCheckoutConfigured(tenant) && !isEnvioSinEnvioActive(tenant)
   const saved = loadSaved()
   const [open, setOpen] = useState(() => Boolean(saved.departamento && saved.ciudad))
   const [editing, setEditing] = useState(() => !(saved.departamento && saved.ciudad))
@@ -68,6 +71,7 @@ export function CatalogCartShippingEstimator({
     destinoTelefono: '',
     subtotalCop,
     totalPiezas,
+    lineas,
   })
 
   const canEstimate = departamento.trim().length > 0 && ciudad.trim().length > 0

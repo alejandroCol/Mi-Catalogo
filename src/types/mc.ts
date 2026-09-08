@@ -78,6 +78,18 @@ export interface McSeasonBanner {
   interactiveMood?: McInteractiveLandingMood
 }
 
+/**
+ * Carrusel horizontal de productos de una categoría, debajo del hero.
+ * Independiente del banner de temporada: se puede activar solo o junto a él.
+ */
+export interface McCategoryShowcase {
+  enabled: boolean
+  categoriaId: string
+  /** Título opcional; si falta se usa el nombre de la categoría. */
+  title?: string
+  updatedAt?: number
+}
+
 /** Atmósfera visual del pasillo / showroom (plan Expert o Master). */
 export type McShowroomMood = 'midnight' | 'atelier' | 'runway' | 'gallery'
 
@@ -268,6 +280,8 @@ export interface McTenant {
   storeLogoUrl?: string
   /** Banner fullscreen opcional al entrar al catálogo (solo Expert). */
   seasonBanner?: McSeasonBanner
+  /** Carrusel de productos de una categoría, debajo del banner principal. */
+  categoryShowcase?: McCategoryShowcase
   /**
    * Drop Room + Pasillo / Showroom de colección (plan Expert o Master).
    * Experiencia inmersiva aparte del grid del catálogo.
@@ -322,6 +336,11 @@ export interface McTenant {
   envioGratisDesdeCop?: number
   /** Cotización en vivo vía Envia.com (Modelo A — cuenta plataforma). */
   envioCotizarAutomatico?: boolean
+  /**
+   * Pedido sin dirección ni costo de envío. Solo válido si `checkoutVentasModo === 'whatsapp'`;
+   * en pasarela se ignora y el checkout sigue exigiendo envío.
+   */
+  envioSinEnvio?: boolean
   /** Origen del despacho (requerido si `envioCotizarAutomatico`). */
   envioOrigenDepartamento?: string
   envioOrigenCiudad?: string
@@ -350,6 +369,8 @@ export interface McTenant {
   categoriaTodosImageUrl?: string
   /** Mini barra promocional opcional arriba del header del catálogo. */
   announcementBar?: McAnnouncementBar
+  /** Botón flotante de WhatsApp en el catálogo público. */
+  catalogWhatsappFab?: McCatalogWhatsappFab
   /**
    * Disposición de la cabecera del catálogo público.
    * Ausente o inválido → `brand-left` (logo a la izquierda).
@@ -474,6 +495,23 @@ export interface McLegalAcceptance {
 export interface McCatalogDescuentosTab {
   enabled: boolean
   /** Etiqueta visible en el tab; si vacía → «Descuento». */
+  label?: string
+}
+
+/** Estilo visual del botón flotante de WhatsApp en el catálogo. */
+export type McCatalogWhatsappFabStyle = 'classic' | 'pill' | 'outline' | 'dark'
+
+/** Esquina del viewport para el botón flotante de WhatsApp. */
+export type McCatalogWhatsappFabSide = 'right' | 'left'
+
+/** Botón flotante de WhatsApp en el catálogo público. */
+export interface McCatalogWhatsappFab {
+  enabled: boolean
+  /** Default `classic` (círculo verde). */
+  style?: McCatalogWhatsappFabStyle
+  /** Default `right`. */
+  side?: McCatalogWhatsappFabSide
+  /** Texto del estilo `pill`. Ausente → «WhatsApp». */
   label?: string
 }
 
@@ -695,6 +733,14 @@ export interface McCategoria {
   updatedAt: number
 }
 
+/** Medidas opcionales para cotizar envío automático (Envia). */
+export type McProductoEnvioMedidas = {
+  pesoKg: number
+  largoCm: number
+  anchoCm: number
+  altoCm: number
+}
+
 export interface McProducto {
   id: string
   nombre: string
@@ -724,6 +770,12 @@ export interface McProducto {
   galeriaImagenes?: string[]
   /** Variantes (colores, telas, etc.). Si hay al menos una, el cliente elige antes de comprar. */
   variantes?: McProductoVariante[]
+  /**
+   * Empaque de este producto para cotización automática.
+   * Si falta, el checkout usa `McTenant.envioEmpaque*`.
+   * En ropa (`esRopa` y no zapatos), esta caja cubre hasta 4 prendas.
+   */
+  envioMedidas?: McProductoEnvioMedidas
   /** Prenda de vestir o calzado: stock por talla y variantes limitadas a color/tela. */
   esRopa?: boolean
   /** Curva de tallas: letras (ropa) o numérica (zapatos). Default `ropa` si `esRopa`. */
@@ -1232,6 +1284,32 @@ export interface McPlatformSettings {
    * Default: true si no está definido. Prioridad sobre `MC_MUX_LIVE_TEST` en Functions.
    */
   muxLiveTestEnabled?: boolean
+  /** Promo de mes en el paywall (Hot Sale): N meses prepagos con descuento. */
+  monthPromo?: McMonthPromo
+  /**
+   * Plantilla del mensaje WhatsApp «Hacer seguimiento» en súper admin.
+   * Usá `{{tienda}}` para insertar el nombre de la tienda.
+   */
+  superAdminFollowUpWhatsappMessage?: string
+}
+
+/**
+ * Promo temporal del paywall: se paga un paquete de meses con descuento
+ * y después la renovación es al precio mensual normal.
+ */
+export interface McMonthPromo {
+  enabled: boolean
+  /** Mes vigente `YYYY-MM` (calendario América/Bogotá). */
+  monthKey: string
+  /** Etiqueta llamativa, ej. «HOT SALE SEPTIEMBRE». */
+  label: string
+  /** Descuento 1–90 sobre el total de los meses prepagos. */
+  discountPercent: number
+  /** Meses que se habilitan con el pago único (2–12). */
+  prepaidMonths: number
+  /** Texto corto opcional; si falta se genera uno. */
+  hint?: string
+  updatedAt?: number
 }
 
 /** Métricas diarias del catálogo público (`mc_tenants/{tid}/analytics_daily/{YYYY-MM-DD}`). */

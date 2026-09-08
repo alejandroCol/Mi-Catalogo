@@ -1,10 +1,11 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { MC_BILLING_GRACE_MS, MC_BILLING_METADATA_KEYS, MC_BILLING_PAYMENTS_COLLECTION, MC_BILLING_PURPOSE, MC_BILLING_SUB_COLLECTION, MC_BILLING_SUB_DOC, } from './constants.js';
 import { resolveBillingDiscountCode } from './discountCodes.js';
+import { computeMonthPromoTotals, resolveLiveMonthPromo } from './monthPromo.js';
 import { billingPhoneE164Co } from './phone.js';
 import { billingMetadataForApi, chargeStatusFailed, chargeStatusPaid, onepayCreateBillingCharge, onepayCreateBillingCustomer, onepayGetCharge, readBillingMeta, } from './onepayBillingApi.js';
 import { mcCatalogUnpublishIfNeeded } from '../catalogPublish.js';
-import { advancePeriodEndMs, computeFirstPeriodEndMs, computeFreeMonthsEndMs, idempotencyKeyForActivation, idempotencyKeyForBillingDebit, nextDebitDueFromPeriodEnd, } from './schedule.js';
+import { advancePeriodEndMs, computeFirstPeriodEndMs, computeFreeMonthsEndMs, computePrepaidMonthsEndMs, idempotencyKeyForActivation, idempotencyKeyForBillingDebit, nextDebitDueFromPeriodEnd, } from './schedule.js';
 function paymentsRef(db, tenantId, chargeId) {
     return db.doc(`mc_tenants/${tenantId}/${MC_BILLING_PAYMENTS_COLLECTION}/${chargeId}`);
 }
@@ -106,12 +107,27 @@ export async function mcBillingEnsureCustomerV2(db, tenantId, payer, platformSk)
     }, { merge: true });
     return id;
 }
-export async function mcBillingResolvePrice(db, period, discountCodeRaw, tenantId) {
+export async function mcBillingResolvePrice(db, period, discountCodeRaw, tenantId, options) {
     const settingsSnap = await db.doc('mc_platform/settings').get();
     const s = settingsSnap.data();
+    const monthlyCop = Math.max(0, Math.round(Number(s?.planExpertPrecioMensualCop ?? 29_900)));
     const basePriceCop = period === 'yearly'
         ? Math.max(0, Math.round(Number(s?.planExpertPrecioAnualCop ?? 299_000)))
-        : Math.max(0, Math.round(Number(s?.planExpertPrecioMensualCop ?? 29_900)));
+        : monthlyCop;
+    if (options?.monthPromo) {
+        const promo = resolveLiveMonthPromo(s);
+        if (!promo) {
+            throw new Error('La promo del mes no está activa.');
+        }
+        const totals = computeMonthPromoTotals(monthlyCop, promo);
+        return {
+            basePriceCop: totals.baseTotalCop,
+            finalPriceCop: totals.finalTotalCop,
+            prepaidMonths: totals.prepaidMonths,
+            renewalAmountCop: totals.renewalAmountCop,
+            isMonthPromo: true,
+        };
+    }
     if (!discountCodeRaw?.trim()) {
         return { basePriceCop, finalPriceCop: basePriceCop };
     }
@@ -130,7 +146,7 @@ export async function mcBillingResolvePrice(db, period, discountCodeRaw, tenantI
 }
 /** Activa Expert tras pago aprobado (checkout o renovación). */
 export async function mcBillingApplyPaidPeriod(params) {
-    const { db, tenantId, period, amountCop, discountCodeId, freeMonths, freeTrialDays, chargeId, isRenewal } = params;
+    const { db, tenantId, period, amountCop, discountCodeId, freeMonths, freeTrialDays, prepaidMonths, renewalAmountCop, chargeId, isRenewal, } = params;
     const tenantRef = db.doc(`mc_tenants/${tenantId}`);
     const tenantSnap = await tenantRef.get();
     if (!tenantSnap.exists) {
@@ -141,9 +157,17 @@ export async function mcBillingApplyPaidPeriod(params) {
     const now = Date.now();
     const subSnap = await subRef(db, tenantId).get();
     const sub = subSnap.exists ? subSnap.data() : null;
+    const effectivePrepaidMonths = prepaidMonths ?? sub?.pendingPrepaidMonths;
+    const effectiveRenewalAmount = renewalAmountCop ?? sub?.pendingRenewalAmountCop;
     let periodStart = now;
     let periodEnd;
-    if (isRenewal && sub?.currentPeriodEndMs && sub.currentPeriodEndMs > now) {
+    if (effectivePrepaidMonths && effectivePrepaidMonths > 1) {
+        const liveEnd = Math.max(sub?.currentPeriodEndMs ?? 0, tenant.subscriptionEndsAt ?? 0);
+        const anchor = liveEnd > now ? liveEnd : now;
+        periodStart = sub?.currentPeriodStartMs && liveEnd > now ? sub.currentPeriodStartMs : now;
+        periodEnd = computePrepaidMonthsEndMs(anchor, effectivePrepaidMonths);
+    }
+    else if (isRenewal && sub?.currentPeriodEndMs && sub.currentPeriodEndMs > now) {
         periodStart = sub.currentPeriodStartMs;
         periodEnd = advancePeriodEndMs(sub.currentPeriodEndMs, period);
     }
@@ -164,13 +188,16 @@ export async function mcBillingApplyPaidPeriod(params) {
     }
     const nextDebit = nextDebitDueFromPeriodEnd(periodEnd, 0);
     const subscriptionEndsAt = Math.max(tenant.subscriptionEndsAt ?? 0, periodEnd);
+    const storedAmountCop = typeof effectiveRenewalAmount === 'number' && effectiveRenewalAmount > 0
+        ? effectiveRenewalAmount
+        : amountCop;
     const subPayload = {
         status: 'active',
         billingPeriod: period,
         currentPeriodStartMs: periodStart,
         currentPeriodEndMs: periodEnd,
         nextDebitDueAtMs: nextDebit,
-        amountCop,
+        amountCop: storedAmountCop,
         autoRenewEnabled: true,
         ...(discountCodeId ? { discountCodeId } : {}),
         ...(chargeId ? { lastChargeId: chargeId } : {}),
@@ -182,6 +209,8 @@ export async function mcBillingApplyPaidPeriod(params) {
         ...(chargeId
             ? { pendingChargeId: FieldValue.delete(), lastProcessedChargeId: chargeId }
             : {}),
+        pendingPrepaidMonths: FieldValue.delete(),
+        pendingRenewalAmountCop: FieldValue.delete(),
     }, { merge: true });
     await tenantRef.set({
         billingPlan: 'expert',
@@ -259,7 +288,8 @@ export async function mcBillingDowngradeToFree(db, tenantId) {
 }
 /** Activa suscripción V2: primer cargo directo (tarjeta o Nequi). */
 export async function mcBillingActivateWithCharge(params) {
-    const pricing = await mcBillingResolvePrice(params.db, params.period, params.discountCodeRaw, params.tenantId);
+    const useMonthPromo = params.monthPromo === true;
+    const pricing = await mcBillingResolvePrice(params.db, useMonthPromo ? 'monthly' : params.period, useMonthPromo ? undefined : params.discountCodeRaw, params.tenantId, useMonthPromo ? { monthPromo: true } : undefined);
     if (pricing.finalPriceCop === 0) {
         if (pricing.requiresPaymentMethod) {
             return mcBillingActivatePromoWithPaymentMethod({
@@ -328,9 +358,12 @@ export async function mcBillingActivateWithCharge(params) {
             };
         }
     }
-    const periodKey = `init-${params.period}`;
-    const idem = idempotencyKeyForActivation(params.tenantId, params.period);
-    const title = `Plan Expert · ${params.nombreTienda.slice(0, 60)}`;
+    const billingPeriod = useMonthPromo ? 'monthly' : params.period;
+    const periodKey = useMonthPromo ? 'init-month_promo' : `init-${params.period}`;
+    const idem = idempotencyKeyForActivation(params.tenantId, useMonthPromo ? 'month_promo' : params.period);
+    const title = useMonthPromo
+        ? `Promo Expert · ${params.nombreTienda.slice(0, 56)}`
+        : `Plan Expert · ${params.nombreTienda.slice(0, 60)}`;
     const ch = await onepayCreateBillingCharge({
         secretKey: params.platformSk,
         customerId,
@@ -338,7 +371,7 @@ export async function mcBillingActivateWithCharge(params) {
         title,
         cardId: params.method === 'card' ? params.cardId : undefined,
         accountId: params.method === 'nequi' ? params.accountId : undefined,
-        metadata: buildMeta(params.tenantId, periodKey, params.period),
+        metadata: buildMeta(params.tenantId, periodKey, billingPeriod),
         externalId: `mcb-${params.tenantId.slice(0, 8)}-${periodKey}`.slice(0, 64),
         idempotencyKey: idem,
     });
@@ -350,9 +383,11 @@ export async function mcBillingActivateWithCharge(params) {
     await params.db.doc(`mc_tenants/${params.tenantId}`).set(pin, { merge: true });
     const subInit = omitUndefined({
         status: 'active',
-        billingPeriod: params.period,
-        amountCop: pricing.finalPriceCop,
+        billingPeriod: billingPeriod,
+        amountCop: pricing.renewalAmountCop ?? pricing.finalPriceCop,
         ...(pricing.discountCodeId ? { discountCodeId: pricing.discountCodeId } : {}),
+        ...(pricing.prepaidMonths ? { pendingPrepaidMonths: pricing.prepaidMonths } : {}),
+        ...(pricing.renewalAmountCop ? { pendingRenewalAmountCop: pricing.renewalAmountCop } : {}),
         autoRenewEnabled: true,
         lastChargeId: ch.id,
         debitMethodKind: params.method === 'nequi' ? 'account' : 'card',
@@ -368,9 +403,11 @@ export async function mcBillingActivateWithCharge(params) {
         await mcBillingApplyPaidPeriod({
             db: params.db,
             tenantId: params.tenantId,
-            period: params.period,
+            period: billingPeriod,
             amountCop: pricing.finalPriceCop,
             ...(pricing.discountCodeId ? { discountCodeId: pricing.discountCodeId } : {}),
+            ...(pricing.prepaidMonths ? { prepaidMonths: pricing.prepaidMonths } : {}),
+            ...(pricing.renewalAmountCop ? { renewalAmountCop: pricing.renewalAmountCop } : {}),
             chargeId: ch.id,
         });
         return { chargeId: ch.id, status: ch.status, pending: false, message: ch.message };
@@ -462,7 +499,8 @@ export async function mcBillingTryFinalizeFromChargeWebhook(params) {
     else if (sub.status !== 'active' && sub.status !== 'past_due') {
         return 'retry';
     }
-    const amountCop = sub.amountCop > 0 ? sub.amountCop : Math.max(0, Math.round(Number(details.amount ?? 0)));
+    const chargedCop = Math.max(0, Math.round(Number(details.amount ?? 0)));
+    const amountCop = chargedCop > 0 ? chargedCop : sub.amountCop;
     const isRenewal = billingChargeIsRenewal(tenant, sub);
     await mcBillingApplyPaidPeriod({
         db,
@@ -470,6 +508,8 @@ export async function mcBillingTryFinalizeFromChargeWebhook(params) {
         period: sub.billingPeriod ?? period,
         amountCop,
         ...(sub.discountCodeId ? { discountCodeId: sub.discountCodeId } : {}),
+        ...(sub.pendingPrepaidMonths ? { prepaidMonths: sub.pendingPrepaidMonths } : {}),
+        ...(sub.pendingRenewalAmountCop ? { renewalAmountCop: sub.pendingRenewalAmountCop } : {}),
         chargeId,
         isRenewal,
     });

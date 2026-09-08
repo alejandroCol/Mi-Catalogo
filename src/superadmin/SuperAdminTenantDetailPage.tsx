@@ -50,12 +50,14 @@ function planProductLabel(plan: ReturnType<typeof billingPlanOf>): string {
 export function SuperAdminTenantDetailPage() {
   const { tenantId } = useParams<{ tenantId: string }>()
   const nav = useNavigate()
-  const { profile, isImpersonating, startStoreImpersonation } = useMcAuth()
+  const { profile, isImpersonating, impersonation, startStoreImpersonation, stopStoreImpersonation } =
+    useMcAuth()
   const [row, setRow] = useState<TenantOverviewRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [assigningId, setAssigningId] = useState<AssignPlanDuration | null>(null)
   const [impersonateBusy, setImpersonateBusy] = useState(false)
+  const [stopImpersonateBusy, setStopImpersonateBusy] = useState(false)
   const [seedPosBusy, setSeedPosBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -157,9 +159,16 @@ export function SuperAdminTenantDetailPage() {
 
   async function entrarComoTienda() {
     if (!tenant) return
+    if (isImpersonating && impersonation?.tenantId === tenant.id) {
+      nav('/app', { replace: true })
+      return
+    }
+    const switching = isImpersonating && impersonation?.tenantId !== tenant.id
     if (
       !window.confirm(
-        `¿Entrar al panel como «${tenant.nombreTienda}»?\n\nVas a ver la app exactamente como la tienda. Queda registro de auditoría.`,
+        switching
+          ? `¿Cambiar el modo soporte a «${tenant.nombreTienda}»?\n\nVas a dejar ${impersonation?.tenantName || 'la tienda actual'} y entrar a esta. Queda registro de auditoría.`
+          : `¿Entrar al panel como «${tenant.nombreTienda}»?\n\nVas a ver la app exactamente como la tienda. Queda registro de auditoría.`,
       )
     ) {
       return
@@ -176,6 +185,22 @@ export function SuperAdminTenantDetailPage() {
       nav('/app', { replace: true })
     } finally {
       setImpersonateBusy(false)
+    }
+  }
+
+  async function salirModoSoporte() {
+    setStopImpersonateBusy(true)
+    setErr(null)
+    setMsg(null)
+    try {
+      const res = await stopStoreImpersonation()
+      if (!res.ok) {
+        setErr(res.message)
+        return
+      }
+      setMsg('Saliste del modo soporte.')
+    } finally {
+      setStopImpersonateBusy(false)
     }
   }
 
@@ -203,6 +228,36 @@ export function SuperAdminTenantDetailPage() {
         </div>
       ) : (
         <>
+          {isImpersonating && impersonation ? (
+            <section
+              className="rounded-xl border border-amber-300/70 bg-gradient-to-br from-amber-50/90 to-orange-50/50 px-4 py-3"
+              aria-label="Modo soporte activo"
+            >
+              <p className="text-[13px] font-semibold text-amber-950">
+                Modo soporte activo · {impersonation.tenantName || 'otra tienda'}
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-amber-900/85">
+                Ya estás viendo otra tienda desde el panel. Podés ir a esa, cambiar a esta, o salir.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Link
+                  to="/app"
+                  className="inline-flex items-center justify-center rounded-lg border border-amber-400/80 bg-white/90 px-3 py-1.5 text-[13px] font-semibold text-amber-950 no-underline"
+                >
+                  Ir al panel impersonado
+                </Link>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-lg border border-amber-400/80 bg-white/90 px-3 py-1.5 text-[13px] font-semibold text-amber-950 disabled:opacity-60"
+                  disabled={stopImpersonateBusy}
+                  onClick={() => void salirModoSoporte()}
+                >
+                  {stopImpersonateBusy ? 'Saliendo…' : 'Salir del modo soporte'}
+                </button>
+              </div>
+            </section>
+          ) : null}
+
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0 space-y-2">
               <h1 className="ios-large-title truncate">{tenant.nombreTienda}</h1>
@@ -221,11 +276,15 @@ export function SuperAdminTenantDetailPage() {
               <button
                 type="button"
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400/80 bg-gradient-to-br from-amber-50 to-white px-4 py-2.5 text-[14px] font-semibold text-amber-950 shadow-sm transition hover:border-amber-500/80 hover:from-amber-100/80 disabled:opacity-60"
-                disabled={busy || impersonateBusy || isImpersonating}
+                disabled={busy || impersonateBusy}
                 onClick={() => void entrarComoTienda()}
               >
                 <IconPerson size={18} />
-                Entrar como esta tienda
+                {isImpersonating && impersonation?.tenantId === tenant.id
+                  ? 'Ir al panel de esta tienda'
+                  : isImpersonating
+                    ? 'Cambiar a esta tienda'
+                    : 'Entrar como esta tienda'}
               </button>
             </div>
           </div>

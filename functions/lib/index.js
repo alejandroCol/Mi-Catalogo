@@ -8,6 +8,7 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import express from 'express';
 import { markCarritoIniciadoAfterOrderPaid } from './carritoIniciado.js';
 import { resolveCheckoutEnvioCop } from './shipping/resolveCheckoutEnvio.js';
+import { empaqueLineaFromProducto } from './shipping/envioEmpaquePack.js';
 import { catalogSaleOrderSliceFromData, resolveEmailCatalogThemeColors, sendCatalogCustomerPurchaseConfirmationEmail, sendCatalogSalePaidEmail, } from './catalogSaleEmail.js';
 import { AUTH_VERIFY_COOLDOWN_MS, sendVerificationEmailWithResend } from './authVerificationEmail.js';
 import { mcSendCarritoRecuperacionEmailHandler } from './carritoRecuperacionEmail.js';
@@ -1723,6 +1724,7 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public', secrets:
         }
     }
     const lineasRes = [];
+    const lineasEmpaque = [];
     for (const raw of lineas) {
         const productId = typeof raw?.productId === 'string' ? raw.productId.trim() : '';
         const cant = typeof raw?.cantidad === 'number' && raw.cantidad > 0 ? Math.floor(raw.cantidad) : 0;
@@ -1771,6 +1773,7 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public', secrets:
         if (precio < 1) {
             throw new HttpsError('invalid-argument', 'Precio faltante en un producto.');
         }
+        lineasEmpaque.push(empaqueLineaFromProducto(p, cant));
         lineasRes.push({
             productId,
             nombre: (p.nombre ?? 'Producto').slice(0, 200),
@@ -1809,6 +1812,7 @@ export const mcOnepayStartCatalogCheckout = onCall({ invoker: 'public', secrets:
         destinoTelefono: telefono,
         subtotalCop,
         totalPiezas,
+        lineasEmpaque,
     });
     const envioCop = envioResolution.envioCop;
     const cuponIn = typeof data.cuponCodigo === 'string' ? data.cuponCodigo : '';

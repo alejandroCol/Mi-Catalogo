@@ -6,6 +6,7 @@ import {
   type EnviaPackage,
   type EnviaQuoteOption,
 } from './enviaClient.js'
+import { packEnvioEmpaque, type EmpaqueDims, type EmpaqueLineaPack } from './envioEmpaquePack.js'
 
 const QUOTE_CACHE_TTL_MS = 10 * 60 * 1000
 const quoteCache = new Map<string, { expiresAt: number; opciones: EnviaQuoteOption[] }>()
@@ -44,6 +45,8 @@ export type ResolveCheckoutEnvioInput = {
   destinoTelefono?: string
   subtotalCop: number
   totalPiezas: number
+  /** Líneas del carrito con medidas de producto; si falta, se usa el empaque de la tienda. */
+  lineasEmpaque?: EmpaqueLineaPack[]
 }
 
 export type CheckoutEnvioResolution = {
@@ -77,37 +80,37 @@ function isAutoQuoteConfigured(tenant: TenantEnvioCotizacionSlice): boolean {
   )
 }
 
-function empaqueFromTenant(tenant: TenantEnvioCotizacionSlice): EnviaPackage {
-  const pesoKg = Math.min(
-    30,
-    Math.max(
-      0.1,
+function empaqueDimsFromTenant(tenant: TenantEnvioCotizacionSlice): EmpaqueDims {
+  return {
+    pesoKg:
       typeof tenant.envioEmpaquePesoKg === 'number' && tenant.envioEmpaquePesoKg > 0
         ? tenant.envioEmpaquePesoKg
         : EMPAQUE_DEFAULT.pesoKg,
-    ),
-  )
-  const largo =
-    typeof tenant.envioEmpaqueLargoCm === 'number' && tenant.envioEmpaqueLargoCm > 0
-      ? tenant.envioEmpaqueLargoCm
-      : EMPAQUE_DEFAULT.largoCm
-  const ancho =
-    typeof tenant.envioEmpaqueAnchoCm === 'number' && tenant.envioEmpaqueAnchoCm > 0
-      ? tenant.envioEmpaqueAnchoCm
-      : EMPAQUE_DEFAULT.anchoCm
-  const alto =
-    typeof tenant.envioEmpaqueAltoCm === 'number' && tenant.envioEmpaqueAltoCm > 0
-      ? tenant.envioEmpaqueAltoCm
-      : EMPAQUE_DEFAULT.altoCm
+    largoCm:
+      typeof tenant.envioEmpaqueLargoCm === 'number' && tenant.envioEmpaqueLargoCm > 0
+        ? tenant.envioEmpaqueLargoCm
+        : EMPAQUE_DEFAULT.largoCm,
+    anchoCm:
+      typeof tenant.envioEmpaqueAnchoCm === 'number' && tenant.envioEmpaqueAnchoCm > 0
+        ? tenant.envioEmpaqueAnchoCm
+        : EMPAQUE_DEFAULT.anchoCm,
+    altoCm:
+      typeof tenant.envioEmpaqueAltoCm === 'number' && tenant.envioEmpaqueAltoCm > 0
+        ? tenant.envioEmpaqueAltoCm
+        : EMPAQUE_DEFAULT.altoCm,
+  }
+}
+
+function enviaPackageFromDims(dims: EmpaqueDims, declaredValue: number): EnviaPackage {
   return {
     type: 'box',
     content: 'Pedido catálogo',
     amount: 1,
-    declaredValue: 0,
+    declaredValue,
     lengthUnit: 'CM',
     weightUnit: 'KG',
-    weight: pesoKg,
-    dimensions: { length: largo, width: ancho, height: alto },
+    weight: dims.pesoKg,
+    dimensions: { length: dims.largoCm, width: dims.anchoCm, height: dims.altoCm },
   }
 }
 
@@ -182,12 +185,8 @@ export async function resolveCheckoutEnvioCop(
     return { envioCop: staticEnvioCop(input), fuente: 'estatico' }
   }
 
-  const packages = [
-    {
-      ...empaqueFromTenant(input.tenant),
-      declaredValue: Math.max(0, Math.round(input.subtotalCop)),
-    },
-  ]
+  const packed = packEnvioEmpaque(input.lineasEmpaque ?? [], empaqueDimsFromTenant(input.tenant))
+  const packages = [enviaPackageFromDims(packed, Math.max(0, Math.round(input.subtotalCop)))]
 
   const key = cacheKey(input, packages[0])
   const now = Date.now()

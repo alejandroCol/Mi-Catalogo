@@ -1,5 +1,8 @@
 export type McBillingPeriod = 'monthly' | 'yearly'
 
+/** Elección en el paywall: periodos normales o la promo del mes. */
+export type McBillingCheckoutChoice = McBillingPeriod | 'month_promo'
+
 export type NequiAccountStatus = {
   status?: string
   authorization?: boolean

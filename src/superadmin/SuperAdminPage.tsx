@@ -3,10 +3,10 @@ import { signOut } from 'firebase/auth'
 import { Link, useNavigate } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
 import { useMcAuth } from '@/auth/McAuthContext'
+import { usePlatformSettings } from '@/hooks/usePlatformSettings'
 import {
   IconChartBars,
   IconChevronLeft,
-  IconChevronRight,
   IconClipboard,
   IconCube,
   IconHome,
@@ -21,7 +21,14 @@ import { LandingDemoSettings } from './LandingDemoSettings'
 import { NewStoreNotifyEmailSettings } from './NewStoreNotifyEmailSettings'
 import { MuxLiveTestSettings } from './MuxLiveTestSettings'
 import { NewStoreExpertPromoSettings } from './NewStoreExpertPromoSettings'
+import { SuperAdminFollowUpWhatsappSettings } from './SuperAdminFollowUpWhatsappSettings'
 import { TenantOverviewListItem } from './TenantOverviewListItem'
+import { TenantProductsPreviewModal } from './TenantProductsPreviewModal'
+import {
+  countTenantsByPlan,
+  filterTenantsByPlan,
+  type TenantPlanListFilter,
+} from './tenantPlanFilters'
 import {
   assignExpertPlanFromNow,
   assignMasterPlanFromNow,
@@ -32,7 +39,8 @@ import {
 
 export function SuperAdminPage() {
   const nav = useNavigate()
-  const { profile, isImpersonating, impersonation } = useMcAuth()
+  const { profile, isImpersonating, impersonation, stopStoreImpersonation } = useMcAuth()
+  const { platformSettings, reload: reloadPlatformSettings } = usePlatformSettings()
   const [rows, setRows] = useState<TenantOverviewRow[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -46,7 +54,25 @@ export function SuperAdminPage() {
   const [search, setSearch] = useState('')
   const [slugLookup, setSlugLookup] = useState('')
   const [onepayListFilter, setOnepayListFilter] = useState<'all' | 'kyb_pending' | 'pasarela_on'>('all')
+  const [planListFilter, setPlanListFilter] = useState<TenantPlanListFilter>('all')
+  const [productsPreview, setProductsPreview] = useState<TenantOverviewRow | null>(null)
   const [logoutBusy, setLogoutBusy] = useState(false)
+  const [stopImpersonateBusy, setStopImpersonateBusy] = useState(false)
+
+  async function salirModoSoporte() {
+    setStopImpersonateBusy(true)
+    setErr(null)
+    try {
+      const res = await stopStoreImpersonation()
+      if (!res.ok) {
+        setErr(res.message)
+        return
+      }
+      setMsg('Saliste del modo soporte.')
+    } finally {
+      setStopImpersonateBusy(false)
+    }
+  }
 
   async function cerrarSesion() {
     if (!firebaseConfigured || logoutBusy) return
@@ -84,6 +110,7 @@ export function SuperAdminPage() {
     } else if (onepayListFilter === 'pasarela_on') {
       base = base.filter((r) => r.tenant.onepayPaymentsEnabled === true)
     }
+    base = filterTenantsByPlan(base, planListFilter)
     const q = search.trim().toLowerCase()
     if (!q) return base
     return base.filter((r) => {
@@ -96,7 +123,9 @@ export function SuperAdminPage() {
         t.id.toLowerCase().includes(q)
       )
     })
-  }, [rows, search, onepayListFilter])
+  }, [rows, search, onepayListFilter, planListFilter])
+
+  const planCounts = useMemo(() => countTenantsByPlan(rows), [rows])
 
   const stats = useMemo(() => {
     let activas = 0
@@ -205,6 +234,36 @@ export function SuperAdminPage() {
         Volver
       </Link>
 
+      {isImpersonating && impersonation ? (
+        <section
+          className="rounded-xl border border-amber-300/70 bg-gradient-to-br from-amber-50/90 to-orange-50/50 px-4 py-3"
+          aria-label="Modo soporte activo"
+        >
+          <p className="text-[13px] font-semibold text-amber-950">
+            Modo soporte activo · {impersonation.tenantName || 'tienda'}
+          </p>
+          <p className="mt-1 text-[12px] leading-relaxed text-amber-900/85">
+            Ya estás viendo una tienda desde el panel. Podés ir a esa o salir para entrar a otra.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Link
+              to="/app"
+              className="inline-flex items-center justify-center rounded-lg border border-amber-400/80 bg-white/90 px-3 py-1.5 text-[13px] font-semibold text-amber-950 no-underline"
+            >
+              Ir al panel impersonado
+            </Link>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-lg border border-amber-400/80 bg-white/90 px-3 py-1.5 text-[13px] font-semibold text-amber-950 disabled:opacity-60"
+              disabled={stopImpersonateBusy}
+              onClick={() => void salirModoSoporte()}
+            >
+              {stopImpersonateBusy ? 'Saliendo…' : 'Salir del modo soporte'}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="ios-large-title">Súper admin</h1>
@@ -230,8 +289,25 @@ export function SuperAdminPage() {
         </div>
       </div>
 
+      <section className="mc-card space-y-3 border-amber-200/80 bg-gradient-to-br from-amber-50/90 to-white">
+        <div>
+          <h2 className="text-[15px] font-semibold text-amber-950">Promo del mes (Hot Sale)</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-amber-950/70">
+            Card llamativo en el paywall: N meses prepagos con descuento. Después sigue el precio mensual
+            normal.
+          </p>
+        </div>
+        <Link
+          to="/superadmin/promo-mes"
+          className="mc-btn-primary inline-flex w-full items-center justify-center py-3 no-underline sm:w-auto"
+        >
+          Ajustar promo del mes
+        </Link>
+      </section>
+
       <NewStoreNotifyEmailSettings />
       <NewStoreExpertPromoSettings />
+      <SuperAdminFollowUpWhatsappSettings onSaved={() => void reloadPlatformSettings()} />
       <MuxLiveTestSettings />
       <LandingDemoSettings />
 
@@ -275,6 +351,13 @@ export function SuperAdminPage() {
         className="inline-flex w-full items-center justify-center rounded-lg border border-mc-200/90 bg-mc-50/60 px-4 py-3 text-[14px] font-semibold text-mc-900 no-underline transition hover:bg-mc-100/70 sm:w-auto sm:justify-start"
       >
         Configurar planes (límites y precios Expert)
+      </Link>
+
+      <Link
+        to="/superadmin/promo-mes"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-amber-300/90 bg-gradient-to-br from-amber-50/90 to-white px-4 py-3 text-[14px] font-semibold text-amber-950 no-underline transition hover:border-amber-400/90 hover:bg-amber-50 sm:w-auto sm:justify-start"
+      >
+        Ajustar promo del mes
       </Link>
 
       <Link
@@ -372,31 +455,65 @@ export function SuperAdminPage() {
           </section>
 
           <section className="space-y-3" aria-label="Listado">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">Tiendas registradas</h2>
-              <div className="flex w-full flex-col gap-2 sm:max-w-lg sm:flex-row sm:items-center">
-                <select
-                  className="mc-input py-2 text-[13px] sm:w-[11.5rem]"
-                  value={onepayListFilter}
-                  onChange={(e) => setOnepayListFilter(e.target.value as typeof onepayListFilter)}
-                  aria-label="Filtrar por estado OnePay"
-                >
-                  <option value="all">Todas las tiendas</option>
-                  <option value="kyb_pending">Solo KYB pendiente</option>
-                  <option value="pasarela_on">Solo pasarela activa</option>
-                </select>
-                <div className="relative min-w-0 flex-1">
-                  <IconMagnifier
-                    size={18}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mc-400"
-                  />
-                  <input
-                    className="mc-input pl-10"
-                    placeholder="Filtrar por nombre, slug, correo…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-mc-500">
+                  Tiendas registradas
+                </h2>
+                <div className="flex w-full flex-col gap-2 sm:max-w-lg sm:flex-row sm:items-center">
+                  <select
+                    className="mc-input py-2 text-[13px] sm:w-[11.5rem]"
+                    value={onepayListFilter}
+                    onChange={(e) => setOnepayListFilter(e.target.value as typeof onepayListFilter)}
+                    aria-label="Filtrar por estado OnePay"
+                  >
+                    <option value="all">Todas las tiendas</option>
+                    <option value="kyb_pending">Solo KYB pendiente</option>
+                    <option value="pasarela_on">Solo pasarela activa</option>
+                  </select>
+                  <div className="relative min-w-0 flex-1">
+                    <IconMagnifier
+                      size={18}
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mc-400"
+                    />
+                    <input
+                      className="mc-input pl-10"
+                      placeholder="Filtrar por nombre, slug, correo…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
                 </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por plan">
+                {(
+                  [
+                    { id: 'all' as const, label: 'Todas', count: planCounts.all },
+                    { id: 'expert' as const, label: 'Expert', count: planCounts.expert },
+                    { id: 'sin_expert' as const, label: 'Sin Expert', count: planCounts.sinExpert },
+                  ] as const
+                ).map((chip) => {
+                  const active = planListFilter === chip.id
+                  return (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      aria-pressed={active}
+                      className={`rounded-full border px-3 py-1.5 text-[13px] font-medium transition ${
+                        active
+                          ? 'border-mc-900/25 bg-mc-900 text-white'
+                          : 'border-mc-200/90 bg-white text-mc-800 hover:border-mc-300 hover:bg-mc-50'
+                      }`}
+                      onClick={() => setPlanListFilter(chip.id)}
+                    >
+                      {chip.label}
+                      <span className={`ml-1.5 tabular-nums ${active ? 'text-white/80' : 'text-mc-500'}`}>
+                        {chip.count}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -412,6 +529,8 @@ export function SuperAdminPage() {
                       : null
                   }
                   onAssignPlan={handleAssignPlan}
+                  onShowProducts={setProductsPreview}
+                  platformSettings={platformSettings}
                 />
               ))}
             </ul>
@@ -420,25 +539,14 @@ export function SuperAdminPage() {
             )}
           </section>
 
-          {isImpersonating && impersonation ? (
-            <section
-              className="rounded-xl border border-amber-300/70 bg-gradient-to-br from-amber-50/90 to-orange-50/50 px-4 py-3"
-              aria-label="Modo soporte activo"
-            >
-              <p className="text-[13px] font-semibold text-amber-950">
-                Modo soporte activo · {impersonation.tenantName || 'tienda'}
-              </p>
-              <p className="mt-1 text-[12px] leading-relaxed text-amber-900/85">
-                Estás viendo otra tienda desde el panel. Usá el banner superior en la app para salir.
-              </p>
-              <Link
-                to="/app"
-                className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-amber-950 underline decoration-amber-400/80 underline-offset-4"
-              >
-                Ir al panel impersonado
-                <IconChevronRight size={16} />
-              </Link>
-            </section>
+          {productsPreview ? (
+            <TenantProductsPreviewModal
+              open
+              tenantId={productsPreview.tenant.id}
+              tenantName={productsPreview.tenant.nombreTienda}
+              productCount={productsPreview.productCount}
+              onClose={() => setProductsPreview(null)}
+            />
           ) : null}
 
           {err && (

@@ -16,7 +16,7 @@ export const CATALOG_HEADER_LAYOUT_OPTIONS: {
   {
     id: 'logo-center',
     title: 'Logo al centro',
-    description: 'Secciones a la izquierda, marca centrada e iconos a la derecha.',
+    description: 'Secciones a la izquierda (menú en móvil), marca centrada e iconos a la derecha.',
   },
 ]
 

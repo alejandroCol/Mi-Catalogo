@@ -55,6 +55,11 @@ export type QuickAddProductDraft = {
   draftProductId?: string
   /** Referencia ya asignada (nombre + número) para preservarla al reabrir el borrador. */
   referencia?: string
+  envioMedidasEnabled?: boolean
+  envioPesoKg?: string
+  envioLargoCm?: string
+  envioAnchoCm?: string
+  envioAltoCm?: string
 }
 
 /** Archivos locales del formulario: sobreviven la navegación SPA, no un reload. */

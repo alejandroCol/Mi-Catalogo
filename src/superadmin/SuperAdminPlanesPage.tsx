@@ -134,6 +134,12 @@ export function SuperAdminPlanesPage() {
         <p className="ios-subhead mt-1 max-w-xl leading-relaxed text-[var(--cat-muted)]">
           Límites de inventario por plan y precios del plan Expert (checkout simulado).
         </p>
+        <Link
+          to="/superadmin/promo-mes"
+          className="mt-4 inline-flex items-center justify-center rounded-lg border border-amber-300/90 bg-gradient-to-br from-amber-50/90 to-white px-4 py-2.5 text-[14px] font-semibold text-amber-950 no-underline transition hover:bg-amber-50"
+        >
+          Ajustar promo del mes
+        </Link>
       </div>
 
       {loading ? (
@@ -234,6 +240,13 @@ export function SuperAdminPlanesPage() {
               onChange={(e) => setExpertDisplayName(e.target.value)}
             />
           </div>
+
+          <Link
+            to="/superadmin/promo-mes"
+            className="block text-center text-[13px] font-semibold text-amber-900 underline decoration-amber-300 underline-offset-4"
+          >
+            Ajustar promo del mes →
+          </Link>
 
           <Link
             to="/superadmin/descuentos"

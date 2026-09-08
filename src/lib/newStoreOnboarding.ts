@@ -31,9 +31,11 @@ type OnboardingTenantPick = Pick<
   | 'checkoutVentasModo'
   | 'onepayPaymentsEnabled'
   | 'whatsappNumero'
+  | 'envioSinEnvio'
   | 'envioEstimadoCop'
   | 'envioPorCiudad'
   | 'envioUsarTarifasMicatalogo'
+  | 'envioCotizarAutomatico'
   | 'billingPlan'
 >
 
@@ -139,7 +141,10 @@ export function buildNewStoreChecklist(
     {
       id: 'envio',
       title: 'Configurá el envío',
-      description: 'Definí tarifas para que el checkout calcule el total.',
+      description:
+        checkoutModo === 'whatsapp'
+          ? 'Definí tarifas o marcá sin envío si coordinás la entrega por WhatsApp.'
+          : 'Definí tarifas para que el checkout calcule el total.',
       done: envioOk,
       href: '/app/cuenta/envio',
     },

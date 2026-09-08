@@ -6,7 +6,7 @@ import type { McTenant } from '@/types/mc'
  * Versión del release de novedades. Subila al publicar funciones nuevas:
  * el puntito animado vuelve a aparecer; el acceso «Lo nuevo» sigue visible.
  */
-export const ADMIN_WHATS_NEW_VERSION = '2026-08-24'
+export const ADMIN_WHATS_NEW_VERSION = '2026-08-31'
 
 export type AdminWhatsNewAccent = 'gold' | 'neutral' | 'dark'
 
@@ -24,6 +24,16 @@ export type AdminWhatsNewItem = {
 }
 
 export const ADMIN_WHATS_NEW_ITEMS: AdminWhatsNewItem[] = [
+  {
+    id: 'carrusel-categoria',
+    title: 'Carrusel de categoría',
+    description: 'Productos de una categoría debajo del banner, con la segunda foto al pasar el mouse.',
+    to: '/app/cuenta/banner-categoria',
+    linkState: PERSONALIZAR_SUBPAGE_NAV,
+    tag: 'Personalizar',
+    accent: 'neutral',
+    sinceVersion: '2026-08-31',
+  },
   {
     id: 'landing-interactiva',
     title: 'Modo interactivo',

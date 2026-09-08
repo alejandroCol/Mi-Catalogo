@@ -29,6 +29,12 @@ export function computeFreeMonthsEndMs(anchorMs: number, freeMonths: number): nu
   return addCalendarMonthsLocal(anchorMs, months)
 }
 
+/** Paquete prepago de la promo del mes (2–12 meses). */
+export function computePrepaidMonthsEndMs(anchorMs: number, prepaidMonths: number): number {
+  const months = Math.min(12, Math.max(2, Math.round(prepaidMonths)))
+  return addCalendarMonthsLocal(anchorMs, months)
+}
+
 export function advancePeriodEndMs(currentPeriodEndMs: number, billing: McBillingPeriod): number {
   return billing === 'yearly'
     ? addCalendarYearsLocal(currentPeriodEndMs, 1)
@@ -51,7 +57,7 @@ export function idempotencyKeyForBillingDebit(
 /** Clave estable para el primer cobro de activación (evita débitos duplicados por reintentos). */
 export function idempotencyKeyForActivation(
   tenantId: string,
-  period: McBillingPeriod,
+  period: McBillingPeriod | 'month_promo',
 ): string {
   return `mcb-${tenantId.slice(0, 12)}-init-${period}`.slice(0, 64)
 }

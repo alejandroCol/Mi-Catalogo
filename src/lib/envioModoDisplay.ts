@@ -1,7 +1,9 @@
 import type { EnvioModo } from '@/lib/envioModo'
 
+export type EnvioModoConTarifa = Exclude<EnvioModo, 'sin_envio'>
+
 export type EnvioModoDisplay = {
-  id: EnvioModo
+  id: EnvioModoConTarifa
   href: string
   title: string
   summary: string

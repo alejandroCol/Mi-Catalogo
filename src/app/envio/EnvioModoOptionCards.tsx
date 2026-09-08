@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { ConfigSubpageNavState } from '@/app/configuraciones/configSubpageNav'
 import { IconChevronRight, IconShipping } from '@/icons/McIcons'
-import type { EnvioModo } from '@/lib/envioModo'
-import { ENVIO_MODOS } from '@/lib/envioModoDisplay'
+import { ENVIO_MODOS, type EnvioModoConTarifa } from '@/lib/envioModoDisplay'
 
 function RadioIndicator({ selected }: { selected: boolean }) {
   return (
@@ -23,7 +22,7 @@ export function EnvioModoOptionCards({
   value,
   navState,
 }: {
-  value: EnvioModo | null
+  value: EnvioModoConTarifa | null
   navState?: ConfigSubpageNavState
 }) {
   return (

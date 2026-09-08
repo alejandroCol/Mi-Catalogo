@@ -1,27 +1,53 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { doc, updateDoc } from 'firebase/firestore'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
 import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { EnvioModoOptionCards } from '@/app/envio/EnvioModoOptionCards'
+import { EnvioSinEnvioCheckbox } from '@/app/envio/EnvioSinEnvioCheckbox'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { formatCop } from '@/lib/formatCop'
 import { explicitEnvioModo } from '@/lib/envioModo'
+import { isEnvioSinEnvioAllowed } from '@/lib/envioSinEnvio'
 import {
   MC_ENVIA_CARRIER_LABELS,
   isMcEnviaCarrierCode,
   type McEnviaCarrierCode,
 } from '@/lib/envioCotizacion'
 import { isEnvioCheckoutConfigured } from '@/lib/checkoutShipping'
+import { getDb } from '@/lib/firebase'
+import { MC } from '@/lib/mcCollections'
 
 export function CuentaEnvioPage() {
-  const { tenant } = useMcAuth()
+  const { tenant, effectiveTenantId } = useMcAuth()
   const { returnTo, returnLabel, navState } = useConfigSubpageNav()
   const activeModo = explicitEnvioModo(tenant)
   const configurado = tenant ? isEnvioCheckoutConfigured(tenant) : false
+  const puedeSinEnvio = isEnvioSinEnvioAllowed(tenant)
+  const [sinEnvioBusy, setSinEnvioBusy] = useState(false)
+  const [sinEnvioErr, setSinEnvioErr] = useState<string | null>(null)
+
+  async function guardarSinEnvio(next: boolean) {
+    if (!effectiveTenantId) return
+    setSinEnvioBusy(true)
+    setSinEnvioErr(null)
+    try {
+      await updateDoc(doc(getDb(), MC.tenants, effectiveTenantId), { envioSinEnvio: next })
+    } catch {
+      setSinEnvioErr('No se pudo guardar. Intentá de nuevo.')
+    } finally {
+      setSinEnvioBusy(false)
+    }
+  }
 
   const resumen = useMemo(() => {
     if (!tenant || !activeModo) return null
     const g = tenant.envioGratisDesdeCop
     const parts: string[] = []
+    if (activeModo === 'sin_envio') {
+      parts.push('Sin envío')
+      parts.push('El pedido por WhatsApp no pide dirección')
+      return parts.join(' · ')
+    }
     if (activeModo === 'automatico') {
       parts.push('Cotización automática')
       const fav = tenant.envioTransportadoraFavorita?.trim().toLowerCase() ?? ''
@@ -46,6 +72,9 @@ export function CuentaEnvioPage() {
         <h1 className="ios-large-title mt-3">Configurar envío</h1>
         <p className="ios-subhead mt-2 max-w-lg leading-relaxed text-[var(--cat-muted)]">
           Elegí cómo calcular el envío en el checkout. Solo podés usar un método a la vez.
+          {puedeSinEnvio
+            ? ' Si coordinás la entrega por WhatsApp, también podés marcar Sin envío.'
+            : ''}
         </p>
       </div>
 
@@ -62,7 +91,21 @@ export function CuentaEnvioPage() {
         </div>
       )}
 
-      <EnvioModoOptionCards value={activeModo} navState={navState} />
+      <EnvioModoOptionCards
+        value={activeModo === 'automatico' || activeModo === 'manual' ? activeModo : null}
+        navState={navState}
+      />
+
+      {puedeSinEnvio ? (
+        <div className="space-y-1.5">
+          <EnvioSinEnvioCheckbox
+            checked={activeModo === 'sin_envio'}
+            busy={sinEnvioBusy}
+            onChange={(next) => void guardarSinEnvio(next)}
+          />
+          {sinEnvioErr ? <p className="text-[12px] text-red-800">{sinEnvioErr}</p> : null}
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -12,8 +12,8 @@ export type CheckoutWhatsappContext = {
   nombre: string
   telefono: string
   email?: string
-  clienteTipoDocumento: string
-  clienteDocumentoNumero: string
+  clienteTipoDocumento?: string
+  clienteDocumentoNumero?: string
   envioDepartamento: string
   envioCiudad: string
   envioDireccion: string
@@ -25,6 +25,7 @@ export type CheckoutWhatsappContext = {
   totalCop: number
   envioLabel: string
   cuponCodigo?: string
+  sinEnvio?: boolean
 }
 
 export function buildCheckoutWhatsappText(
@@ -46,23 +47,33 @@ export function buildCheckoutWhatsappText(
       `Descuento${ctx.cuponCodigo ? ` (${ctx.cuponCodigo})` : ''}: −${formatCopPlain(ctx.descuentoCop)}`,
     )
   }
-  if (ctx.envioCop > 0) {
+  if (ctx.sinEnvio) {
+    partes.push(`${ctx.envioLabel}: sin envío`)
+  } else if (ctx.envioCop > 0) {
     partes.push(`${ctx.envioLabel}: ${formatCopPlain(ctx.envioCop)}`)
   } else if (ctx.subtotalCop > 0) {
     partes.push(`${ctx.envioLabel}: gratis`)
   }
   partes.push(`Total: ${formatCopPlain(ctx.totalCop)}`, '', 'Mis datos:', `Nombre: ${ctx.nombre}`)
   if (ctx.email?.trim()) partes.push(`Correo: ${ctx.email.trim()}`)
-  partes.push(
-    `Teléfono: ${ctx.telefono}`,
-    `Documento: ${ctx.clienteTipoDocumento} ${ctx.clienteDocumentoNumero}`,
-    '',
-    'Envío:',
-    `${ctx.envioDepartamento} · ${ctx.envioCiudad}`,
-    ctx.envioDireccion,
-  )
-  if (ctx.envioReferencia?.trim()) {
-    partes.push(`Referencia de entrega: ${ctx.envioReferencia.trim()}`)
+  partes.push(`Teléfono: ${ctx.telefono}`)
+  const tipoDoc = ctx.clienteTipoDocumento?.trim()
+  const nroDoc = ctx.clienteDocumentoNumero?.trim()
+  if (tipoDoc && nroDoc) {
+    partes.push(`Documento: ${tipoDoc} ${nroDoc}`)
+  }
+  if (ctx.sinEnvio) {
+    partes.push('', 'Envío: sin envío (se coordina con la tienda)')
+  } else {
+    partes.push(
+      '',
+      'Envío:',
+      `${ctx.envioDepartamento} · ${ctx.envioCiudad}`,
+      ctx.envioDireccion,
+    )
+    if (ctx.envioReferencia?.trim()) {
+      partes.push(`Referencia de entrega: ${ctx.envioReferencia.trim()}`)
+    }
   }
   if (ctx.nota?.trim()) partes.push('', `Nota: ${ctx.nota.trim()}`)
   partes.push('', '¿Me confirman disponibilidad y forma de pago?')

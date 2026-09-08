@@ -386,15 +386,27 @@ export const mcBillingCompleteActivation = onCall({ invoker: 'public' }, async (
     cardId?: unknown
     accountId?: unknown
     discountCode?: unknown
+    monthPromo?: unknown
   }
-  const period: McBillingPeriod = data.period === 'yearly' ? 'yearly' : 'monthly'
+  const monthPromo = data.monthPromo === true
+  const period: McBillingPeriod = data.period === 'yearly' && !monthPromo ? 'yearly' : 'monthly'
   const methodRaw = data.method === 'nequi' ? 'nequi' : 'card'
   const method: McBillingDebitMethod = methodRaw
   const cardId = typeof data.cardId === 'string' ? data.cardId.trim() : ''
   const accountId = typeof data.accountId === 'string' ? data.accountId.trim() : ''
-  const discountCode = typeof data.discountCode === 'string' ? data.discountCode.trim() : ''
+  const discountCode = monthPromo
+    ? ''
+    : typeof data.discountCode === 'string'
+      ? data.discountCode.trim()
+      : ''
 
-  const pricing = await mcBillingResolvePrice(db, period, discountCode || undefined, tenantId)
+  const pricing = await mcBillingResolvePrice(
+    db,
+    period,
+    discountCode || undefined,
+    tenantId,
+    monthPromo ? { monthPromo: true } : undefined,
+  )
   const requiresPaymentMethod =
     pricing.finalPriceCop > 0 || pricing.requiresPaymentMethod === true
 
@@ -432,6 +444,7 @@ export const mcBillingCompleteActivation = onCall({ invoker: 'public' }, async (
       cardId: method === 'card' ? cardId : undefined,
       accountId: method === 'nequi' ? accountId : undefined,
       discountCodeRaw: discountCode || undefined,
+      monthPromo,
       platformSk: secretKey,
       nombreTienda,
     })

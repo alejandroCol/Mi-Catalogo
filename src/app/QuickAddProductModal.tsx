@@ -53,6 +53,12 @@ import {
 } from '@/lib/productoZapatos'
 import type { McPlatformSettings, McProducto, McProductoTallaModo, McProductoVariante, McTenant } from '@/types/mc'
 import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
+import { ProductoEnvioMedidasEditor } from '@/components/producto/ProductoEnvioMedidasEditor'
+import {
+  emptyProductoEnvioMedidasDraft,
+  parseProductoEnvioMedidasDraft,
+  type ProductoEnvioMedidasDraft,
+} from '@/lib/productoEnvioMedidas'
 import { ProductoReferenciaPreview } from '@/components/producto/ProductoReferenciaPreview'
 import { McErrorDialog } from '@/components/McErrorDialog'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
@@ -170,6 +176,17 @@ export function QuickAddProductModal({
   )
   const [skuMatrix, setSkuMatrix] = useState<SkuDraft[]>(() => initialDraft?.skuMatrix ?? [])
   const [categoriaIds, setCategoriaIds] = useState<string[]>(initialDraft?.categoriaIds ?? [])
+  const [envioMedidas, setEnvioMedidas] = useState<ProductoEnvioMedidasDraft>(() =>
+    initialDraft?.envioMedidasEnabled
+      ? {
+          enabled: true,
+          pesoKg: initialDraft.envioPesoKg ?? '',
+          largoCm: initialDraft.envioLargoCm ?? '',
+          anchoCm: initialDraft.envioAnchoCm ?? '',
+          altoCm: initialDraft.envioAltoCm ?? '',
+        }
+      : emptyProductoEnvioMedidasDraft(),
+  )
   const [draftProductId, setDraftProductId] = useState<string | null>(
     initialDraft?.draftProductId ?? null,
   )
@@ -230,6 +247,7 @@ export function QuickAddProductModal({
       coloresZapatos,
       imagenPrincipalColorId,
       categoriaIds,
+      envioMedidas,
     }
   }, [
     tipoProducto,
@@ -251,6 +269,7 @@ export function QuickAddProductModal({
     variantes,
     skuMatrix,
     categoriaIds,
+    envioMedidas,
   ])
 
   const persistSessionDraft = useCallback(() => {
@@ -282,6 +301,11 @@ export function QuickAddProductModal({
       coloresZapatos: serializeColoresZapatosForDraft(coloresZapatos),
       imagenPrincipalColorId,
       categoriaIds,
+      envioMedidasEnabled: envioMedidas.enabled,
+      envioPesoKg: envioMedidas.pesoKg,
+      envioLargoCm: envioMedidas.largoCm,
+      envioAnchoCm: envioMedidas.anchoCm,
+      envioAltoCm: envioMedidas.altoCm,
       imagenes: serializedImgs.imagenes,
       coverId: serializedImgs.coverId,
       ...(draftProductIdRef.current ? { draftProductId: draftProductIdRef.current } : {}),
@@ -314,6 +338,7 @@ export function QuickAddProductModal({
     variantes,
     skuMatrix,
     categoriaIds,
+    envioMedidas,
   ])
 
   const saveDraftToFirestore = useCallback(async (): Promise<string | null> => {
@@ -454,6 +479,11 @@ export function QuickAddProductModal({
       showCreateError(descParsed.error)
       return
     }
+    const envioParsed = parseProductoEnvioMedidasDraft(envioMedidas)
+    if (!envioParsed.ok) {
+      showCreateError(envioParsed.error)
+      return
+    }
 
     for (const v of variantes) {
       if (!v.nombre.trim()) continue
@@ -566,6 +596,7 @@ export function QuickAddProductModal({
         ...descParsed.fields,
         ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
         ...(categoriaIds.length > 0 ? { categoriaIds } : {}),
+        envioMedidas: envioParsed.medidas ?? deleteField(),
       }
 
       if (productId) {
@@ -601,6 +632,7 @@ export function QuickAddProductModal({
             ...descParsed.fields,
             ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
             ...(categoriaIds.length > 0 ? { categoriaIds } : {}),
+            ...(envioParsed.medidas ? { envioMedidas: envioParsed.medidas } : {}),
           } satisfies Omit<McProducto, 'id'>,
           platformSettings,
         )
@@ -910,6 +942,13 @@ export function QuickAddProductModal({
                   </div>
                 )}
               </ProductoFormSection>
+
+              <ProductoEnvioMedidasEditor
+                draft={envioMedidas}
+                onChange={setEnvioMedidas}
+                esRopa={esRopaForm}
+                disabled={busy}
+              />
             </div>
 
             <div className="space-y-5">

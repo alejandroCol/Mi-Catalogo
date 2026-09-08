@@ -318,6 +318,21 @@ export function IconBankCard({ size, className }: McIconProps) {
   )
 }
 
+/** Vista rápida (ojo) */
+export function IconEye({ size, className }: McIconProps) {
+  return (
+    <Svg size={size} className={className}>
+      <path
+        d="M2.5 12s3.2-6 9.5-6 9.5 6 9.5 6-3.2 6-9.5 6-9.5-6-9.5-6Z"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="2.4" stroke="currentColor" strokeWidth={stroke} />
+    </Svg>
+  )
+}
+
 /** Carrito catálogo público */
 export function IconCart({ size, className }: McIconProps) {
   return (

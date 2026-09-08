@@ -95,6 +95,7 @@ type Props = {
     freeMonths?: number
   } | null
   discountCode?: string
+  monthPromo?: boolean
   expertName: string
   onSuccess: (message: string) => void
   onError: (message: string) => void
@@ -106,6 +107,7 @@ export function BillingV2Checkout({
   requiresPaymentMethod = amountCop > 0,
   discountPreview,
   discountCode,
+  monthPromo = false,
   expertName,
   onSuccess,
   onError,
@@ -245,7 +247,8 @@ export function BillingV2Checkout({
       method: params.method,
       cardId: params.method === 'card' ? params.cardId : undefined,
       accountId: params.method === 'nequi' ? params.accountId : undefined,
-      discountCode: discountCode || undefined,
+      discountCode: monthPromo ? undefined : discountCode || undefined,
+      monthPromo: monthPromo || undefined,
     })
     const d = res.data as { pending?: boolean; message?: string }
     if (d.pending) {
@@ -298,7 +301,7 @@ export function BillingV2Checkout({
     } finally {
       setBusy(false)
     }
-  }, [period, discountCode, expertName, amountCop, notifySuccess])
+  }, [period, discountCode, monthPromo, expertName, amountCop, notifySuccess])
 
   const startNequiPaymentRef = useRef(startNequiPayment)
   startNequiPaymentRef.current = startNequiPayment
@@ -353,7 +356,7 @@ export function BillingV2Checkout({
         setNequiPaymentChecking(false)
       }
     },
-    [period, discountCode, expertName, amountCop, notifySuccess],
+    [period, discountCode, monthPromo, expertName, amountCop, notifySuccess],
   )
 
   const pollNequiAccountLinkingRef = useRef(pollNequiAccountLinking)
@@ -604,10 +607,19 @@ export function BillingV2Checkout({
             <ZeroChargeDiscountNotice className="mt-2 text-[12px] text-emerald-900/75" />
           </>
         ) : (
-          <p className="mt-0.5 text-[17px] font-medium tracking-tight">
-            {formatCop(amountCop)}{' '}
-            <span className="text-[13px] text-[var(--cat-muted)]">/ {period === 'yearly' ? 'año' : 'mes'}</span>
-          </p>
+          <>
+            <p className="mt-0.5 text-[17px] font-medium tracking-tight">
+              {formatCop(amountCop)}{' '}
+              <span className="text-[13px] text-[var(--cat-muted)]">
+                {monthPromo ? 'ahora · promo del mes' : `/ ${period === 'yearly' ? 'año' : 'mes'}`}
+              </span>
+            </p>
+            {monthPromo ? (
+              <p className="mt-1 text-[12px] leading-relaxed text-[var(--cat-muted)]">
+                Después se cobra el precio mensual normal. Cancelá cuando quieras.
+              </p>
+            ) : null}
+          </>
         )}
       </div>
 

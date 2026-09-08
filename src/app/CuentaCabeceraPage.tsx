@@ -35,8 +35,13 @@ function HeaderLayoutWireframe({
       <div className="rounded-lg border border-neutral-200/70 bg-[var(--cat-surface,#fff)] px-3 py-3">
         <div className="grid grid-cols-3 items-center gap-2">
           <div className="flex items-center gap-1.5">
-            <span className="h-1 w-6 rounded-full bg-neutral-300" />
-            <span className="h-1 w-6 rounded-full bg-neutral-300" />
+            <span className="flex flex-col justify-center gap-[3px] sm:hidden" aria-hidden>
+              <span className="h-px w-3.5 bg-neutral-400" />
+              <span className="h-px w-3.5 bg-neutral-400" />
+              <span className="h-px w-3.5 bg-neutral-400" />
+            </span>
+            <span className="hidden h-1 w-6 rounded-full bg-neutral-300 sm:block" />
+            <span className="hidden h-1 w-6 rounded-full bg-neutral-300 sm:block" />
             <span className="hidden h-1 w-6 rounded-full bg-neutral-300 sm:block" />
           </div>
           <div className="flex flex-col items-center gap-1">

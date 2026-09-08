@@ -163,6 +163,7 @@ export function CuentaEnvioAutomaticoPage() {
         envioEmpaqueAnchoCm: empaqueAnchoCm,
         envioEmpaqueAltoCm: empaqueAltoCm,
         envioTransportadoraFavorita: transportadoraFavorita,
+        envioSinEnvio: false,
       })
       showSaveSuccess({
         title: 'Configuración de envío exitosa',
@@ -294,7 +295,10 @@ export function CuentaEnvioAutomaticoPage() {
             <h2 className="text-[15px] font-semibold text-[var(--cat-text)]">
               Agregá las medidas y peso promedio de tus productos
             </h2>
-            <p className="mt-1 text-[13px] text-[var(--cat-muted)]">Las usamos para cotizar en checkout.</p>
+            <p className="mt-1 text-[13px] text-[var(--cat-muted)]">
+              Las usamos cuando un producto no tiene medidas propias. En cada producto podés cargar medidas
+              opcionales; en ropa, esa caja cubre hasta 4 prendas.
+            </p>
           </div>
 
           <button

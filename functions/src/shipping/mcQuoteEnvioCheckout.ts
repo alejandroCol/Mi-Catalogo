@@ -2,10 +2,42 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import { db } from '../firebaseAdmin.js'
 import { resolveCheckoutEnvioCop } from './resolveCheckoutEnvio.js'
+import { empaqueLineaFromProducto, type EmpaqueLineaPack } from './envioEmpaquePack.js'
 
 const enviaApiToken = defineSecret('ENVIA_API_TOKEN')
 
 const PLATFORM_SETTINGS_REF = db.doc('mc_platform/settings')
+
+const MAX_QUOTE_LINEAS = 40
+
+async function loadLineasEmpaqueForQuote(
+  tenantId: string,
+  raw: unknown,
+): Promise<EmpaqueLineaPack[]> {
+  if (!Array.isArray(raw) || raw.length === 0) return []
+  const merged = new Map<string, number>()
+  for (const row of raw.slice(0, MAX_QUOTE_LINEAS)) {
+    if (!row || typeof row !== 'object') continue
+    const o = row as { productId?: unknown; cantidad?: unknown }
+    const productId = typeof o.productId === 'string' ? o.productId.trim() : ''
+    const cantidad =
+      typeof o.cantidad === 'number' && Number.isFinite(o.cantidad) ? Math.max(0, Math.round(o.cantidad)) : 0
+    if (!productId || cantidad < 1) continue
+    merged.set(productId, (merged.get(productId) ?? 0) + cantidad)
+  }
+  if (merged.size === 0) return []
+
+  const refs = [...merged.keys()].map((id) => db.doc(`mc_tenants/${tenantId}/productos/${id}`))
+  const snaps = await db.getAll(...refs)
+  const lineas: EmpaqueLineaPack[] = []
+  for (const snap of snaps) {
+    if (!snap.exists) continue
+    const cantidad = merged.get(snap.id) ?? 0
+    if (cantidad < 1) continue
+    lineas.push(empaqueLineaFromProducto(snap.data() ?? {}, cantidad))
+  }
+  return lineas
+}
 
 export const mcQuoteEnvioCheckout = onCall(
   { invoker: 'public', secrets: [enviaApiToken] },
@@ -19,6 +51,7 @@ export const mcQuoteEnvioCheckout = onCall(
       destinoTelefono?: unknown
       subtotalCop?: unknown
       totalPiezas?: unknown
+      lineas?: unknown
     }
 
     const slug = typeof data.slug === 'string' ? data.slug.trim().toLowerCase() : ''
@@ -61,6 +94,8 @@ export const mcQuoteEnvioCheckout = onCall(
     const platformSnap = await PLATFORM_SETTINGS_REF.get()
     const platform = platformSnap.exists ? platformSnap.data() : undefined
 
+    const lineasEmpaque = await loadLineasEmpaqueForQuote(tenantId, data.lineas)
+
     const resolution = await resolveCheckoutEnvioCop({
       tenant: tenant as Parameters<typeof resolveCheckoutEnvioCop>[0]['tenant'],
       platform: platform as Parameters<typeof resolveCheckoutEnvioCop>[0]['platform'],
@@ -72,6 +107,7 @@ export const mcQuoteEnvioCheckout = onCall(
       destinoTelefono: typeof data.destinoTelefono === 'string' ? data.destinoTelefono : undefined,
       subtotalCop,
       totalPiezas,
+      lineasEmpaque,
     })
 
     const gratisUmbral =

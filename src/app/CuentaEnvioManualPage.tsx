@@ -96,6 +96,7 @@ export function CuentaEnvioManualPage() {
         envioEmpaqueAnchoCm: null,
         envioEmpaqueAltoCm: null,
         envioTransportadoraFavorita: '',
+        envioSinEnvio: false,
       })
       showSaveSuccess({
         title: 'Configuración de envío exitosa',

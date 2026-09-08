@@ -43,8 +43,9 @@ export function CheckoutEnvioRequiredModal({
         </h2>
         <p className="ios-footnote mt-2 leading-relaxed text-[var(--cat-muted)]">
           Antes de abrir el catálogo público, configurá el envío en el checkout:{' '}
-          <strong className="font-medium text-[var(--cat-text)]">cotización automática</strong> con tarifas reales o{' '}
-          <strong className="font-medium text-[var(--cat-text)]">precios fijos por ciudad</strong>.
+          <strong className="font-medium text-[var(--cat-text)]">cotización automática</strong> con tarifas reales,{' '}
+          <strong className="font-medium text-[var(--cat-text)]">precios fijos por ciudad</strong>
+          {' '}o <strong className="font-medium text-[var(--cat-text)]">sin envío</strong> si cobrás por WhatsApp.
         </p>
         <div className="mt-5 flex flex-col gap-2">
           <button

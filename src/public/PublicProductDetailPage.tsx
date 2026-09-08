@@ -910,6 +910,13 @@ export function PublicProductDetailPage() {
                 platformSettings={platformSettings}
                 subtotalCop={subtotalCop > 0 ? subtotalCop : effectivePrice}
                 totalPiezas={totalPiezas > 0 ? totalPiezas : 1}
+                lineas={
+                  lines.length > 0
+                    ? lines.map((l) => ({ productId: l.productId, cantidad: l.cantidad }))
+                    : prod
+                      ? [{ productId: prod.id, cantidad: 1 }]
+                      : []
+                }
                 className="mt-0"
               />
             ) : null}

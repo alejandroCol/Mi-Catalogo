@@ -1,5 +1,6 @@
 import { mergeTenantPlatformEnvio, resolveEnvioCopForCheckout } from '../checkoutShipping.js';
 import { buildEnviaAddress, quoteEnviaCarriersParallel, selectEnvioQuoteOption, } from './enviaClient.js';
+import { packEnvioEmpaque } from './envioEmpaquePack.js';
 const QUOTE_CACHE_TTL_MS = 10 * 60 * 1000;
 const quoteCache = new Map();
 const EMPAQUE_DEFAULT = { pesoKg: 1, largoCm: 25, anchoCm: 20, altoCm: 10 };
@@ -27,28 +28,32 @@ function isAutoQuoteConfigured(tenant) {
         typeof alto === 'number' &&
         alto > 0);
 }
-function empaqueFromTenant(tenant) {
-    const pesoKg = Math.min(30, Math.max(0.1, typeof tenant.envioEmpaquePesoKg === 'number' && tenant.envioEmpaquePesoKg > 0
-        ? tenant.envioEmpaquePesoKg
-        : EMPAQUE_DEFAULT.pesoKg));
-    const largo = typeof tenant.envioEmpaqueLargoCm === 'number' && tenant.envioEmpaqueLargoCm > 0
-        ? tenant.envioEmpaqueLargoCm
-        : EMPAQUE_DEFAULT.largoCm;
-    const ancho = typeof tenant.envioEmpaqueAnchoCm === 'number' && tenant.envioEmpaqueAnchoCm > 0
-        ? tenant.envioEmpaqueAnchoCm
-        : EMPAQUE_DEFAULT.anchoCm;
-    const alto = typeof tenant.envioEmpaqueAltoCm === 'number' && tenant.envioEmpaqueAltoCm > 0
-        ? tenant.envioEmpaqueAltoCm
-        : EMPAQUE_DEFAULT.altoCm;
+function empaqueDimsFromTenant(tenant) {
+    return {
+        pesoKg: typeof tenant.envioEmpaquePesoKg === 'number' && tenant.envioEmpaquePesoKg > 0
+            ? tenant.envioEmpaquePesoKg
+            : EMPAQUE_DEFAULT.pesoKg,
+        largoCm: typeof tenant.envioEmpaqueLargoCm === 'number' && tenant.envioEmpaqueLargoCm > 0
+            ? tenant.envioEmpaqueLargoCm
+            : EMPAQUE_DEFAULT.largoCm,
+        anchoCm: typeof tenant.envioEmpaqueAnchoCm === 'number' && tenant.envioEmpaqueAnchoCm > 0
+            ? tenant.envioEmpaqueAnchoCm
+            : EMPAQUE_DEFAULT.anchoCm,
+        altoCm: typeof tenant.envioEmpaqueAltoCm === 'number' && tenant.envioEmpaqueAltoCm > 0
+            ? tenant.envioEmpaqueAltoCm
+            : EMPAQUE_DEFAULT.altoCm,
+    };
+}
+function enviaPackageFromDims(dims, declaredValue) {
     return {
         type: 'box',
         content: 'Pedido catálogo',
         amount: 1,
-        declaredValue: 0,
+        declaredValue,
         lengthUnit: 'CM',
         weightUnit: 'KG',
-        weight: pesoKg,
-        dimensions: { length: largo, width: ancho, height: alto },
+        weight: dims.pesoKg,
+        dimensions: { length: dims.largoCm, width: dims.anchoCm, height: dims.altoCm },
     };
 }
 function staticEnvioCop(input) {
@@ -105,12 +110,8 @@ export async function resolveCheckoutEnvioCop(input) {
     if (!origin || !destination) {
         return { envioCop: staticEnvioCop(input), fuente: 'estatico' };
     }
-    const packages = [
-        {
-            ...empaqueFromTenant(input.tenant),
-            declaredValue: Math.max(0, Math.round(input.subtotalCop)),
-        },
-    ];
+    const packed = packEnvioEmpaque(input.lineasEmpaque ?? [], empaqueDimsFromTenant(input.tenant));
+    const packages = [enviaPackageFromDims(packed, Math.max(0, Math.round(input.subtotalCop)))];
     const key = cacheKey(input, packages[0]);
     const now = Date.now();
     const cached = quoteCache.get(key);

@@ -14,6 +14,7 @@ import {
   varianteEtiqueta,
   variantesPublicas,
 } from '@/lib/productoVariantes'
+import { productNeedsQuickAddOptions } from '@/lib/catalogQuickAdd'
 import type { McProducto, McProductoTalla, McProductoVariante } from '@/types/mc'
 
 type Props = {
@@ -23,12 +24,9 @@ type Props = {
   onAdded: (productId: string) => void
 }
 
-/** Abre sheet si hay tallas (siempre pregunta) o más de una variante. */
+/** @deprecated Usar `productNeedsQuickAddOptions`. */
 export function productNeedsShowroomOptions(product: McProducto): boolean {
-  const tallas = tallasValidas(product)
-  if (tallas.length > 0) return true
-  const vars = variantesPublicas(product)
-  return vars.length > 1
+  return productNeedsQuickAddOptions(product)
 }
 
 export function ShowroomQuickAddSheet({ product, open, onClose, onAdded }: Props) {

@@ -9,7 +9,8 @@ import {
   planExpertDisplayName,
 } from '@/lib/billingAccess'
 import { resolvePlanConfig, type McPlanConfig } from '@/lib/billingPlans'
-import type { McBillingPeriod } from '@/lib/billingSubscriptionClient'
+import type { McBillingCheckoutChoice, McBillingPeriod } from '@/lib/billingSubscriptionClient'
+import { computeMonthPromoPricing, resolveMonthPromo } from '@/lib/monthPromo'
 import { firebaseConfigured, getDb, getFirebaseFunctions } from '@/lib/firebase'
 import { MC } from '@/lib/mcCollections'
 import type { McPlatformSettings } from '@/types/mc'
@@ -28,7 +29,7 @@ export function useExpertPlanPurchase() {
     requiresPaymentMethod?: boolean
   } | null>(null)
   const [validatingCode, setValidatingCode] = useState(false)
-  const [period, setPeriod] = useState<McBillingPeriod>('monthly')
+  const [period, setPeriod] = useState<McBillingCheckoutChoice>('monthly')
   const [checkoutOpen, setCheckoutOpen] = useState(false)
 
   const expertAccess = hasExpertFeatureAccess(tenant)
@@ -37,11 +38,16 @@ export function useExpertPlanPurchase() {
 
   useEffect(() => {
     if (!firebaseConfigured) return
-    void getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc)).then((ps) => {
-      const data = ps.exists() ? (ps.data() as McPlatformSettings) : {}
-      setPlatformSettings(data)
-      setPlanConfig(resolvePlanConfig(data))
-    })
+    void getDoc(doc(getDb(), MC.mcPlatform, MC.mcPlatformSettingsDoc))
+      .then((ps) => {
+        const data = ps.exists() ? (ps.data() as McPlatformSettings) : {}
+        setPlatformSettings(data)
+        setPlanConfig(resolvePlanConfig(data))
+      })
+      .catch(() => {
+        setPlatformSettings({})
+        setPlanConfig(resolvePlanConfig(null))
+      })
   }, [])
 
   useEffect(() => {
@@ -54,6 +60,20 @@ export function useExpertPlanPurchase() {
       void validarCodigo('monthly', normalized)
     }
   }, [searchParams, tenant?.onboardingExpertRewardCode])
+
+  const monthPromo = resolveMonthPromo(platformSettings)
+  const monthPromoPricing = monthPromo
+    ? computeMonthPromoPricing(planConfig.expertPrecioMensualCop, monthPromo)
+    : null
+
+  const monthPromoKey = monthPromo?.monthKey ?? null
+  useEffect(() => {
+    if (monthPromoKey) {
+      setPeriod((prev) => (prev === 'monthly' ? 'month_promo' : prev))
+      return
+    }
+    setPeriod((prev) => (prev === 'month_promo' ? 'monthly' : prev))
+  }, [monthPromoKey])
 
   async function validarCodigo(p: McBillingPeriod, codeOverride?: string) {
     const code = (codeOverride ?? discountCode).trim()
@@ -86,11 +106,17 @@ export function useExpertPlanPurchase() {
     }
   }
 
+  const isMonthPromo = period === 'month_promo'
   const precioMensual = discountPreview?.finalPriceCop ?? planConfig.expertPrecioMensualCop
   const precioAnual = planConfig.expertPrecioAnualCop
-  const amountForPeriod = period === 'yearly' ? precioAnual : precioMensual
+  const amountForPeriod = isMonthPromo
+    ? (monthPromoPricing?.finalTotalCop ?? planConfig.expertPrecioMensualCop)
+    : period === 'yearly'
+      ? precioAnual
+      : precioMensual
+  const checkoutPeriod: McBillingPeriod = period === 'yearly' ? 'yearly' : 'monthly'
   const checkoutRequiresPaymentMethod =
-    amountForPeriod > 0 || discountPreview?.requiresPaymentMethod === true
+    amountForPeriod > 0 || (!isMonthPromo && discountPreview?.requiresPaymentMethod === true)
 
   function resetCheckout() {
     setCheckoutOpen(false)
@@ -111,6 +137,10 @@ export function useExpertPlanPurchase() {
     validatingCode,
     period,
     setPeriod,
+    monthPromo,
+    monthPromoPricing,
+    isMonthPromo,
+    checkoutPeriod,
     checkoutOpen,
     setCheckoutOpen,
     validarCodigo,

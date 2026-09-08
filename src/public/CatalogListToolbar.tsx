@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { CatalogListFilterState, CatalogSortId } from '@/lib/catalogListFilter'
 import { catalogSortOptions } from '@/lib/catalogListFilter'
+import { catalogArticuloLabel } from '@/lib/catalogProductCopy'
 import { formatCop } from '@/lib/formatCop'
 
 type Props = {
@@ -223,13 +224,13 @@ export function CatalogListToolbar({
               {resultCount === 1 ? ' resultado' : ' resultados'}
               {totalInCatalog > 0 && (
                 <span className="ml-1 text-[12px]">
-                  (de {totalInCatalog} {totalInCatalog === 1 ? 'artículo' : 'artículos'})
+                  (de {totalInCatalog} {catalogArticuloLabel(totalInCatalog)})
                 </span>
               )}
             </>
           ) : totalInCatalog > 0 ? (
             <span>
-              {totalInCatalog} {totalInCatalog === 1 ? 'artículo' : 'artículos'} en la tienda
+              {totalInCatalog} {catalogArticuloLabel(totalInCatalog)} en la tienda
             </span>
           ) : null}
         </p>

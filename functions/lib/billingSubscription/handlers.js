@@ -320,13 +320,18 @@ export const mcBillingCompleteActivation = onCall({ invoker: 'public' }, async (
         throw new HttpsError('unauthenticated', 'Iniciá sesión.');
     const { tenantId } = await resolveTenantOwner(uid);
     const data = request.data;
-    const period = data.period === 'yearly' ? 'yearly' : 'monthly';
+    const monthPromo = data.monthPromo === true;
+    const period = data.period === 'yearly' && !monthPromo ? 'yearly' : 'monthly';
     const methodRaw = data.method === 'nequi' ? 'nequi' : 'card';
     const method = methodRaw;
     const cardId = typeof data.cardId === 'string' ? data.cardId.trim() : '';
     const accountId = typeof data.accountId === 'string' ? data.accountId.trim() : '';
-    const discountCode = typeof data.discountCode === 'string' ? data.discountCode.trim() : '';
-    const pricing = await mcBillingResolvePrice(db, period, discountCode || undefined, tenantId);
+    const discountCode = monthPromo
+        ? ''
+        : typeof data.discountCode === 'string'
+            ? data.discountCode.trim()
+            : '';
+    const pricing = await mcBillingResolvePrice(db, period, discountCode || undefined, tenantId, monthPromo ? { monthPromo: true } : undefined);
     const requiresPaymentMethod = pricing.finalPriceCop > 0 || pricing.requiresPaymentMethod === true;
     if (requiresPaymentMethod && method === 'card' && !cardId) {
         throw new HttpsError('invalid-argument', 'Registrá tu tarjeta antes de activar.');
@@ -356,6 +361,7 @@ export const mcBillingCompleteActivation = onCall({ invoker: 'public' }, async (
             cardId: method === 'card' ? cardId : undefined,
             accountId: method === 'nequi' ? accountId : undefined,
             discountCodeRaw: discountCode || undefined,
+            monthPromo,
             platformSk: secretKey,
             nombreTienda,
         });

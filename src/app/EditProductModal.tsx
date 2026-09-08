@@ -45,6 +45,11 @@ import {
 } from '@/lib/productoVariantes'
 import type { McProducto, McProductoVariante } from '@/types/mc'
 import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
+import { ProductoEnvioMedidasEditor } from '@/components/producto/ProductoEnvioMedidasEditor'
+import {
+  parseProductoEnvioMedidasDraft,
+  productEnvioMedidasDraftFromProduct,
+} from '@/lib/productoEnvioMedidas'
 import { ProductoReferenciaPreview } from '@/components/producto/ProductoReferenciaPreview'
 import { useTenantCategorias } from '@/hooks/useTenantCategorias'
 import { categoriasNavFromProductForm, clearQuickAddDraft } from '@/lib/productFormCategoriaNav'
@@ -127,6 +132,7 @@ export function EditProductModal({
   const [categoriaIds, setCategoriaIds] = useState<string[]>(
     () => initialCategoriaIds ?? product.categoriaIds ?? [],
   )
+  const [envioMedidas, setEnvioMedidas] = useState(() => productEnvioMedidasDraftFromProduct(product))
 
   const { categorias } = useTenantCategorias(tenantId)
 
@@ -199,6 +205,11 @@ export function EditProductModal({
     const descParsed = parseProductoDescuentoDraft(descuento, precioNum)
     if (!descParsed.ok) {
       setErr(descParsed.error)
+      return
+    }
+    const envioParsed = parseProductoEnvioMedidasDraft(envioMedidas)
+    if (!envioParsed.ok) {
+      setErr(envioParsed.error)
       return
     }
 
@@ -392,6 +403,7 @@ export function EditProductModal({
             }),
         variantes: builtVariantes.length > 0 ? builtVariantes : deleteField(),
         categoriaIds: categoriaIds.length > 0 ? categoriaIds : deleteField(),
+        envioMedidas: envioParsed.medidas ?? deleteField(),
         ...(esBorrador
           ? {
               esBorrador: deleteField(),
@@ -631,6 +643,13 @@ export function EditProductModal({
               </div>
             )}
           </ProductoFormSection>
+
+          <ProductoEnvioMedidasEditor
+            draft={envioMedidas}
+            onChange={setEnvioMedidas}
+            esRopa={esRopaForm}
+            disabled={busy}
+          />
 
           <ProductoFormSection title="Categorías">
             <ProductoCategoriasPicker

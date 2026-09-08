@@ -22,6 +22,11 @@ export function computeFreeMonthsEndMs(anchorMs, freeMonths) {
     const months = Math.min(3, Math.max(1, Math.round(freeMonths)));
     return addCalendarMonthsLocal(anchorMs, months);
 }
+/** Paquete prepago de la promo del mes (2–12 meses). */
+export function computePrepaidMonthsEndMs(anchorMs, prepaidMonths) {
+    const months = Math.min(12, Math.max(2, Math.round(prepaidMonths)));
+    return addCalendarMonthsLocal(anchorMs, months);
+}
 export function advancePeriodEndMs(currentPeriodEndMs, billing) {
     return billing === 'yearly'
         ? addCalendarYearsLocal(currentPeriodEndMs, 1)

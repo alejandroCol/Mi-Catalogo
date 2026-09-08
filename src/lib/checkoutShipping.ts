@@ -1,5 +1,6 @@
 import type { McPlatformSettings, McTenant } from '@/types/mc'
 import { isEnvioCotizacionAutomaticaConfigured } from '@/lib/envioCotizacion'
+import { isEnvioSinEnvioActive } from '@/lib/envioSinEnvio'
 
 /** Comparar ciudades sin importar mayúsculas ni tildes. */
 export function normalizeCiudadKey(raw: string): string {
@@ -25,6 +26,8 @@ export type EnvioMicatalogoTariffsPick = Pick<
 
 export type EnvioTenantConfigPick = Pick<
   McTenant,
+  | 'checkoutVentasModo'
+  | 'envioSinEnvio'
   | 'envioEstimadoCop'
   | 'envioPorCiudad'
   | 'envioUsarTarifasMicatalogo'
@@ -48,6 +51,10 @@ export function isEnvioCheckoutConfigured(
   _platformSettings?: EnvioMicatalogoTariffsPick | null | undefined,
 ): boolean {
   if (!tenant) return false
+
+  if (isEnvioSinEnvioActive(tenant)) {
+    return true
+  }
 
   if (isEnvioCotizacionAutomaticaConfigured(tenant)) {
     return true

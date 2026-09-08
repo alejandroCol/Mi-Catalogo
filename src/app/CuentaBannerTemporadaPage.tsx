@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { collection, deleteField, doc, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore'
 import { deleteObject, ref } from 'firebase/storage'
 import { ConfiguracionesBackLink } from '@/app/configuraciones'
-import { useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
+import { PERSONALIZAR_SUBPAGE_NAV, useConfigSubpageNav } from '@/app/configuraciones/configSubpageNav'
 import { useMcAuth } from '@/auth/McAuthContext'
 import { InteractiveLandingProductPicker } from '@/components/interactiveLanding/InteractiveLandingProductPicker'
 import { useSaveSuccess } from '@/components/McSaveSuccessModal'
@@ -681,6 +682,23 @@ export function CuentaBannerTemporadaPage() {
               {canInteractive && landingMode === 'interactive' ? 'Guardar modo interactivo' : 'Guardar banner'}
             </button>
           </div>
+
+          <Link
+            to="/app/cuenta/banner-categoria"
+            state={navState.returnTo === '/app/personalizar' ? PERSONALIZAR_SUBPAGE_NAV : navState}
+            className="mc-card flex items-start justify-between gap-3 no-underline transition hover:border-neutral-300"
+          >
+            <span>
+              <span className="block text-[15px] font-semibold text-[var(--cat-text)]">
+                Carrusel de categoría
+              </span>
+              <span className="ios-footnote mt-1 block leading-relaxed text-[var(--cat-muted)]">
+                Debajo de este banner podés mostrar los productos de una categoría, con la segunda
+                foto al pasar el mouse.
+              </span>
+            </span>
+            <span className="ios-footnote shrink-0 font-medium text-[var(--cat-muted)]">Configurar →</span>
+          </Link>
 
           {previewTenantData && (
             <div className="space-y-3">

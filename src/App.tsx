@@ -87,6 +87,9 @@ const CuentaLogoPage = lazy(() =>
 const CuentaBannerTemporadaPage = lazy(() =>
   import('@/app/CuentaBannerTemporadaPage').then((m) => ({ default: m.CuentaBannerTemporadaPage })),
 )
+const CuentaCategoryShowcasePage = lazy(() =>
+  import('@/app/CuentaCategoryShowcasePage').then((m) => ({ default: m.CuentaCategoryShowcasePage })),
+)
 const CuentaShowroomPage = lazy(() =>
   import('@/app/CuentaShowroomPage').then((m) => ({ default: m.CuentaShowroomPage })),
 )
@@ -101,6 +104,9 @@ const CuentaAnnouncementBarPage = lazy(() =>
 )
 const CuentaCabeceraPage = lazy(() =>
   import('@/app/CuentaCabeceraPage').then((m) => ({ default: m.CuentaCabeceraPage })),
+)
+const CuentaWhatsappFabPage = lazy(() =>
+  import('@/app/CuentaWhatsappFabPage').then((m) => ({ default: m.CuentaWhatsappFabPage })),
 )
 const PersonalizarMiTiendaPage = lazy(() =>
   import('@/app/PersonalizarMiTiendaPage').then((m) => ({ default: m.PersonalizarMiTiendaPage })),
@@ -194,6 +200,11 @@ const SuperAdminEnviosMicatalogoPage = lazy(() =>
 const SuperAdminPlanesPage = lazy(() =>
   import('@/superadmin/SuperAdminPlanesPage').then((m) => ({
     default: m.SuperAdminPlanesPage,
+  })),
+)
+const SuperAdminMonthPromoPage = lazy(() =>
+  import('@/superadmin/SuperAdminMonthPromoPage').then((m) => ({
+    default: m.SuperAdminMonthPromoPage,
   })),
 )
 const SuperAdminDescuentosPage = lazy(() =>
@@ -621,6 +632,7 @@ function PlatformRoutes() {
         <Route path="cuenta/fuentes" element={<CuentaFuentesPage />} />
         <Route path="cuenta/logo" element={<CuentaLogoPage />} />
         <Route path="cuenta/banner-temporada" element={<CuentaBannerTemporadaPage />} />
+        <Route path="cuenta/banner-categoria" element={<CuentaCategoryShowcasePage />} />
         <Route
           path="cuenta/showroom"
           element={
@@ -632,6 +644,7 @@ function PlatformRoutes() {
         <Route path="cuenta/sobre-marca" element={<CuentaSobreMarcaPage />} />
         <Route path="cuenta/barra-anuncio" element={<CuentaAnnouncementBarPage />} />
         <Route path="cuenta/cabecera" element={<CuentaCabeceraPage />} />
+        <Route path="cuenta/boton-whatsapp" element={<CuentaWhatsappFabPage />} />
         <Route path="cuenta/carritos-abandonados" element={<CarritosAbandonadosPage />} />
         <Route path="cuenta/tutoriales" element={<CuentaTutorialesPage />} />
         <Route path="pagos-pasarela" element={<PagosPasarelaPage />} />
@@ -695,6 +708,14 @@ function PlatformRoutes() {
         element={
           <RequireMcAuth>
             <SuperAdminPlanesPage />
+          </RequireMcAuth>
+        }
+      />
+      <Route
+        path="/superadmin/promo-mes"
+        element={
+          <RequireMcAuth>
+            <SuperAdminMonthPromoPage />
           </RequireMcAuth>
         }
       />

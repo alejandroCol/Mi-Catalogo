@@ -8,6 +8,7 @@ type TenantPublishSlice = {
   checkoutVentasModo?: string
   whatsappNumero?: string
   onepayPaymentsEnabled?: boolean
+  envioSinEnvio?: boolean
   envioCotizarAutomatico?: boolean
   envioPorCiudad?: { ciudad?: string }[]
   envioOrigenDepartamento?: string
@@ -49,6 +50,7 @@ function isCheckoutVentasConfigured(tenant: TenantPublishSlice, platform: Platfo
 }
 
 function isEnvioCheckoutConfigured(tenant: TenantPublishSlice): boolean {
+  if (tenant.envioSinEnvio === true && tenant.checkoutVentasModo === 'whatsapp') return true
   if (isEnvioCotizacionAutomaticaConfigured(tenant)) return true
   if (tenant.envioCotizarAutomatico !== true) {
     return (tenant.envioPorCiudad ?? []).some((x) => Boolean(x?.ciudad?.trim()))

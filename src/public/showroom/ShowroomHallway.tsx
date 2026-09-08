@@ -8,20 +8,13 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { useCatalogoSimpleCart } from '@/catalog-local/CatalogoSimpleCartContext'
+import { buildSimpleCartLineFromProduct, productNeedsQuickAddOptions } from '@/lib/catalogQuickAdd'
 import { formatCop } from '@/lib/formatCop'
 import { resolveShowroomCopy, resolveShowroomMediaType, showroomDisplayFontStyle } from '@/lib/collectionShowroom'
-import { productoPrecioVenta, productoPrecioVentaDesde } from '@/lib/productoDescuento'
-import { tallasValidas } from '@/lib/productoTallas'
-import {
-  productoStockEfectivo,
-  varianteEtiqueta,
-  variantesPublicas,
-} from '@/lib/productoVariantes'
+import { productoPrecioVentaDesde } from '@/lib/productoDescuento'
+import { productoStockEfectivo } from '@/lib/productoVariantes'
 import { useCatalogFavorites } from '@/public/CatalogFavoritesContext'
-import {
-  productNeedsShowroomOptions,
-  ShowroomQuickAddSheet,
-} from '@/public/showroom/ShowroomQuickAddSheet'
+import { ShowroomQuickAddSheet } from '@/public/showroom/ShowroomQuickAddSheet'
 import type { McCollectionShowroom, McProducto } from '@/types/mc'
 
 type Props = {
@@ -107,24 +100,7 @@ function addProductDirect(
   add: ReturnType<typeof useCatalogoSimpleCart>['add'],
   p: McProducto,
 ) {
-  const vars = variantesPublicas(p)
-  const tallas = tallasValidas(p)
-  const selectedVariant = vars.length === 1 ? vars[0] : undefined
-  const selectedTalla = p.esRopa && tallas.length === 1 ? tallas[0] : undefined
-  const tituloParts = [p.nombre]
-  if (selectedVariant) tituloParts.push(varianteEtiqueta(selectedVariant))
-  if (selectedTalla?.nombre) tituloParts.push(selectedTalla.nombre)
-  const imageUrl = selectedVariant?.imageUrl || p.imageUrl
-  add({
-    productId: p.id,
-    ...(selectedVariant ? { varianteId: selectedVariant.id } : {}),
-    ...(selectedTalla ? { tallaId: selectedTalla.id } : {}),
-    titulo: tituloParts.join(' · '),
-    ...(p.referencia ? { referencia: p.referencia } : {}),
-    precioUnitarioCop: productoPrecioVenta(p, selectedVariant),
-    ...(imageUrl ? { imageUrl } : {}),
-    cantidad: 1,
-  })
+  add(buildSimpleCartLineFromProduct(p))
 }
 
 export function ShowroomHallway({
@@ -352,7 +328,7 @@ export function ShowroomHallway({
 
   function requestAdd(p: McProducto) {
     dismissTip()
-    if (productNeedsShowroomOptions(p)) {
+    if (productNeedsQuickAddOptions(p)) {
       setQuickAddProduct(p)
       return
     }
@@ -728,9 +704,9 @@ export function ShowroomHallway({
                 type="button"
                 className="mc-showroom-room__add mc-showroom-room__add--wide"
                 onClick={() => {
-                  const needing = atelier.filter((p) => productNeedsShowroomOptions(p))
+                  const needing = atelier.filter((p) => productNeedsQuickAddOptions(p))
                   atelier
-                    .filter((p) => !productNeedsShowroomOptions(p))
+                    .filter((p) => !productNeedsQuickAddOptions(p))
                     .forEach((p) => addProductDirect(add, p))
                   if (needing[0]) setQuickAddProduct(needing[0])
                   else if (atelier[0]) {

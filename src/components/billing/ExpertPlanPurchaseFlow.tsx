@@ -1,4 +1,5 @@
 import { BillingV2Checkout } from '@/components/billing/BillingV2Checkout'
+import { MonthPromoCard } from '@/components/billing/MonthPromoCard'
 import type { useExpertPlanPurchase } from '@/components/billing/useExpertPlanPurchase'
 import { formatCop } from '@/lib/formatCop'
 
@@ -23,9 +24,14 @@ export function ExpertPlanPurchaseFlow({ purchase, stickyCheckout = true, onPurc
     validatingCode,
     period,
     setPeriod,
+    monthPromo,
+    monthPromoPricing,
+    isMonthPromo,
+    checkoutPeriod,
     checkoutOpen,
     setCheckoutOpen,
     validarCodigo,
+    planConfig,
     precioMensual,
     precioAnual,
     amountForPeriod,
@@ -41,60 +47,76 @@ export function ExpertPlanPurchaseFlow({ purchase, stickyCheckout = true, onPurc
     <>
       {!checkoutOpen && (
         <section className={checkoutClass}>
-          <div className="mc-card space-y-2.5 !py-3.5">
-            <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">Código de descuento</label>
-            <div className="flex gap-2">
-              <input
-                className="mc-input !mt-0 flex-1"
-                value={discountCode}
-                onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
-                placeholder="EXPERT2026"
+          {!isMonthPromo ? (
+            <div className="mc-card space-y-2.5 !py-3.5">
+              <label className="ios-footnote font-medium text-[var(--cat-text)] opacity-80">Código de descuento</label>
+              <div className="flex gap-2">
+                <input
+                  className="mc-input !mt-0 flex-1"
+                  value={discountCode}
+                  onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                  placeholder="EXPERT2026"
+                />
+                <button
+                  type="button"
+                  className="mc-btn-secondary shrink-0 px-4"
+                  disabled={validatingCode}
+                  onClick={() => void validarCodigo(period === 'yearly' ? 'yearly' : 'monthly')}
+                >
+                  Aplicar
+                </button>
+              </div>
+              {discountPreview && (
+                <p className="ios-footnote text-[var(--cat-muted)]">
+                  Con código:{' '}
+                  <span className="font-medium text-[var(--cat-text)]">{formatCop(discountPreview.finalPriceCop)}</span>
+                  {discountPreview.freeMonths && discountPreview.finalPriceCop === 0 ? (
+                    <span>
+                      {' '}
+                      · {discountPreview.freeMonths} mes{discountPreview.freeMonths > 1 ? 'es' : ''} gratis, luego{' '}
+                      {formatCop(discountPreview.basePriceCop)}/mes
+                    </span>
+                  ) : null}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-center text-[12px] leading-relaxed text-[var(--cat-muted)]">
+              La promo del mes no se combina con códigos de descuento.
+            </p>
+          )}
+
+          <div className="space-y-2.5" role="group" aria-label="Período de facturación">
+            {monthPromo && monthPromoPricing ? (
+              <MonthPromoCard
+                promo={monthPromo}
+                monthlyCop={planConfig.expertPrecioMensualCop}
+                selected={isMonthPromo}
+                onSelect={() => setPeriod('month_promo')}
               />
+            ) : null}
+            <div className="mc-plan-period-grid">
               <button
                 type="button"
-                className="mc-btn-secondary shrink-0 px-4"
-                disabled={validatingCode}
-                onClick={() => void validarCodigo(period)}
+                className={`mc-plan-period-option ${period === 'monthly' ? 'mc-plan-period-option-active' : ''}`}
+                aria-pressed={period === 'monthly'}
+                onClick={() => setPeriod('monthly')}
               >
-                Aplicar
+                <span className="mc-plan-period-label">Mensual</span>
+                <span className="mc-plan-period-price">{formatCop(precioMensual)}</span>
+                <span className="mc-plan-period-hint">Cada mes</span>
+              </button>
+              <button
+                type="button"
+                className={`mc-plan-period-option ${period === 'yearly' ? 'mc-plan-period-option-active' : ''}`}
+                aria-pressed={period === 'yearly'}
+                onClick={() => setPeriod('yearly')}
+              >
+                <span className="mc-plan-period-label">Anual</span>
+                <span className="mc-plan-period-price">{formatCop(precioAnual)}</span>
+                <span className="mc-plan-period-hint">Por año</span>
               </button>
             </div>
-            {discountPreview && (
-              <p className="ios-footnote text-[var(--cat-muted)]">
-                Con código:{' '}
-                <span className="font-medium text-[var(--cat-text)]">{formatCop(discountPreview.finalPriceCop)}</span>
-                {discountPreview.freeMonths && discountPreview.finalPriceCop === 0 ? (
-                  <span>
-                    {' '}
-                    · {discountPreview.freeMonths} mes{discountPreview.freeMonths > 1 ? 'es' : ''} gratis, luego{' '}
-                    {formatCop(discountPreview.basePriceCop)}/mes
-                  </span>
-                ) : null}
-              </p>
-            )}
-          </div>
-
-          <div className="mc-plan-period-grid" role="group" aria-label="Período de facturación">
-            <button
-              type="button"
-              className={`mc-plan-period-option ${period === 'monthly' ? 'mc-plan-period-option-active' : ''}`}
-              aria-pressed={period === 'monthly'}
-              onClick={() => setPeriod('monthly')}
-            >
-              <span className="mc-plan-period-label">Mensual</span>
-              <span className="mc-plan-period-price">{formatCop(precioMensual)}</span>
-              <span className="mc-plan-period-hint">Cada mes</span>
-            </button>
-            <button
-              type="button"
-              className={`mc-plan-period-option ${period === 'yearly' ? 'mc-plan-period-option-active' : ''}`}
-              aria-pressed={period === 'yearly'}
-              onClick={() => setPeriod('yearly')}
-            >
-              <span className="mc-plan-period-label">Anual</span>
-              <span className="mc-plan-period-price">{formatCop(precioAnual)}</span>
-              <span className="mc-plan-period-hint">Por año</span>
-            </button>
           </div>
 
           <button
@@ -119,11 +141,12 @@ export function ExpertPlanPurchaseFlow({ purchase, stickyCheckout = true, onPurc
           </button>
           <div className="mc-card overflow-hidden !p-0">
             <BillingV2Checkout
-              period={period}
+              period={checkoutPeriod}
               amountCop={amountForPeriod}
               requiresPaymentMethod={checkoutRequiresPaymentMethod}
-              discountPreview={discountPreview}
-              discountCode={discountCode.trim() || undefined}
+              discountPreview={isMonthPromo ? null : discountPreview}
+              discountCode={isMonthPromo ? undefined : discountCode.trim() || undefined}
+              monthPromo={isMonthPromo}
               expertName={expertName}
               onSuccess={(m) => {
                 setMsg(m)

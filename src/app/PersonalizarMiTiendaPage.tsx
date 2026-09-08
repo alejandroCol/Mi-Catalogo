@@ -30,6 +30,20 @@ const TILES: PersonalizarTile[] = [
     size: 'hero',
   },
   {
+    id: 'banner-categoria',
+    title: 'Carrusel de categoría',
+    description: 'Productos de una categoría debajo del banner, con foto al pasar el mouse',
+    to: '/app/cuenta/banner-categoria',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+        <rect x="3" y="6" width="5.5" height="12" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+        <rect x="9.25" y="6" width="5.5" height="12" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+        <rect x="15.5" y="6" width="5.5" height="12" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    ),
+    size: 'normal',
+  },
+  {
     id: 'showroom',
     title: 'Drop Room + Pasillo',
     description: 'Colección inmersiva con cuenta regresiva y recorrido tipo boutique',
@@ -73,6 +87,24 @@ const TILES: PersonalizarTile[] = [
         <path d="M3 10h18" stroke="currentColor" strokeWidth="1.5" />
         <path d="M7 7.5h3M14 7.5h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         <circle cx="12" cy="7.5" r="0.9" fill="currentColor" />
+      </svg>
+    ),
+    size: 'normal',
+  },
+  {
+    id: 'boton-whatsapp',
+    title: 'Botón de WhatsApp',
+    description: 'Atajo flotante en la landing, con varios estilos',
+    to: '/app/cuenta/boton-whatsapp',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+        <path
+          d="M12 20.5c4.694 0 8.5-3.582 8.5-8s-3.806-8-8.5-8-8.5 3.582-8.5 8c0 1.62.48 3.13 1.31 4.41L4 20.5l4.28-1.12A9.3 9.3 0 0 0 12 20.5Z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        <path d="M9 10.5h6M9 13.5h3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     ),
     size: 'normal',

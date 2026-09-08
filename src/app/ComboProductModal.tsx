@@ -3,6 +3,11 @@ import { ProductoDescuentoEditor, parseProductoDescuentoDraft, productoDescuento
 import { ProductoFormSection } from '@/components/producto/ProductoFormSection'
 import { ProductoImagenesEditor } from '@/components/producto/ProductoImagenesEditor'
 import { ProductoCategoriasPicker } from '@/components/producto/ProductoCategoriasPicker'
+import { ProductoEnvioMedidasEditor } from '@/components/producto/ProductoEnvioMedidasEditor'
+import {
+  parseProductoEnvioMedidasDraft,
+  productEnvioMedidasDraftFromProduct,
+} from '@/lib/productoEnvioMedidas'
 import { ProductoReferenciaPreview } from '@/components/producto/ProductoReferenciaPreview'
 import { ComboComponentesEditor } from '@/components/producto/ComboComponentesEditor'
 import { resolveProductoReferencia } from '@/lib/productoReferencia'
@@ -155,6 +160,7 @@ export function ComboProductModal({
   const [descuento, setDescuento] = useState(() =>
     product ? productoDescuentoDraftFromProduct(product) : { activo: false, tipo: 'porcentaje' as const, valor: '' },
   )
+  const [envioMedidas, setEnvioMedidas] = useState(() => productEnvioMedidasDraftFromProduct(product))
   const [categoriaIds, setCategoriaIds] = useState<string[]>(
     () => initialCategoriaIds ?? product?.categoriaIds ?? [],
   )
@@ -238,6 +244,11 @@ export function ComboProductModal({
         setErr(descParsed.error)
         return
       }
+      const envioParsed = parseProductoEnvioMedidasDraft(envioMedidas)
+      if (!envioParsed.ok) {
+        setErr(envioParsed.error)
+        return
+      }
       if (imagenes.some((i) => i.kind === 'new') && !firebaseStorageConfigured) {
         setErr('Firebase Storage no está configurado; no se pueden subir imágenes.')
         return
@@ -269,6 +280,7 @@ export function ComboProductModal({
             ...(comboPermiteElegirTalla ? { comboPermiteElegirTalla: true } : {}),
             ...(categoriaIds.length > 0 ? { categoriaIds } : {}),
             ...(descParsed.fields.descuentoActivo ? descParsed.fields : {}),
+            ...(envioParsed.medidas ? { envioMedidas: envioParsed.medidas } : {}),
           })
           productId = id
         }
@@ -314,6 +326,7 @@ export function ComboProductModal({
                 descuentoTipo: deleteField(),
                 descuentoValor: deleteField(),
               }),
+          envioMedidas: envioParsed.medidas ?? deleteField(),
         }
 
         await updateDoc(doc(db, mcProductosCollection(tenantId), productId), patch)
@@ -368,6 +381,7 @@ export function ComboProductModal({
       imagenes,
       coverId,
       categoriaIds,
+      envioMedidas,
       isEdit,
       tenantId,
       nextOrden,
@@ -477,6 +491,12 @@ export function ComboProductModal({
                 </div>
               </div>
             </ProductoFormSection>
+
+            <ProductoEnvioMedidasEditor
+              draft={envioMedidas}
+              onChange={setEnvioMedidas}
+              disabled={busy}
+            />
 
             <ProductoFormSection title="Precio del combo">
               <div className="space-y-3">

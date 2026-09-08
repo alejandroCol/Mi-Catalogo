@@ -113,9 +113,11 @@ type TenantVentasPick = Pick<
   | 'checkoutVentasModo'
   | 'onepayPaymentsEnabled'
   | 'whatsappNumero'
+  | 'envioSinEnvio'
   | 'envioEstimadoCop'
   | 'envioPorCiudad'
   | 'envioUsarTarifasMicatalogo'
+  | 'envioCotizarAutomatico'
 >
 type PlatformCatalogoPick = Pick<McPlatformSettings, 'pasarelaMicatalogoActiva'> & EnvioMicatalogoTariffsPick
 

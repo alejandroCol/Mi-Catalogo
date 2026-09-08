@@ -14,6 +14,7 @@ type TenantSlice = {
   checkoutVentasModo?: string
   onepayPaymentsEnabled?: boolean
   whatsappNumero?: string
+  envioSinEnvio?: boolean
   envioEstimadoCop?: number
   envioPorCiudad?: { ciudad?: string; cop?: number }[]
   envioUsarTarifasMicatalogo?: boolean
@@ -70,6 +71,7 @@ function isCheckoutVentasConfigured(tenant: TenantSlice, platform: PlatformSlice
 }
 
 function isEnvioCheckoutConfigured(tenant: TenantSlice, _platform: PlatformSlice | null): boolean {
+  if (tenant.envioSinEnvio === true && tenant.checkoutVentasModo === 'whatsapp') return true
   if (isEnvioCotizacionAutomaticaConfigured(tenant)) return true
   if (tenant.envioCotizarAutomatico !== true) {
     return (tenant.envioPorCiudad?.length ?? 0) > 0

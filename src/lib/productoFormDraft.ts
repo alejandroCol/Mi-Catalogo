@@ -22,6 +22,8 @@ import {
   resolveImagenPrincipalColorId,
   sumarStockColoresZapatos,
 } from '@/lib/productoZapatos'
+import type { ProductoEnvioMedidasDraft } from '@/lib/productoEnvioMedidas'
+import { parseProductoEnvioMedidasDraft } from '@/lib/productoEnvioMedidas'
 import type { McProducto, McProductoTallaModo, McProductoVariante } from '@/types/mc'
 import type { ProductoFormTipo } from '@/components/producto/ProductoEsRopaStep'
 
@@ -46,6 +48,7 @@ export type QuickAddFormSnapshot = {
   coloresZapatos: import('@/lib/productoZapatos').ColorZapatoDraft[]
   imagenPrincipalColorId?: string | null
   categoriaIds: string[]
+  envioMedidas?: ProductoEnvioMedidasDraft
 }
 
 function formEsConTallas(form: QuickAddFormSnapshot): boolean {
@@ -123,6 +126,7 @@ export function quickAddFormHasDraftContent(form: QuickAddFormSnapshot): boolean
   )
     return true
   if (form.descuento.activo) return true
+  if (form.envioMedidas?.enabled) return true
   if (formEsZapatos(form) && sumarStockColoresZapatos(form.coloresZapatos) > 0) return true
   if (formEsConTallas(form) && !formEsZapatos(form) && form.tallas.some((t) => Number(t.stock.replace(/\D/g, '')) > 0))
     return true
@@ -192,7 +196,16 @@ export function buildProductoPayloadFromQuickAddForm(
     ...(descParsed.ok ? descParsed.fields : { descuentoActivo: false }),
     ...(builtVar.length > 0 ? { variantes: builtVar } : {}),
     ...(form.categoriaIds.length > 0 ? { categoriaIds: form.categoriaIds } : {}),
+    ...envioMedidasPayload(form.envioMedidas),
   }
+}
+
+function envioMedidasPayload(
+  draft: ProductoEnvioMedidasDraft | undefined,
+): { envioMedidas: McProducto['envioMedidas'] } | Record<string, never> {
+  if (!draft) return {}
+  const parsed = parseProductoEnvioMedidasDraft(draft)
+  return parsed.ok && parsed.medidas ? { envioMedidas: parsed.medidas } : {}
 }
 
 export function isProductoBorrador(prod: McProducto): boolean {

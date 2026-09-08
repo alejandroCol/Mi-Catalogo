@@ -143,6 +143,12 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       size: 'compact',
     },
     {
+      id: 'banner-categoria',
+      title: 'Carrusel categoría',
+      to: '/app/cuenta/banner-categoria',
+      size: 'compact',
+    },
+    {
       id: 'barra-anuncio',
       title: 'Barra anuncio',
       to: '/app/cuenta/barra-anuncio',
@@ -152,6 +158,12 @@ export function buildConfigMenuItems(ctx: ConfigMenuContext): ConfigMenuItem[] {
       id: 'cabecera',
       title: 'Cabecera',
       to: '/app/cuenta/cabecera',
+      size: 'compact',
+    },
+    {
+      id: 'boton-whatsapp',
+      title: 'Botón WhatsApp',
+      to: '/app/cuenta/boton-whatsapp',
       size: 'compact',
     },
     {

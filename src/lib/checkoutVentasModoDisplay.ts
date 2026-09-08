@@ -40,9 +40,9 @@ export const CHECKOUT_VENTAS_MODOS: CheckoutVentasModoDisplay[] = [
     shortLabel: 'WhatsApp',
     summary: 'Coordinás pago y entrega por chat; el checkout no muestra cobro con tarjeta.',
     highlights: [
-      'En el checkout el cliente ve el botón «Pedir por WhatsApp».',
-      'Se arma un mensaje con el pedido, envío y totales.',
-      'Al tocarlo, se abre WhatsApp para continuar la venta contigo.',
+      'En el carrito el cliente ve solo «Hacer pedido por WhatsApp».',
+      'Completa un formulario mínimo (datos y dirección) y se abre WhatsApp con el pedido.',
+      'Se arma un mensaje con productos, envío, totales y datos de entrega.',
     ],
   },
 ]

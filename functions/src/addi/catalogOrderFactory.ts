@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { resolveCheckoutEnvioCop } from '../shipping/resolveCheckoutEnvio.js'
+import { empaqueLineaFromProducto, type EmpaqueLineaPack } from '../shipping/envioEmpaquePack.js'
 import { productoPrecioVentaFromData } from '../productoDescuento.js'
 import {
   enrichLineasWithComboCost,
@@ -204,6 +205,7 @@ export async function buildAndPersistCatalogCheckoutOrder(
     | undefined
 
   const lineasRes: CatalogLineaRes[] = []
+  const lineasEmpaque: EmpaqueLineaPack[] = []
   for (const raw of lineas) {
     const productId = typeof raw?.productId === 'string' ? raw.productId.trim() : ''
     const cant = typeof raw?.cantidad === 'number' && raw.cantidad > 0 ? Math.floor(raw.cantidad) : 0
@@ -252,12 +254,16 @@ export async function buildAndPersistCatalogCheckoutOrder(
       descuentoActivo?: boolean
       descuentoTipo?: 'porcentaje' | 'monto_fijo'
       descuentoValor?: number
+      esRopa?: boolean
+      tallaModo?: string
+      envioMedidas?: unknown
     }
     if (p.activo !== true || p.enCatalogo !== true) {
       throw new HttpsError('invalid-argument', 'Un producto no está a la venta.')
     }
     const precio = Math.round(productoPrecioVentaFromData(p))
     if (precio < 1) throw new HttpsError('invalid-argument', 'Precio faltante en un producto.')
+    lineasEmpaque.push(empaqueLineaFromProducto(p, cant))
     lineasRes.push({
       productId,
       nombre: (p.nombre ?? 'Producto').slice(0, 200),
@@ -298,6 +304,7 @@ export async function buildAndPersistCatalogCheckoutOrder(
     destinoTelefono: telefono,
     subtotalCop,
     totalPiezas,
+    lineasEmpaque,
   })
   const envioCop = envioResolution.envioCop
 

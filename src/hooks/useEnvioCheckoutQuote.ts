@@ -45,6 +45,9 @@ export function useEnvioCheckoutQuote(input: {
   destinoTelefono: string
   subtotalCop: number
   totalPiezas: number
+  /** No cotiza ni cobra envío (p. ej. tienda WhatsApp con “Sin envío”). */
+  disabled?: boolean
+  lineas?: { productId: string; cantidad: number }[]
 }): EnvioCheckoutQuoteState {
   const {
     slug,
@@ -57,9 +60,15 @@ export function useEnvioCheckoutQuote(input: {
     destinoTelefono,
     subtotalCop,
     totalPiezas,
+    disabled = false,
+    lineas,
   } = input
 
-  const autoQuote = isEnvioCotizacionAutomaticaConfigured(tenant ?? undefined)
+  const lineasKey = (lineas ?? [])
+    .map((l) => `${l.productId}:${Math.max(0, Math.round(l.cantidad))}`)
+    .join('|')
+
+  const autoQuote = !disabled && isEnvioCotizacionAutomaticaConfigured(tenant ?? undefined)
   const destinoCompleto =
     autoQuote &&
     envioDepartamento.trim().length > 0 &&
@@ -115,6 +124,9 @@ export function useEnvioCheckoutQuote(input: {
             destinoTelefono: destinoTelefono.trim() || undefined,
             subtotalCop,
             totalPiezas,
+            lineas: (lineas ?? [])
+              .filter((l) => l.productId && l.cantidad > 0)
+              .map((l) => ({ productId: l.productId, cantidad: Math.round(l.cantidad) })),
           })
           if (currentReq !== reqId.current) return
           const data = res.data as QuoteResponse
@@ -146,7 +158,12 @@ export function useEnvioCheckoutQuote(input: {
     destinoTelefono,
     subtotalCop,
     totalPiezas,
+    lineasKey,
   ])
+
+  if (disabled) {
+    return { envioCop: 0, lineaEnvio: 'oculta', fuente: 'estatico', seleccionada: null, loading: false, error: null }
+  }
 
   if (!autoQuote) {
     return { ...staticFallback, loading: false, error: null }

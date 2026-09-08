@@ -15,6 +15,7 @@ import {
   totalCheckoutCop,
 } from '@/lib/checkoutPricing'
 import { MC_ENVIO_CHECKOUT_ETIQUETA } from '@/lib/envioCotizacion'
+import { resolveCheckoutFlowProfile } from '@/lib/checkoutFlowProfile'
 import { explicitCheckoutVentasModo } from '@/lib/checkoutVentasModo'
 import { useEnvioCheckoutQuote } from '@/hooks/useEnvioCheckoutQuote'
 import type { McCuponTienda, McOrdenCatalogoLinea } from '@/types/mc'
@@ -37,8 +38,6 @@ import { useCarritoIniciadoCheckoutSync } from '@/hooks/useCarritoIniciadoChecko
 import { useWishlistCheckoutHydration } from '@/hooks/useWishlistCheckoutHydration'
 import { recordWishlistPurchase, type WishlistPublicView } from '@/lib/wishlist'
 import {
-  CHECKOUT_STEP_META,
-  CHECKOUT_STEPS,
   checkoutStepIndex,
   validateCheckoutAll,
   validateCheckoutStep,
@@ -187,6 +186,10 @@ export function PublicCheckoutPage() {
     return { lineasOrden: lineas, subtotalCop: t, preciosOk: ok }
   }, [lines])
 
+  const checkoutVentasModoExplicit = useMemo(() => explicitCheckoutVentasModo(tenant), [tenant])
+  const checkoutFlow = useMemo(() => resolveCheckoutFlowProfile(tenant), [tenant])
+  const collectShippingAddress = checkoutFlow.collectShippingAddress
+
   const {
     envioCop,
     lineaEnvio,
@@ -207,6 +210,8 @@ export function PublicCheckoutPage() {
     destinoTelefono: esRegalo ? giftWishlist?.destinatarioTelefono || telefono : telefono,
     subtotalCop,
     totalPiezas,
+    disabled: !collectShippingAddress,
+    lineas: lines.map((l) => ({ productId: l.productId, cantidad: l.cantidad })),
   })
 
   const envioLabel = MC_ENVIO_CHECKOUT_ETIQUETA
@@ -221,7 +226,13 @@ export function PublicCheckoutPage() {
     [subtotalCop, envioCop, descuentoCop],
   )
 
-  const checkoutVentasModoExplicit = useMemo(() => explicitCheckoutVentasModo(tenant), [tenant])
+  const checkoutSteps = checkoutFlow.uiSteps
+
+  useEffect(() => {
+    if (!checkoutSteps.includes(checkoutStep)) {
+      setCheckoutStep(checkoutSteps[0] ?? 'revisar')
+    }
+  }, [checkoutSteps, checkoutStep])
 
   const carritoContacto = useMemo(
     () => ({
@@ -265,7 +276,8 @@ export function PublicCheckoutPage() {
 
   const contraentregaDisponible = tenant?.contraentregaCatalogoEnabled === true
   const mostrarSelectorMetodoPago =
-    contraentregaDisponible || (mostrarOnepayEnCheckout && mostrarAddiEnCheckout)
+    checkoutVentasModoExplicit !== 'whatsapp' &&
+    (contraentregaDisponible || (mostrarOnepayEnCheckout && mostrarAddiEnCheckout))
 
   useEffect(() => {
     if (pagoMetodoCheckout === 'addi' && !mostrarAddiEnCheckout) {
@@ -292,7 +304,7 @@ export function PublicCheckoutPage() {
   }
 
   function validateStepOpts() {
-    return { preciosOk, cuponInvalid: cuponEsInvalido() }
+    return { preciosOk, cuponInvalid: cuponEsInvalido(), fields: checkoutFlow.fields }
   }
 
   function goCheckoutNext() {
@@ -302,25 +314,25 @@ export function PublicCheckoutPage() {
       setErrMsg(err)
       return
     }
-    const i = checkoutStepIndex(checkoutStep)
-    if (i < CHECKOUT_STEPS.length - 1) {
-      setCheckoutStep(CHECKOUT_STEPS[i + 1]!)
+    const i = checkoutStepIndex(checkoutStep, checkoutSteps)
+    if (i < checkoutSteps.length - 1) {
+      setCheckoutStep(checkoutSteps[i + 1]!)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
   function goCheckoutBack() {
     setErrMsg(null)
-    const i = checkoutStepIndex(checkoutStep)
+    const i = checkoutStepIndex(checkoutStep, checkoutSteps)
     if (i > 0) {
-      setCheckoutStep(CHECKOUT_STEPS[i - 1]!)
+      setCheckoutStep(checkoutSteps[i - 1]!)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
   function goToCheckoutStep(step: CheckoutStepId) {
-    const targetIdx = checkoutStepIndex(step)
-    const currentIdx = checkoutStepIndex(checkoutStep)
+    const targetIdx = checkoutStepIndex(step, checkoutSteps)
+    const currentIdx = checkoutStepIndex(checkoutStep, checkoutSteps)
     if (targetIdx >= currentIdx) return
     setErrMsg(null)
     setCheckoutStep(step)
@@ -328,7 +340,7 @@ export function PublicCheckoutPage() {
   }
 
   function validateBeforeSubmit(): string | null {
-    return validateCheckoutAll(checkoutFields(), validateStepOpts())
+    return validateCheckoutAll(checkoutFields(), validateStepOpts(), checkoutFlow.validationSteps)
   }
 
   function giftOrderFields(): Record<string, unknown> {
@@ -658,6 +670,7 @@ export function PublicCheckoutPage() {
       totalCop: totalFinal,
       envioLabel,
       cuponCodigo: cuponVigente ? normalizeCuponCodigo(cuponVigente.codigo) : undefined,
+      sinEnvio: !collectShippingAddress,
     })
     const url = whatsappUrlFromNumber(waDigits, waText)
     if (!url) {
@@ -1093,9 +1106,17 @@ export function PublicCheckoutPage() {
   const navSecondaryClass =
     'mc-pc-btn border mc-pc-border bg-transparent px-4 py-3.5 text-sm font-semibold mc-pc-text transition duration-200 ease-in-out hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40'
 
-  const isFinalStep = checkoutStep === 'envio'
-  const currentStepIdx = checkoutStepIndex(checkoutStep)
-  const stepMeta = CHECKOUT_STEP_META[checkoutStep]
+  const isFinalStep =
+    checkoutFlow.combineContactAndShipping ||
+    checkoutStep === checkoutSteps[checkoutSteps.length - 1]
+  const currentStepIdx = checkoutStepIndex(checkoutStep, checkoutSteps)
+  const stepMeta = checkoutFlow.combineContactAndShipping
+    ? checkoutFlow.stepMeta.datos
+    : checkoutFlow.stepMeta[checkoutStep]
+  const showContactStep = checkoutStep === 'datos' || checkoutFlow.combineContactAndShipping
+  const showShippingStep = checkoutStep === 'envio' || checkoutFlow.combineContactAndShipping
+  const showShippingAddressFields = showShippingStep && collectShippingAddress
+  const showReviewStep = checkoutStep === 'revisar' || checkoutFlow.combineContactAndShipping
 
   const finalPayDisabled =
     busy || onepayBusy || addiBusy || !preciosOk || subtotalCop <= 0 || envioQuoteLoading
@@ -1143,7 +1164,7 @@ export function PublicCheckoutPage() {
         className={resumenCtaAccentClass}
       >
         <IconWhatsApp monochrome size={18} />
-        Pedir por WhatsApp
+        {checkoutFlow.submitLabel}
       </button>
     ) : (
       <button
@@ -1174,7 +1195,7 @@ export function PublicCheckoutPage() {
   )
 
   const datosResumenCard =
-    nombre.trim() || telefono.trim() || email.trim() ? (
+    !checkoutFlow.combineContactAndShipping && (nombre.trim() || telefono.trim() || email.trim()) ? (
       <div className="rounded-md border border-dashed mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_35%,var(--cat-surface)_65%)] px-4 py-3.5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--cat-muted)]">Tus datos</p>
         <dl className="mt-2 space-y-1 text-[13px] leading-snug mc-pc-text">
@@ -1220,19 +1241,20 @@ export function PublicCheckoutPage() {
           <span className="text-[color-mix(in_srgb,var(--cat-muted)_55%,transparent)]" aria-hidden>
             /
           </span>
-          <span className="text-[var(--cat-text)]">Pago</span>
+          <span className="text-[var(--cat-text)]">
+            {checkoutFlow.cartPrimaryKind === 'whatsapp' ? 'Pedido' : 'Pago'}
+          </span>
         </nav>
         <h1 className="mc-pc-display mt-2 text-2xl font-semibold tracking-tight text-[var(--cat-text)] sm:mt-3 sm:text-3xl">
-          {esRegalo ? 'Regalar' : 'Checkout'}
+          {esRegalo ? 'Regalar' : checkoutFlow.pageTitle}
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--cat-muted)] sm:mt-3">
           {esRegalo && giftWishlist
             ? `Vas a regalarle a ${giftWishlist.destinatarioNombre}. Vos pagás; el envío va a su dirección.`
-            : mostrarOnepayEnCheckout
-              ? 'Tres pasos rápidos: revisás el pedido, cargás tus datos y pagás con OnePay de forma segura.'
-              : checkoutVentasModo === 'whatsapp'
-                ? 'Completá el pedido paso a paso. Esta tienda coordina el pago por WhatsApp.'
-                : 'Completá el pedido paso a paso. Cuando la tienda active la pasarela podrás pagar en línea.'}
+            : checkoutFlow.pageSubtitle ||
+              (mostrarOnepayEnCheckout
+                ? 'Tres pasos rápidos: revisás el pedido, cargás tus datos y pagás con OnePay de forma segura.'
+                : 'Completá el pedido paso a paso. Cuando la tienda active la pasarela podrás pagar en línea.')}
         </p>
         {esRegalo && giftWishlist ? (
           <div className="mt-4 rounded-xl border border-[color-mix(in_srgb,var(--cat-accent)_28%,transparent)] bg-[color-mix(in_srgb,var(--cat-accent)_8%,var(--cat-surface)_92%)] px-4 py-3 text-sm text-[var(--cat-text)]">
@@ -1245,9 +1267,16 @@ export function PublicCheckoutPage() {
         ) : null}
       </div>
 
+      {checkoutSteps.length > 1 ? (
       <div className="mb-6 sm:mb-8">
-        <CheckoutStepIndicator current={checkoutStep} onStepClick={goToCheckoutStep} />
+        <CheckoutStepIndicator
+          current={checkoutStep}
+          steps={checkoutSteps}
+          stepMeta={checkoutFlow.stepMeta}
+          onStepClick={goToCheckoutStep}
+        />
       </div>
+      ) : null}
 
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 sm:mb-6">
         {tenantHasPoliticas(tenant) && (
@@ -1274,18 +1303,31 @@ export function PublicCheckoutPage() {
               goCheckoutNext()
             }}
           >
+            {checkoutSteps.length > 1 ? (
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--cat-muted)]">
-              Paso {currentStepIdx + 1} de {CHECKOUT_STEPS.length}
+              Paso {currentStepIdx + 1} de {checkoutSteps.length}
             </p>
+            ) : checkoutFlow.cartPrimaryKind === 'whatsapp' ? (
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--cat-muted)]">
+              Pedido por WhatsApp
+            </p>
+            ) : null}
             <h2 className="mc-pc-display mt-1.5 text-xl font-semibold tracking-tight text-[var(--cat-text)] sm:text-2xl">
               {stepMeta.title}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-[var(--cat-muted)]">{stepMeta.subtitle}</p>
 
             <div className="mt-5 sm:mt-6">
-              {checkoutStep === 'revisar' && (
-                <div className="space-y-5">
-                  {resumenList}
+              {showReviewStep && (
+                <div className={clsx('space-y-5', checkoutFlow.combineContactAndShipping && 'lg:space-y-4')}>
+                  {checkoutFlow.combineContactAndShipping ? (
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)] lg:hidden">
+                      Tu pedido
+                    </p>
+                  ) : null}
+                  <div className={checkoutFlow.combineContactAndShipping ? 'lg:hidden' : undefined}>
+                    {resumenList}
+                  </div>
                   <div className="rounded-md border mc-pc-border bg-[color-mix(in_srgb,var(--cat-bg)_40%,var(--cat-surface)_60%)] p-4">
                     <p className="text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">Cupón de descuento</p>
                     <div className="mt-3 space-y-3">
@@ -1336,8 +1378,18 @@ export function PublicCheckoutPage() {
                 </div>
               )}
 
-              {checkoutStep === 'datos' && (
-                <div className="space-y-4">
+              {showContactStep && (
+                <div
+                  className={clsx(
+                    'space-y-4',
+                    checkoutFlow.combineContactAndShipping && 'mt-6 border-t mc-pc-border pt-6',
+                  )}
+                >
+                  {checkoutFlow.combineContactAndShipping ? (
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">
+                      Tus datos
+                    </p>
+                  ) : null}
                   <div>
                     <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
                       Nombre <span className="text-red-700">*</span>
@@ -1362,9 +1414,18 @@ export function PublicCheckoutPage() {
                       autoComplete="tel"
                     />
                   </div>
+                  {checkoutFlow.fields.email !== 'hidden' ? (
                   <div>
                     <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                      Correo <span className="text-red-700">*</span>
+                      Correo
+                      {checkoutFlow.fields.email === 'required' ? (
+                        <span className="text-red-700"> *</span>
+                      ) : (
+                        <span className="normal-case tracking-normal text-[color-mix(in_srgb,var(--cat-muted)_80%,transparent)]">
+                          {' '}
+                          (opcional)
+                        </span>
+                      )}
                     </label>
                     <input
                       className={innerFieldClass}
@@ -1374,14 +1435,21 @@ export function PublicCheckoutPage() {
                       autoComplete="email"
                       placeholder="tu@correo.com"
                     />
+                    {checkoutFlow.fields.email === 'required' ? (
                     <p className="mt-1.5 text-[11px] leading-relaxed mc-pc-muted">
                       Te enviamos la confirmación del pedido y el seguimiento a este correo.
                     </p>
+                    ) : null}
                   </div>
+                  ) : null}
+                  {checkoutFlow.fields.documento !== 'hidden' ? (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                        Tipo de documento <span className="text-red-700">*</span>
+                        Tipo de documento
+                        {checkoutFlow.fields.documento === 'required' ? (
+                          <span className="text-red-700"> *</span>
+                        ) : null}
                       </label>
                       <select
                         className={innerFieldClass}
@@ -1398,7 +1466,10 @@ export function PublicCheckoutPage() {
                     </div>
                     <div>
                       <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
-                        Número de documento <span className="text-red-700">*</span>
+                        Número de documento
+                        {checkoutFlow.fields.documento === 'required' ? (
+                          <span className="text-red-700"> *</span>
+                        ) : null}
                       </label>
                       <input
                         className={innerFieldClass}
@@ -1411,19 +1482,39 @@ export function PublicCheckoutPage() {
                       />
                     </div>
                   </div>
+                  ) : null}
                 </div>
               )}
 
-              {checkoutStep === 'envio' && (
-                <form id="checkout-final-form" onSubmit={(e) => void pagarSimulado(e)} className="space-y-5">
+              {showShippingStep && (
+                <form
+                  id="checkout-final-form"
+                  onSubmit={(e) => void pagarSimulado(e)}
+                  className={clsx(
+                    'space-y-5',
+                    checkoutFlow.combineContactAndShipping && 'mt-6 border-t mc-pc-border pt-6',
+                  )}
+                >
+                  {checkoutFlow.combineContactAndShipping && collectShippingAddress ? (
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--cat-muted)]">
+                      Dirección de envío
+                    </p>
+                  ) : null}
                   {datosResumenCard}
-                  {esRegalo ? (
+                  {esRegalo && collectShippingAddress ? (
                     <p className="rounded-md border border-dashed mc-pc-border px-3 py-2.5 text-[12px] leading-relaxed mc-pc-muted">
                       La dirección de envío viene de la lista de regalos y no se puede cambiar (así llega a quien
                       corresponde).
                     </p>
                   ) : null}
+                  {!collectShippingAddress ? (
+                    <p className="rounded-md border border-dashed mc-pc-border px-3 py-2.5 text-[12px] leading-relaxed mc-pc-muted">
+                      Esta tienda no pide datos de envío. Coordinás la entrega por WhatsApp.
+                    </p>
+                  ) : null}
                   <div className="space-y-4">
+                    {showShippingAddressFields ? (
+                      <>
                     <div>
                       <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
                         Departamento <span className="text-red-700">*</span>
@@ -1516,6 +1607,8 @@ export function PublicCheckoutPage() {
                         placeholder="Torre, apartamento, barrio…"
                       />
                     </div>
+                      </>
+                    ) : null}
                     <div>
                       <label className="block text-[11px] font-medium uppercase tracking-[0.1em] mc-pc-muted">
                         Nota para la tienda (opcional)
@@ -1639,13 +1732,20 @@ export function PublicCheckoutPage() {
             <h2 className="mc-pc-display mt-1.5 text-lg font-semibold text-[var(--cat-text)]">Tu pedido</h2>
             <p className="mt-1 text-xs text-[var(--cat-muted)]">{resumenHint}</p>
             <div className="mt-4">{resumenList}</div>
-            {checkoutStep !== 'revisar' && envioDepartamento.trim() && envioCiudad.trim() ? (
+            {collectShippingAddress &&
+            checkoutStep !== 'revisar' &&
+            envioDepartamento.trim() &&
+            envioCiudad.trim() ? (
               <p className="mt-3 text-[11px] leading-relaxed text-[var(--cat-muted)]">
                 Envío a {envioCiudad.trim()}, {formatoDepartamentoEtiqueta(envioDepartamento.trim())}
               </p>
             ) : null}
             <p className="mt-4 text-xs leading-relaxed text-[var(--cat-muted)]">
-              {isFinalStep ? 'Revisá el total antes de confirmar.' : 'El envío se actualiza al completar la dirección.'}
+              {isFinalStep
+                ? 'Revisá el total antes de confirmar.'
+                : collectShippingAddress
+                  ? 'El envío se actualiza al completar la dirección.'
+                  : 'Esta tienda no cobra envío.'}
             </p>
             {isFinalStep ? <div className="mt-4">{finalPayButton}</div> : null}
           </div>

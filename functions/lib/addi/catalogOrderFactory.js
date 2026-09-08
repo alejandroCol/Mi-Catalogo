@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { resolveCheckoutEnvioCop } from '../shipping/resolveCheckoutEnvio.js';
+import { empaqueLineaFromProducto } from '../shipping/envioEmpaquePack.js';
 import { productoPrecioVentaFromData } from '../productoDescuento.js';
 import { enrichLineasWithComboCost, validateCatalogLineStock, } from '../catalogInventoryFulfill.js';
 import { isReservedStoreSlug } from '../storePublicUrl.js';
@@ -67,6 +68,7 @@ export async function buildAndPersistCatalogCheckoutOrder(db, input) {
     const platformSettingsSnap = await db.doc('mc_platform/settings').get();
     const platformSettings = platformSettingsSnap.data();
     const lineasRes = [];
+    const lineasEmpaque = [];
     for (const raw of lineas) {
         const productId = typeof raw?.productId === 'string' ? raw.productId.trim() : '';
         const cant = typeof raw?.cantidad === 'number' && raw.cantidad > 0 ? Math.floor(raw.cantidad) : 0;
@@ -113,6 +115,7 @@ export async function buildAndPersistCatalogCheckoutOrder(db, input) {
         const precio = Math.round(productoPrecioVentaFromData(p));
         if (precio < 1)
             throw new HttpsError('invalid-argument', 'Precio faltante en un producto.');
+        lineasEmpaque.push(empaqueLineaFromProducto(p, cant));
         lineasRes.push({
             productId,
             nombre: (p.nombre ?? 'Producto').slice(0, 200),
@@ -150,6 +153,7 @@ export async function buildAndPersistCatalogCheckoutOrder(db, input) {
         destinoTelefono: telefono,
         subtotalCop,
         totalPiezas,
+        lineasEmpaque,
     });
     const envioCop = envioResolution.envioCop;
     const cuponIn = typeof input.cuponCodigo === 'string' ? input.cuponCodigo : '';

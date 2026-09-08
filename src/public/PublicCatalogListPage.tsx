@@ -44,6 +44,7 @@ import {
 import { CatalogProductPrice, CatalogDiscountBadge } from '@/public/CatalogProductPrice'
 import { CatalogViewTabs, type CatalogViewTab } from '@/public/CatalogViewTabs'
 import { InteractiveLandingHero } from '@/public/InteractiveLandingHero'
+import { CategoryShowcaseBanner } from '@/public/categoryShowcase/CategoryShowcaseBanner'
 import { SeasonBannerHero } from '@/public/SeasonBannerHero'
 import { usePublicStore } from '@/public/PublicStoreContext'
 import { useCatalogTenant } from '@/public/useCatalogTenant'
@@ -621,6 +622,14 @@ export function PublicCatalogListPage() {
       ) : showSeasonHero ? (
         <SeasonBannerHero tenant={tenant} />
       ) : null}
+
+      <CategoryShowcaseBanner
+        tenant={tenant}
+        products={rows}
+        categorias={categoriasActivas}
+        productPath={productPath}
+        onSelectCategory={setSelectedCategoriaId}
+      />
 
       <div
         id={MC_CATALOGO_PRODUCTOS_ID}

@@ -8,6 +8,7 @@ import { defineSecret, defineString } from 'firebase-functions/params'
 import express from 'express'
 import { markCarritoIniciadoAfterOrderPaid } from './carritoIniciado.js'
 import { resolveCheckoutEnvioCop } from './shipping/resolveCheckoutEnvio.js'
+import { empaqueLineaFromProducto, type EmpaqueLineaPack } from './shipping/envioEmpaquePack.js'
 import {
   catalogSaleOrderSliceFromData,
   resolveEmailCatalogThemeColors,
@@ -2330,6 +2331,7 @@ export const mcOnepayStartCatalogCheckout = onCall(
     }[]
   }
   const lineasRes: CatalogLineaRes[] = []
+  const lineasEmpaque: EmpaqueLineaPack[] = []
   for (const raw of lineas) {
     const productId = typeof raw?.productId === 'string' ? raw.productId.trim() : ''
     const cant = typeof raw?.cantidad === 'number' && raw.cantidad > 0 ? Math.floor(raw.cantidad) : 0
@@ -2378,6 +2380,9 @@ export const mcOnepayStartCatalogCheckout = onCall(
       descuentoActivo?: boolean
       descuentoTipo?: 'porcentaje' | 'monto_fijo'
       descuentoValor?: number
+      esRopa?: boolean
+      tallaModo?: string
+      envioMedidas?: unknown
     }
     if (p.activo !== true || p.enCatalogo !== true) {
       throw new HttpsError('invalid-argument', 'Un producto no está a la venta.')
@@ -2386,6 +2391,7 @@ export const mcOnepayStartCatalogCheckout = onCall(
     if (precio < 1) {
       throw new HttpsError('invalid-argument', 'Precio faltante en un producto.')
     }
+    lineasEmpaque.push(empaqueLineaFromProducto(p, cant))
     lineasRes.push({
       productId,
       nombre: (p.nombre ?? 'Producto').slice(0, 200),
@@ -2427,6 +2433,7 @@ export const mcOnepayStartCatalogCheckout = onCall(
     destinoTelefono: telefono,
     subtotalCop,
     totalPiezas,
+    lineasEmpaque,
   })
   const envioCop = envioResolution.envioCop
 

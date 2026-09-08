@@ -320,6 +320,7 @@ service cloud.firestore {
         'envioUsarTarifasMicatalogo',
         'envioGratisDesdeCop',
         'envioCotizarAutomatico',
+        'envioSinEnvio',
         'envioOrigenDepartamento',
         'envioOrigenCiudad',
         'envioOrigenDireccion',
@@ -341,7 +342,9 @@ service cloud.firestore {
         'catalogTheme',
         'storeLogoUrl',
         'seasonBanner',
+        'categoryShowcase',
         'announcementBar',
+        'catalogWhatsappFab',
         'headerLayout',
         'headerLogoShape',
         'headerShowStoreName',
@@ -548,6 +551,16 @@ service cloud.firestore {
                 || request.resource.data.headerLogoShape in ['round', 'original'])
               && (!('headerShowStoreName' in request.resource.data)
                 || request.resource.data.headerShowStoreName is bool)
+              && (!('catalogWhatsappFab' in request.resource.data)
+                || (
+                  request.resource.data.catalogWhatsappFab is map
+                  && request.resource.data.catalogWhatsappFab.enabled is bool
+                  && (!('style' in request.resource.data.catalogWhatsappFab)
+                    || request.resource.data.catalogWhatsappFab.style
+                      in ['classic', 'pill', 'outline', 'dark'])
+                  && (!('side' in request.resource.data.catalogWhatsappFab)
+                    || request.resource.data.catalogWhatsappFab.side in ['right', 'left'])
+                ))
               && mcTenantOwnerAffectedKeysOk()
             )
             /** Contador de productos: ver mcTenantOwnerProductCountPatch() arriba. */

@@ -1,3 +1,4 @@
+import { formatCatalogArticulosCount } from '@/lib/catalogProductCopy'
 import type { McCategoria, McProducto } from '@/types/mc'
 
 export type CategoriaConId = McCategoria & { id: string }
@@ -131,16 +132,16 @@ export function categoriaSubtituloCatalogo(
   categoriaId?: string | null,
   categorias?: CategoriaConId[],
 ): string {
-  const prendas = count === 1 ? '1 prenda' : `${count} prendas`
+  const articulos = formatCatalogArticulosCount(count)
   if (categoriaId && categorias) {
     const cat = getCategoriaById(categoriaId, categorias)
     if (cat && esSubcategoria(cat) && cat.parentId) {
       const parent = getCategoriaById(cat.parentId, categorias)
-      if (parent) return `${prendas} · ${parent.nombre}`
+      if (parent) return `${articulos} · ${parent.nombre}`
     }
   }
   const tienda = tenantNombre?.trim()
-  return tienda ? `${prendas} · ${tienda}` : prendas
+  return tienda ? `${articulos} · ${tienda}` : articulos
 }
 
 export function categoriaEtiquetaProducto(

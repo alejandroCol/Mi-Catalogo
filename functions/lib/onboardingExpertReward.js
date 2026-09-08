@@ -40,6 +40,8 @@ function isCheckoutVentasConfigured(tenant, platform) {
     return false;
 }
 function isEnvioCheckoutConfigured(tenant, _platform) {
+    if (tenant.envioSinEnvio === true && tenant.checkoutVentasModo === 'whatsapp')
+        return true;
     if (isEnvioCotizacionAutomaticaConfigured(tenant))
         return true;
     if (tenant.envioCotizarAutomatico !== true) {

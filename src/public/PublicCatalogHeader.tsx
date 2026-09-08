@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { formatCop } from '@/lib/formatCop'
+import { catalogArticuloLabel } from '@/lib/catalogProductCopy'
 import {
   catalogHeaderCenterLogoClassName,
   catalogHeaderClassicLogoClassName,
@@ -8,9 +9,12 @@ import {
   catalogHeaderStoreLabel,
   resolveCatalogHeaderLogoShape,
 } from '@/lib/catalogHeaderLayout'
+import { resolveLogoCenterSectionItems } from '@/lib/catalogHeaderNav'
 import type { McCatalogHeaderLayoutId } from '@/types/mc'
 import type { McTenant } from '@/types/mc'
+import { resolveCheckoutFlowProfile } from '@/lib/checkoutFlowProfile'
 import { tenantHasPoliticas } from '@/lib/tenantPoliticas'
+import { CatalogHeaderMobileMenu } from '@/public/CatalogHeaderMobileMenu'
 import { CatalogHeartGlyph } from '@/public/CatalogFavoriteButton'
 
 export type PublicCatalogHeaderProps = {
@@ -60,7 +64,7 @@ function CartIconButton({
       onClick={onOpenCart}
       aria-label={
         cartItemCount > 0
-          ? `Carrito, ${cartItemCount} ${cartItemCount === 1 ? 'artículo' : 'artículos'} · ${formatCop(subtotalCop)}`
+          ? `Carrito, ${cartItemCount} ${catalogArticuloLabel(cartItemCount)} · ${formatCop(subtotalCop)}`
           : 'Abrir carrito'
       }
       className={clsx(
@@ -197,7 +201,7 @@ function BrandLeftHeader(props: PublicCatalogHeaderProps) {
         ) : null}
         {hasCartLines && slug ? (
           <Link to={to('/checkout')} className={navLink(enCheckout)} onClick={onNavClick}>
-            Pagar
+            {resolveCheckoutFlowProfile(tenant).cartNavLabel}
           </Link>
         ) : null}
       </nav>
@@ -266,47 +270,41 @@ function LogoCenterHeader(props: PublicCatalogHeaderProps) {
       active ? 'text-[var(--cat-text)]' : 'text-[var(--cat-muted)] hover:text-[var(--cat-text)]',
     )
 
-  const isHome = pathname === pathBase || pathname === '/' || pathname === `${pathBase}/`
+  const sectionItems = resolveLogoCenterSectionItems({
+    tenant,
+    slug,
+    pathBase,
+    pathname,
+    to,
+  })
   const showName = catalogHeaderShowsStoreName(tenant)
   const storeLabel = catalogHeaderStoreLabel(tenant)
   const logoOnly = Boolean(tenant?.storeLogoUrl) && !showName
 
   return (
     <div className="mc-public-catalog-inset grid h-[3.5rem] grid-cols-[1fr_auto_1fr] items-center gap-2 sm:h-[4rem] sm:gap-3">
-      <nav
-        className="hidden min-w-0 items-center justify-self-start gap-0.5 sm:flex sm:gap-1"
-        aria-label="Secciones de la tienda"
-      >
-        <Link to={pathBase || '/'} className={sectionLink(isHome)} onClick={onNavClick}>
-          Inicio
-        </Link>
-        <Link
-          to={pathBase || '/'}
-          className={sectionLink(isHome)}
-          onClick={onNavClick}
+      <div className="flex min-w-0 items-center justify-self-start">
+        <CatalogHeaderMobileMenu
+          items={sectionItems}
+          pathname={pathname}
+          onNavigate={onNavClick}
+        />
+        <nav
+          className="hidden min-w-0 items-center gap-0.5 sm:flex sm:gap-1"
+          aria-label="Secciones de la tienda"
         >
-          Tienda
-        </Link>
-        {slug && tenant && tenantHasPoliticas(tenant) ? (
-          <Link
-            to={to('/politicas')}
-            className={sectionLink(pathname === to('/politicas'))}
-            onClick={onNavClick}
-          >
-            Contacto
-          </Link>
-        ) : slug ? (
-          <Link
-            to={to('/seguimiento')}
-            className={sectionLink(
-              pathname === to('/seguimiento') || pathname === to('/mis-pedidos'),
-            )}
-            onClick={onNavClick}
-          >
-            Pedidos
-          </Link>
-        ) : null}
-      </nav>
+          {sectionItems.map((item) => (
+            <Link
+              key={item.id}
+              to={item.to}
+              className={sectionLink(item.active)}
+              onClick={onNavClick}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+      </div>
 
       <Link
         to={pathBase || '/'}
@@ -399,7 +397,7 @@ export function PublicCatalogHeader(props: PublicCatalogHeaderProps) {
     <header
       className={clsx(
         'mc-pc-elev-header',
-        props.layout === 'logo-center' && 'mc-pc-elev-header--logo-center',
+        props.layout === 'logo-center' && 'mc-pc-elev-header--logo-center overflow-visible',
       )}
       data-header-layout={props.layout}
     >

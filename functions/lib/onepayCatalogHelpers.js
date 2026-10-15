@@ -12,7 +12,7 @@ export function normalizeOnePaySecretValue(value) {
 }
 /** Cabeceras donde OnePay puede enviar la firma HMAC. */
 export function collectOnePaySignatureHeader(headersNorm) {
-    const keys = ['x-signature', 'x-onepay-signature', 'x-webhook-signature', 'onepay-signature'];
+    const keys = ['signature', 'x-signature', 'x-onepay-signature', 'x-webhook-signature', 'onepay-signature'];
     for (const k of keys) {
         const v = headersNorm[k];
         if (v && String(v).trim())
@@ -158,36 +158,83 @@ export function verifyOnePayWebhookSignatureDetailed(rawBody, parsedBody, webhoo
     }
     return { ok: false };
 }
+function asWebhookEvent(event) {
+    if (typeof event === 'string' && event.trim())
+        return { type: event.trim() };
+    if (event && typeof event === 'object' && typeof event.type === 'string') {
+        return { type: String(event.type).trim() };
+    }
+    return undefined;
+}
+function looksLikeChargeObject(obj) {
+    return (typeof obj.payment_method_type === 'string' ||
+        typeof obj.charge_id === 'string' ||
+        typeof obj.payment_method_id === 'string');
+}
 export function normalizeOnePayWebhookEnvelope(body) {
     if (!body || typeof body !== 'object')
         return {};
     const b = body;
-    if (b.payment || b.charge || b.event) {
+    const event = asWebhookEvent(b.event);
+    const eventType = event?.type ?? '';
+    if (b.charge && typeof b.charge === 'object') {
         return {
             payment: b.payment,
             charge: b.charge,
-            event: b.event,
+            event,
+        };
+    }
+    if (b.payment && typeof b.payment === 'object') {
+        return {
+            payment: b.payment,
+            charge: undefined,
+            event,
         };
     }
     const data = b.data;
     if (data && typeof data === 'object') {
         const d = data;
-        return {
-            payment: d.payment,
-            charge: d.charge,
-            event: d.event,
-        };
+        const nestedEvent = asWebhookEvent(d.event) ?? event;
+        if (d.charge && typeof d.charge === 'object') {
+            return {
+                payment: d.payment,
+                charge: d.charge,
+                event: nestedEvent,
+            };
+        }
+        if (d.payment && typeof d.payment === 'object') {
+            return {
+                payment: d.payment,
+                charge: undefined,
+                event: nestedEvent,
+            };
+        }
+        if (typeof d.id === 'string') {
+            const nestedType = nestedEvent?.type ?? eventType;
+            if (nestedType.startsWith('charge.') || looksLikeChargeObject(d)) {
+                return { charge: d, event: nestedEvent };
+            }
+            return { payment: d, event: nestedEvent };
+        }
     }
-    return b;
+    return { event };
 }
-/** Metadata API: objeto cuyas claves apuntan a { key, value } (requisito OnePay). */
+/**
+ * Metadata de POST /v1/payments.
+ * OnePay exige una lista de pares `{ key, value }` (ambos texto).
+ * Un objeto (`{ mi_catalogo_tenant: "…" }` o `{ mi_catalogo_tenant: { key, value } }`) responde 422.
+ * En la respuesta y en el webhook los mismos datos vuelven como objeto plano de strings.
+ * @see https://docs.onepay.la/client/payments/create
+ */
 export function onepayMetadataForApi(pairs) {
-    const out = {};
+    const out = [];
+    const seen = new Set();
     for (const p of pairs) {
-        const k = String(p.key || '').trim();
-        if (!k)
+        const k = String(p.key || '').trim().slice(0, 64);
+        if (!k || seen.has(k))
             continue;
-        out[k] = { key: k, value: String(p.value ?? '') };
+        seen.add(k);
+        out.push({ key: k, value: String(p.value ?? '').slice(0, 200) });
     }
     return out;
 }
@@ -276,6 +323,10 @@ export function extractPaymentIdAndEvent(envelope) {
     const eventType = typeof envelope.event?.type === 'string' ? envelope.event.type : '';
     const pay = envelope.payment;
     const ch = envelope.charge;
+    // Webhooks `charge.*`: `charge.id` es el intento (`charge_id` de POST /charges), no el cobro.
+    if (eventType.startsWith('charge.') && ch?.id) {
+        return { eventType, paymentId: ch.id };
+    }
     if (pay?.id) {
         return { eventType, paymentId: pay.id };
     }

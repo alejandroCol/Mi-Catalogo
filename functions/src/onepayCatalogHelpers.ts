@@ -14,7 +14,7 @@ export function normalizeOnePaySecretValue(value: string): string {
 
 /** Cabeceras donde OnePay puede enviar la firma HMAC. */
 export function collectOnePaySignatureHeader(headersNorm: Record<string, string>): string {
-  const keys = ['x-signature', 'x-onepay-signature', 'x-webhook-signature', 'onepay-signature']
+  const keys = ['signature', 'x-signature', 'x-onepay-signature', 'x-webhook-signature', 'onepay-signature']
   for (const k of keys) {
     const v = headersNorm[k]
     if (v && String(v).trim()) return String(v).trim()
@@ -227,37 +227,90 @@ export type OnePayWebhookEnvelope = {
   event?: { type?: string }
 }
 
+function asWebhookEvent(event: unknown): OnePayWebhookEnvelope['event'] {
+  if (typeof event === 'string' && event.trim()) return { type: event.trim() }
+  if (event && typeof event === 'object' && typeof (event as { type?: unknown }).type === 'string') {
+    return { type: String((event as { type: string }).type).trim() }
+  }
+  return undefined
+}
+
+function looksLikeChargeObject(obj: Record<string, unknown>): boolean {
+  return (
+    typeof obj.payment_method_type === 'string' ||
+    typeof obj.charge_id === 'string' ||
+    typeof obj.payment_method_id === 'string'
+  )
+}
+
 export function normalizeOnePayWebhookEnvelope(body: unknown): OnePayWebhookEnvelope {
   if (!body || typeof body !== 'object') return {}
   const b = body as Record<string, unknown>
-  if (b.payment || b.charge || b.event) {
+  const event = asWebhookEvent(b.event)
+  const eventType = event?.type ?? ''
+
+  if (b.charge && typeof b.charge === 'object') {
     return {
       payment: b.payment as OnePayWebhookEnvelope['payment'],
       charge: b.charge as OnePayWebhookEnvelope['charge'],
-      event: b.event as OnePayWebhookEnvelope['event'],
+      event,
     }
   }
+  if (b.payment && typeof b.payment === 'object') {
+    return {
+      payment: b.payment as OnePayWebhookEnvelope['payment'],
+      charge: undefined,
+      event,
+    }
+  }
+
   const data = b.data
   if (data && typeof data === 'object') {
     const d = data as Record<string, unknown>
-    return {
-      payment: d.payment as OnePayWebhookEnvelope['payment'],
-      charge: d.charge as OnePayWebhookEnvelope['charge'],
-      event: d.event as OnePayWebhookEnvelope['event'],
+    const nestedEvent = asWebhookEvent(d.event) ?? event
+    if (d.charge && typeof d.charge === 'object') {
+      return {
+        payment: d.payment as OnePayWebhookEnvelope['payment'],
+        charge: d.charge as OnePayWebhookEnvelope['charge'],
+        event: nestedEvent,
+      }
+    }
+    if (d.payment && typeof d.payment === 'object') {
+      return {
+        payment: d.payment as OnePayWebhookEnvelope['payment'],
+        charge: undefined,
+        event: nestedEvent,
+      }
+    }
+    if (typeof d.id === 'string') {
+      const nestedType = nestedEvent?.type ?? eventType
+      if (nestedType.startsWith('charge.') || looksLikeChargeObject(d)) {
+        return { charge: d as OnePayWebhookEnvelope['charge'], event: nestedEvent }
+      }
+      return { payment: d as OnePayWebhookEnvelope['payment'], event: nestedEvent }
     }
   }
-  return b as OnePayWebhookEnvelope
+
+  return { event }
 }
 
-/** Metadata API: objeto cuyas claves apuntan a { key, value } (requisito OnePay). */
+/**
+ * Metadata de POST /v1/payments.
+ * OnePay exige una lista de pares `{ key, value }` (ambos texto).
+ * Un objeto (`{ mi_catalogo_tenant: "…" }` o `{ mi_catalogo_tenant: { key, value } }`) responde 422.
+ * En la respuesta y en el webhook los mismos datos vuelven como objeto plano de strings.
+ * @see https://docs.onepay.la/client/payments/create
+ */
 export function onepayMetadataForApi(
   pairs: Array<{ key: string; value: string }>,
-): Record<string, { key: string; value: string }> {
-  const out: Record<string, { key: string; value: string }> = {}
+): Array<{ key: string; value: string }> {
+  const out: Array<{ key: string; value: string }> = []
+  const seen = new Set<string>()
   for (const p of pairs) {
-    const k = String(p.key || '').trim()
-    if (!k) continue
-    out[k] = { key: k, value: String(p.value ?? '') }
+    const k = String(p.key || '').trim().slice(0, 64)
+    if (!k || seen.has(k)) continue
+    seen.add(k)
+    out.push({ key: k, value: String(p.value ?? '').slice(0, 200) })
   }
   return out
 }
@@ -340,6 +393,10 @@ export function extractPaymentIdAndEvent(envelope: OnePayWebhookEnvelope): {
   const eventType = typeof envelope.event?.type === 'string' ? envelope.event.type : ''
   const pay = envelope.payment
   const ch = envelope.charge
+  // Webhooks `charge.*`: `charge.id` es el intento (`charge_id` de POST /charges), no el cobro.
+  if (eventType.startsWith('charge.') && ch?.id) {
+    return { eventType, paymentId: ch.id }
+  }
   if (pay?.id) {
     return { eventType, paymentId: pay.id }
   }

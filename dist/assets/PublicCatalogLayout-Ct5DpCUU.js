@@ -1,0 +1,1 @@
+import{t as e}from"./PublicCatalogLayout--HUxUpv6.js";export{e as PublicCatalogLayout};

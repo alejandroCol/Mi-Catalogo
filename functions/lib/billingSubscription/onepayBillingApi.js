@@ -10,20 +10,32 @@ export function billingMetadataForApi(entries) {
         .filter((e) => e.key && e.value)
         .map((e) => ({ key: e.key.slice(0, 64), value: String(e.value).slice(0, 200) }));
 }
+function metaScalar(entry) {
+    if (entry === null || entry === undefined)
+        return '';
+    if (typeof entry === 'string' || typeof entry === 'number')
+        return String(entry).trim();
+    if (typeof entry === 'object' && !Array.isArray(entry)) {
+        const value = entry.value;
+        if (value !== undefined && value !== null)
+            return String(value).trim();
+    }
+    return '';
+}
 function readMetaString(meta, key) {
     if (!meta || typeof meta !== 'object')
         return '';
-    const m = meta;
-    if (Array.isArray(m)) {
-        for (const item of m) {
-            if (item && typeof item === 'object' && item.key === key) {
-                return String(item.value ?? '').trim();
+    if (Array.isArray(meta)) {
+        for (const item of meta) {
+            if (!item || typeof item !== 'object')
+                continue;
+            if (String(item.key || '') === key) {
+                return metaScalar(item.value);
             }
         }
         return '';
     }
-    const v = m[key];
-    return typeof v === 'string' ? v.trim() : '';
+    return metaScalar(meta[key]);
 }
 export function readBillingMeta(meta, flatKey) {
     return readMetaString(meta, flatKey);
@@ -202,7 +214,7 @@ export async function onepayCreateBillingCharge(params) {
     else
         body.account_id = params.accountId.trim();
     if (params.externalId?.trim())
-        body.external_id = params.externalId.trim().slice(0, 200);
+        body.external_id = params.externalId.trim().slice(0, 100);
     const res = await fetch(ONEPAY_CHARGES_API, {
         method: 'POST',
         headers: {
@@ -223,7 +235,13 @@ export async function onepayCreateBillingCharge(params) {
     }
     if (!data.id)
         throw new Error('No se recibió id de cargo');
-    return { id: data.id, status: data.status, message: data.message };
+    const attemptId = typeof data.charge_id === 'string' ? data.charge_id.trim() : '';
+    return {
+        id: data.id,
+        ...(attemptId ? { attemptId } : {}),
+        status: data.status,
+        message: data.message,
+    };
 }
 export async function onepayGetCharge(chargeId, secretKey) {
     const res = await fetch(`${ONEPAY_CHARGES_API}/${encodeURIComponent(chargeId)}`, {
@@ -234,8 +252,10 @@ export async function onepayGetCharge(chargeId, secretKey) {
     const data = await readOnePayJson(res);
     if (!data.id)
         return null;
+    const attemptId = typeof data.charge_id === 'string' ? data.charge_id.trim() : '';
     return {
         id: data.id,
+        ...(attemptId ? { attemptId } : {}),
         status: data.status,
         metadata: data.metadata,
         amount: data.amount,

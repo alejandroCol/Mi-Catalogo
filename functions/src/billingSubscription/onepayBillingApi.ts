@@ -14,19 +14,28 @@ export function billingMetadataForApi(entries: OnePayMetadataEntry[]): { key: st
     .map((e) => ({ key: e.key.slice(0, 64), value: String(e.value).slice(0, 200) }))
 }
 
+function metaScalar(entry: unknown): string {
+  if (entry === null || entry === undefined) return ''
+  if (typeof entry === 'string' || typeof entry === 'number') return String(entry).trim()
+  if (typeof entry === 'object' && !Array.isArray(entry)) {
+    const value = (entry as { value?: unknown }).value
+    if (value !== undefined && value !== null) return String(value).trim()
+  }
+  return ''
+}
+
 function readMetaString(meta: unknown, key: string): string {
   if (!meta || typeof meta !== 'object') return ''
-  const m = meta as Record<string, unknown>
-  if (Array.isArray(m)) {
-    for (const item of m) {
-      if (item && typeof item === 'object' && (item as { key?: string }).key === key) {
-        return String((item as { value?: unknown }).value ?? '').trim()
+  if (Array.isArray(meta)) {
+    for (const item of meta) {
+      if (!item || typeof item !== 'object') continue
+      if (String((item as { key?: string }).key || '') === key) {
+        return metaScalar((item as { value?: unknown }).value)
       }
     }
     return ''
   }
-  const v = m[key]
-  return typeof v === 'string' ? v.trim() : ''
+  return metaScalar((meta as Record<string, unknown>)[key])
 }
 
 export function readBillingMeta(meta: unknown, flatKey: string): string {
@@ -253,7 +262,7 @@ export async function onepayCreateBillingCharge(params: {
   metadata: OnePayMetadataEntry[]
   externalId?: string
   idempotencyKey: string
-}): Promise<{ id: string; status?: string; message?: string }> {
+}): Promise<{ id: string; attemptId?: string; status?: string; message?: string }> {
   const hasCard = Boolean(params.cardId?.trim())
   const hasAccount = Boolean(params.accountId?.trim())
   if (hasCard === hasAccount) {
@@ -272,7 +281,7 @@ export async function onepayCreateBillingCharge(params: {
   }
   if (hasCard) body.card_id = params.cardId!.trim()
   else body.account_id = params.accountId!.trim()
-  if (params.externalId?.trim()) body.external_id = params.externalId.trim().slice(0, 200)
+  if (params.externalId?.trim()) body.external_id = params.externalId.trim().slice(0, 100)
 
   const res = await fetch(ONEPAY_CHARGES_API, {
     method: 'POST',
@@ -285,6 +294,7 @@ export async function onepayCreateBillingCharge(params: {
   })
   const data = await readOnePayJson<{
     id?: string
+    charge_id?: string
     status?: string
     message?: string
     errors?: Record<string, string[]>
@@ -298,11 +308,19 @@ export async function onepayCreateBillingCharge(params: {
     throw new Error([data.message, detail].filter(Boolean).join(' — ') || `Cargo ${res.status}`)
   }
   if (!data.id) throw new Error('No se recibió id de cargo')
-  return { id: data.id, status: data.status, message: data.message }
+  const attemptId = typeof data.charge_id === 'string' ? data.charge_id.trim() : ''
+  return {
+    id: data.id,
+    ...(attemptId ? { attemptId } : {}),
+    status: data.status,
+    message: data.message,
+  }
 }
 
 export type OnePayChargeDetails = {
   id: string
+  /** Intento de pago. Es el `charge.id` de los webhooks `charge.*`. */
+  attemptId?: string
   status?: string
   metadata?: unknown
   amount?: number
@@ -320,6 +338,7 @@ export async function onepayGetCharge(
   if (!res.ok) return null
   const data = await readOnePayJson<{
     id?: string
+    charge_id?: string
     status?: string
     metadata?: unknown
     amount?: number
@@ -328,8 +347,10 @@ export async function onepayGetCharge(
     customer?: { id?: string }
   }>(res)
   if (!data.id) return null
+  const attemptId = typeof data.charge_id === 'string' ? data.charge_id.trim() : ''
   return {
     id: data.id,
+    ...(attemptId ? { attemptId } : {}),
     status: data.status,
     metadata: data.metadata,
     amount: data.amount,

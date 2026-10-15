@@ -5,6 +5,7 @@ import { computeMonthPromoTotals, resolveLiveMonthPromo } from './monthPromo.js'
 import { billingPhoneE164Co } from './phone.js';
 import { billingMetadataForApi, chargeStatusFailed, chargeStatusPaid, onepayCreateBillingCharge, onepayCreateBillingCustomer, onepayGetCharge, readBillingMeta, } from './onepayBillingApi.js';
 import { mcCatalogUnpublishIfNeeded } from '../catalogPublish.js';
+import { resolveBillingWebhookChargeMatch } from './webhookMatch.js';
 import { advancePeriodEndMs, computeFirstPeriodEndMs, computeFreeMonthsEndMs, computePrepaidMonthsEndMs, idempotencyKeyForActivation, idempotencyKeyForBillingDebit, nextDebitDueFromPeriodEnd, } from './schedule.js';
 function paymentsRef(db, tenantId, chargeId) {
     return db.doc(`mc_tenants/${tenantId}/${MC_BILLING_PAYMENTS_COLLECTION}/${chargeId}`);
@@ -32,7 +33,27 @@ function omitUndefined(obj) {
     return out;
 }
 function isBillingChargeExternalId(externalId) {
-    return Boolean(externalId?.trim().startsWith('mcb-'));
+    const ext = externalId?.trim() ?? '';
+    return ext.startsWith('mcb_') || ext.startsWith('mcb-');
+}
+/** `external_id` con el tenant completo. OnePay lo limita a 100 caracteres. */
+function billingExternalId(tenantId, periodKey) {
+    const id = `mcb_${tenantId}_${periodKey}`;
+    return id.length <= 100 ? id : `mcb_${tenantId}`.slice(0, 100);
+}
+function parseBillingExternalId(externalId) {
+    const ext = externalId?.trim() ?? '';
+    if (!ext.startsWith('mcb_'))
+        return null;
+    const rest = ext.slice('mcb_'.length);
+    const sep = rest.indexOf('_');
+    if (sep <= 0)
+        return null;
+    const tenantId = rest.slice(0, sep).trim();
+    const periodKey = rest.slice(sep + 1);
+    if (!tenantId || tenantId.includes('/'))
+        return null;
+    return { tenantId, period: periodKey.includes('yearly') ? 'yearly' : 'monthly' };
 }
 function parsePeriodFromExternalId(externalId) {
     return externalId?.includes('yearly') ? 'yearly' : 'monthly';
@@ -51,6 +72,9 @@ async function resolveBillingTenantFromCharge(db, chargeMeta, chargeDetails) {
         return { tenantId: tenantFromMeta, period: periodRaw === 'yearly' ? 'yearly' : 'monthly' };
     }
     const externalId = chargeDetails?.external_id?.trim();
+    const parsed = parseBillingExternalId(externalId);
+    if (parsed)
+        return parsed;
     if (!isBillingChargeExternalId(externalId))
         return null;
     const customerId = chargeDetails?.customer_id?.trim();
@@ -68,6 +92,7 @@ async function resolveBillingTenantFromCharge(db, chargeMeta, chargeDetails) {
         period: parsePeriodFromExternalId(externalId),
     };
 }
+export { resolveBillingWebhookChargeMatch } from './webhookMatch.js';
 function buildMeta(tenantId, periodKey, period) {
     return billingMetadataForApi([
         { key: MC_BILLING_METADATA_KEYS.purpose, value: MC_BILLING_PURPOSE },
@@ -157,6 +182,11 @@ export async function mcBillingApplyPaidPeriod(params) {
     const now = Date.now();
     const subSnap = await subRef(db, tenantId).get();
     const sub = subSnap.exists ? subSnap.data() : null;
+    if (chargeId && sub?.lastProcessedChargeId) {
+        const thisCharge = new Set([chargeId, sub.lastChargeId, sub.pendingChargeId, sub.lastChargeAttemptId, sub.pendingChargeAttemptId].filter((id) => Boolean(id)));
+        if (thisCharge.has(sub.lastProcessedChargeId) && thisCharge.has(chargeId))
+            return;
+    }
     const effectivePrepaidMonths = prepaidMonths ?? sub?.pendingPrepaidMonths;
     const effectiveRenewalAmount = renewalAmountCop ?? sub?.pendingRenewalAmountCop;
     let periodStart = now;
@@ -329,9 +359,14 @@ export async function mcBillingActivateWithCharge(params) {
         };
     }
     const pendingId = existingSub?.pendingChargeId?.trim();
+    const pendingAttemptId = existingSub?.pendingChargeAttemptId?.trim();
     if (pendingId) {
-        const existingCharge = await onepayGetCharge(pendingId, params.platformSk);
+        let existingCharge = await onepayGetCharge(pendingId, params.platformSk);
+        if (!existingCharge && pendingAttemptId && pendingAttemptId !== pendingId) {
+            existingCharge = await onepayGetCharge(pendingAttemptId, params.platformSk);
+        }
         const pendingStatus = existingCharge?.status;
+        const stalePending = existingSub?.lastProcessedChargeId === pendingId;
         if (existingCharge && !chargeStatusFailed(pendingStatus)) {
             const paid = chargeStatusPaid(pendingStatus);
             if (paid) {
@@ -343,18 +378,43 @@ export async function mcBillingActivateWithCharge(params) {
                     chargeDetails: existingCharge,
                 });
                 if (finalized === 'handled') {
-                    return { chargeId: pendingId, status: pendingStatus, pending: false };
+                    const after = await params.db.doc(`mc_tenants/${params.tenantId}`).get();
+                    const ends = after.data()?.subscriptionEndsAt;
+                    if (typeof ends === 'number' && ends > Date.now()) {
+                        return { chargeId: pendingId, status: pendingStatus, pending: false };
+                    }
+                    // Cargo viejo ya aplicado: el plan venció, hay que cobrar de nuevo.
+                }
+                else if (finalized === 'retry' || !stalePending) {
+                    return {
+                        chargeId: pendingId,
+                        status: pendingStatus,
+                        pending: true,
+                        message: params.method === 'nequi'
+                            ? 'Te enviamos una notificación a Nequi. Abrí la app y aprobá el cobro para activar tu plan.'
+                            : 'Pago en proceso. En cuanto OnePay confirme, activamos tu plan (suele tardar segundos).',
+                    };
                 }
             }
+            else if (!stalePending) {
+                return {
+                    chargeId: pendingId,
+                    status: pendingStatus,
+                    pending: true,
+                    message: params.method === 'nequi'
+                        ? 'Te enviamos una notificación a Nequi. Abrí la app y aprobá el cobro para activar tu plan.'
+                        : 'Pago en proceso. En cuanto OnePay confirme, activamos tu plan (suele tardar segundos).',
+                };
+            }
+        }
+        else if (!existingCharge && !stalePending) {
             return {
                 chargeId: pendingId,
                 status: pendingStatus,
-                pending: !paid,
-                message: paid
-                    ? undefined
-                    : params.method === 'nequi'
-                        ? 'Te enviamos una notificación a Nequi. Abrí la app y aprobá el cobro para activar tu plan.'
-                        : 'Pago en proceso. En cuanto OnePay confirme, activamos tu plan (suele tardar segundos).',
+                pending: true,
+                message: params.method === 'nequi'
+                    ? 'Te enviamos una notificación a Nequi. Abrí la app y aprobá el cobro para activar tu plan.'
+                    : 'Pago en proceso. En cuanto OnePay confirme, activamos tu plan (suele tardar segundos).',
             };
         }
     }
@@ -372,7 +432,7 @@ export async function mcBillingActivateWithCharge(params) {
         cardId: params.method === 'card' ? params.cardId : undefined,
         accountId: params.method === 'nequi' ? params.accountId : undefined,
         metadata: buildMeta(params.tenantId, periodKey, billingPeriod),
-        externalId: `mcb-${params.tenantId.slice(0, 8)}-${periodKey}`.slice(0, 64),
+        externalId: billingExternalId(params.tenantId, periodKey),
         idempotencyKey: idem,
     });
     const pin = {
@@ -390,14 +450,18 @@ export async function mcBillingActivateWithCharge(params) {
         ...(pricing.renewalAmountCop ? { pendingRenewalAmountCop: pricing.renewalAmountCop } : {}),
         autoRenewEnabled: true,
         lastChargeId: ch.id,
+        ...(ch.attemptId ? { lastChargeAttemptId: ch.attemptId } : {}),
         debitMethodKind: params.method === 'nequi' ? 'account' : 'card',
         updatedAt: FieldValue.serverTimestamp(),
     });
     await subRef(params.db, params.tenantId).set({
         ...subInit,
         ...(chargeStatusPaid(ch.status)
-            ? { pendingChargeId: FieldValue.delete() }
-            : { pendingChargeId: ch.id }),
+            ? { pendingChargeId: FieldValue.delete(), pendingChargeAttemptId: FieldValue.delete() }
+            : {
+                pendingChargeId: ch.id,
+                ...(ch.attemptId ? { pendingChargeAttemptId: ch.attemptId } : {}),
+            }),
     }, { merge: true });
     if (chargeStatusPaid(ch.status)) {
         await mcBillingApplyPaidPeriod({
@@ -463,11 +527,18 @@ export async function mcBillingTryFinalizeFromChargeWebhook(params) {
     const sref = subRef(db, tenantId);
     const snap = await sref.get();
     let sub = snap.exists ? snap.data() : null;
-    if (sub?.lastProcessedChargeId === chargeId)
-        return 'handled';
+    const incomingIds = [chargeId, details.attemptId, details.id].filter((id) => Boolean(id?.trim()));
     const lastC = sub?.lastChargeId;
     const pend = sub?.pendingChargeId;
-    const chargeMatches = lastC === chargeId || pend === chargeId;
+    const storedIds = [lastC, pend, sub?.lastChargeAttemptId, sub?.pendingChargeAttemptId].filter((id) => Boolean(id));
+    const match = resolveBillingWebhookChargeMatch({
+        incomingIds,
+        storedIds,
+        lastProcessedChargeId: sub?.lastProcessedChargeId,
+        pendingChargeId: pend,
+    });
+    if (sub && match === 'handled')
+        return 'handled';
     if (!sub) {
         await sref.set(omitUndefined({
             status: 'active',
@@ -487,14 +558,13 @@ export async function mcBillingTryFinalizeFromChargeWebhook(params) {
             pendingChargeId: chargeId,
         };
     }
-    else if (!chargeMatches) {
-        console.warn('[mcBillingTryFinalizeFromChargeWebhook] chargeId mismatch', {
+    else if (match === 'apply' && !storedIds.some((id) => incomingIds.includes(id))) {
+        console.warn('[mcBillingTryFinalizeFromChargeWebhook] chargeId mismatch; applying via resolved tenant', {
             tenantId,
             chargeId,
             lastChargeId: lastC,
             pendingChargeId: pend,
         });
-        return 'not_billing';
     }
     else if (sub.status !== 'active' && sub.status !== 'past_due') {
         return 'retry';
@@ -530,7 +600,11 @@ export async function mcBillingReconcilePendingActivations(db, platformSk) {
             continue;
         const sub = doc.data();
         const chargeId = sub.pendingChargeId?.trim() || sub.lastChargeId?.trim();
-        if (!chargeId || sub.lastProcessedChargeId === chargeId)
+        const alreadyProcessed = Boolean(sub.lastProcessedChargeId) &&
+            (sub.lastProcessedChargeId === chargeId ||
+                sub.lastProcessedChargeId === sub.lastChargeAttemptId ||
+                sub.lastProcessedChargeId === sub.pendingChargeAttemptId);
+        if (!chargeId || alreadyProcessed)
             continue;
         const tenantSnap = await db.doc(`mc_tenants/${tenantId}`).get();
         if (!tenantSnap.exists)
@@ -640,6 +714,7 @@ export async function mcBillingRunDueRenewals(db, platformSk) {
                 cardId: useNequi ? undefined : cardId,
                 accountId: useNequi ? accountId : undefined,
                 metadata: buildMeta(tenantId, `renew-${periodEnd}`, sub.billingPeriod),
+                externalId: billingExternalId(tenantId, `renew-${periodEnd}`),
                 idempotencyKey: idem,
             });
             const st = (ch.status ?? '').toLowerCase();
@@ -661,7 +736,14 @@ export async function mcBillingRunDueRenewals(db, platformSk) {
                 processed++;
             }
             else {
-                await doc.ref.set({ pendingChargeId: ch.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+                await doc.ref.set({
+                    pendingChargeId: ch.id,
+                    lastChargeId: ch.id,
+                    ...(ch.attemptId
+                        ? { pendingChargeAttemptId: ch.attemptId, lastChargeAttemptId: ch.attemptId }
+                        : {}),
+                    updatedAt: FieldValue.serverTimestamp(),
+                }, { merge: true });
             }
         }
         catch {

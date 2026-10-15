@@ -258,9 +258,15 @@ export function BillingV2Checkout({
           : d.message ??
             `Tu pago está confirmándose. En unos segundos activamos tu plan ${expertName}. Podés recargar esta página para ver el cambio.`
       if (params.method === 'nequi' && params.accountId) {
-        setOutcome({ kind: 'nequi_payment_approval', accountId: params.accountId, message })
+        const accountId = params.accountId
+        setOutcome((prev) => {
+          if (prev.kind === 'nequi_payment_approval' && prev.accountId === accountId) {
+            return prev
+          }
+          return { kind: 'nequi_payment_approval', accountId, message }
+        })
       } else {
-        setOutcome({ kind: 'pending', message })
+        setOutcome((prev) => (prev.kind === 'pending' ? prev : { kind: 'pending', message }))
       }
       return 'pending'
     }
@@ -376,17 +382,21 @@ export function BillingV2Checkout({
     return () => window.clearInterval(intervalId)
   }, [outcome.kind, pendingNequiAccountId, method])
 
-  useEffect(() => {
-    if (outcome.kind !== 'nequi_payment_approval' || method !== 'nequi') return
+  const nequiPaymentAccountId = outcome.kind === 'nequi_payment_approval' ? outcome.accountId : null
 
-    const accountId = outcome.accountId
+  useEffect(() => {
+    if (outcome.kind !== 'nequi_payment_approval' || method !== 'nequi' || !nequiPaymentAccountId) {
+      return
+    }
+
+    const accountId = nequiPaymentAccountId
     void pollNequiPaymentApprovalRef.current(accountId)
     const intervalId = window.setInterval(() => {
       void pollNequiPaymentApprovalRef.current(accountId)
     }, 5000)
 
     return () => window.clearInterval(intervalId)
-  }, [outcome, method])
+  }, [outcome.kind, nequiPaymentAccountId, method])
 
   async function activateWithCard() {
     if (!captureRouteId) {

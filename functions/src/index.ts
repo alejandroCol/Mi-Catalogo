@@ -17,6 +17,7 @@ import {
 } from './catalogSaleEmail.js'
 import { AUTH_VERIFY_COOLDOWN_MS, sendVerificationEmailWithResend } from './authVerificationEmail.js'
 import { mcSendCarritoRecuperacionEmailHandler } from './carritoRecuperacionEmail.js'
+import { mcSendPosVentaReciboEmailHandler } from './posVentaReciboEmail.js'
 import { buildStorePublicUrl, isReservedStoreSlug } from './storePublicUrl.js'
 import { MC_RESEND_FROM } from './mcResend.js'
 import {
@@ -244,6 +245,24 @@ export const mcSendCarritoRecuperacionEmail = onCall(
     }
     const origin = mcPublicOrigin.value().trim()
     return mcSendCarritoRecuperacionEmailHandler(db, request.auth.uid, request.data, key, origin)
+  },
+)
+
+/** Recibo de pago POS al correo del cliente (Resend). */
+export const mcSendPosVentaReciboEmail = onCall(
+  { invoker: 'public', secrets: [resendApiKey] },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Iniciá sesión.')
+    }
+    const key = readResendApiKey()
+    if (!key) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Falta configurar RESEND_API_KEY para enviar recibos por correo.',
+      )
+    }
+    return mcSendPosVentaReciboEmailHandler(db, request.auth, request.data, key)
   },
 )
 
@@ -2579,9 +2598,21 @@ export const mcOnepayStartCatalogCheckout = onCall(
   }
 
   const text = await res.text()
-  let json: { payment_link?: string; message?: string; error?: string; id?: string }
+  let json: {
+    payment_link?: string
+    message?: string
+    error?: string
+    id?: string
+    errors?: Record<string, string[]>
+  }
   try {
-    json = JSON.parse(text) as { payment_link?: string; message?: string; error?: string; id?: string }
+    json = JSON.parse(text) as {
+      payment_link?: string
+      message?: string
+      error?: string
+      id?: string
+      errors?: Record<string, string[]>
+    }
   } catch {
     await orderRef.delete()
     throw new HttpsError('internal', `OnePay respondió ${res.status}. Revisá la clave.`)
@@ -2589,8 +2620,13 @@ export const mcOnepayStartCatalogCheckout = onCall(
 
   if (!res.ok) {
     await orderRef.delete()
-    const msg = json.message || json.error || `HTTP ${res.status}`
-    throw new HttpsError('internal', msg)
+    const detail = json.errors
+      ? Object.entries(json.errors)
+          .flatMap(([k, v]) => (Array.isArray(v) ? v : [String(v)]).map((x) => `${k}: ${x}`))
+          .join('; ')
+      : ''
+    const msg = [json.message || json.error || `HTTP ${res.status}`, detail].filter(Boolean).join(' — ')
+    throw new HttpsError('internal', msg.slice(0, 500))
   }
 
   const paymentLink = json.payment_link
@@ -2913,7 +2949,20 @@ webhookApp.post(
 
     if (wantsApprove || wantsReject) {
       if (isPlatform && eventName.startsWith('charge.')) {
-        const charge = await onepayGetCharge(payId, secretKey)
+        let charge = await onepayGetCharge(payId, secretKey)
+        if (!charge && envelope.charge) {
+          const ext = onepayPickExternalId(envelope.charge as Record<string, unknown>)
+          if (ext.startsWith('mcb_') || ext.startsWith('mcb-')) {
+            const amount = envelope.charge.amount
+            charge = {
+              id: payId,
+              status: wantsApprove ? 'paid' : envelope.charge.status,
+              metadata: envelope.charge.metadata,
+              external_id: ext,
+              ...(typeof amount === 'number' ? { amount } : {}),
+            }
+          }
+        }
         if (charge && wantsApprove) {
           const billingResult = await mcBillingTryFinalizeFromChargeWebhook({
             db,
